@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent, PointerEvent, WheelEvent } from "react";
 import type { TreeGraph, TreeNode } from "../tree/types";
 import type { DebugOverlayState } from "./DebugControls";
@@ -16,19 +16,33 @@ type Point = {
   y: number;
 };
 
+type ViewportTransform = {
+  x: number;
+  y: number;
+  scale: number;
+};
+
+const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
+
 export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeViewerProps) {
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const viewportRef = useRef<SVGGElement | null>(null);
+  const viewportTransform = useRef<ViewportTransform>({ ...initialViewportTransform });
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
   const suppressNextNodeClick = useRef(false);
   const viewBox = buildFitViewBox(graph.bounds, 160);
   const connectedNodeIds = useMemo(() => new Set(graph.edges.flatMap((edge) => [edge.from, edge.to])), [graph.edges]);
 
+  useEffect(() => {
+    applyViewportTransform(viewportRef.current, viewportTransform.current);
+  }, [graph]);
+
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
-    setTransform((current) => ({
+    const current = viewportTransform.current;
+    setViewportTransform({
       ...current,
       scale: Math.min(4, Math.max(0.2, current.scale * (event.deltaY > 0 ? 0.9 : 1.1))),
-    }));
+    });
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
@@ -60,11 +74,12 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
 
     if (!dragged) return;
 
-    setTransform((current) => ({
+    const current = viewportTransform.current;
+    setViewportTransform({
       ...current,
       x: current.x + dx / current.scale,
       y: current.y + dy / current.scale,
-    }));
+    });
   }
 
   function handlePointerUp(event: PointerEvent<SVGSVGElement>) {
@@ -83,6 +98,15 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
     lastPointer.current = null;
   }
 
+  function setViewportTransform(nextTransform: ViewportTransform) {
+    viewportTransform.current = nextTransform;
+    applyViewportTransform(viewportRef.current, nextTransform);
+  }
+
+  function resetViewportTransform() {
+    setViewportTransform({ ...initialViewportTransform });
+  }
+
   function handleSelectNode(nodeId: string) {
     if (suppressNextNodeClick.current) {
       suppressNextNodeClick.current = false;
@@ -93,7 +117,7 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
 
   return (
     <div className="tree-viewer">
-      <button className="tool-button reset-view-button" type="button" onClick={() => setTransform({ x: 0, y: 0, scale: 1 })}>
+      <button className="tool-button reset-view-button" type="button" onClick={resetViewportTransform}>
         Reset View
       </button>
       <svg
@@ -107,7 +131,7 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
       >
-        <g transform={`translate(${formatTransformNumber(transform.x)} ${formatTransformNumber(transform.y)}) scale(${formatTransformNumber(transform.scale)})`}>
+        <g ref={viewportRef} transform={formatViewportTransform(viewportTransform.current)}>
           <g className="edge-layer">
             {graph.edges.map((edge) => {
               const from = graph.nodes[edge.from];
@@ -141,6 +165,14 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
       </svg>
     </div>
   );
+}
+
+function applyViewportTransform(layer: SVGGElement | null, transform: ViewportTransform) {
+  layer?.setAttribute("transform", formatViewportTransform(transform));
+}
+
+function formatViewportTransform(transform: ViewportTransform): string {
+  return `translate(${formatTransformNumber(transform.x)} ${formatTransformNumber(transform.y)}) scale(${formatTransformNumber(transform.scale)})`;
 }
 
 function releasePointerCapture(svg: SVGSVGElement, pointerId: number) {

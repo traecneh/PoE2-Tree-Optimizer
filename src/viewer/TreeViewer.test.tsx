@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { Profiler } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { sampleGraph } from "../tree/sampleGraph";
 import { TreeViewer } from "./TreeViewer";
@@ -79,6 +80,30 @@ describe("TreeViewer", () => {
     fireEvent.pointerUp(svg, { pointerId: 1 });
 
     expect(transformLayer?.getAttribute("transform")).toBe("translate(68 34) scale(1.1)");
+  });
+
+  it("updates the viewport transform without React commits during pan and zoom", () => {
+    let updateCount = 0;
+
+    render(
+      <Profiler id="tree-viewer" onRender={(_id, phase) => {
+        if (phase === "update") updateCount += 1;
+      }}>
+        <TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />
+      </Profiler>,
+    );
+
+    const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
+    const transformLayer = svg.querySelector("g");
+    mockSvgCoordinateConversion(svg);
+
+    fireEvent.wheel(svg, { deltaY: -100 });
+    fireEvent.pointerDown(svg, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 144, clientY: 122 });
+    fireEvent.pointerUp(svg, { pointerId: 1 });
+
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(68 34) scale(1.1)");
+    expect(updateCount).toBe(0);
   });
 
   it("does not pan below the drag threshold", () => {
