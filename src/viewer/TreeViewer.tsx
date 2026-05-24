@@ -9,9 +9,14 @@ type TreeViewerProps = {
   onSelectNode: (nodeId: string) => void;
 };
 
+type Point = {
+  x: number;
+  y: number;
+};
+
 export function TreeViewer({ graph, selectedNodeId, onSelectNode }: TreeViewerProps) {
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
-  const lastPointer = useRef<{ x: number; y: number; startX: number; startY: number; dragged: boolean } | null>(null);
+  const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
   const suppressNextNodeClick = useRef(false);
   const viewBox = buildFitViewBox(graph.bounds, 160);
 
@@ -25,31 +30,37 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode }: TreeViewerPr
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    lastPointer.current = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, dragged: false };
+    lastPointer.current = {
+      point: clientPointToSvg(event.currentTarget, event.clientX, event.clientY),
+      startX: event.clientX,
+      startY: event.clientY,
+      dragged: false,
+    };
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
     if (!lastPointer.current) return;
-    const dx = event.clientX - lastPointer.current.x;
-    const dy = event.clientY - lastPointer.current.y;
     const startDx = event.clientX - lastPointer.current.startX;
     const startDy = event.clientY - lastPointer.current.startY;
     const dragged = lastPointer.current.dragged || Math.hypot(startDx, startDy) > 4;
-    const panScale = svgPanScale(event.currentTarget);
+    const point = clientPointToSvg(event.currentTarget, event.clientX, event.clientY);
+    const dx = point.x - lastPointer.current.point.x;
+    const dy = point.y - lastPointer.current.point.y;
 
     lastPointer.current = {
-      x: event.clientX,
-      y: event.clientY,
+      point,
       startX: lastPointer.current.startX,
       startY: lastPointer.current.startY,
       dragged,
     };
     if (dragged) suppressNextNodeClick.current = true;
 
+    if (!dragged) return;
+
     setTransform((current) => ({
       ...current,
-      x: current.x + (dx * panScale.x) / current.scale,
-      y: current.y + (dy * panScale.y) / current.scale,
+      x: current.x + dx / current.scale,
+      y: current.y + dy / current.scale,
     }));
   }
 
@@ -137,15 +148,15 @@ function formatTransformNumber(value: number): string {
   return Number(value.toFixed(6)).toString();
 }
 
-function svgPanScale(svg: SVGSVGElement): { x: number; y: number } {
-  const [, , width, height] = (svg.getAttribute("viewBox") ?? "0 0 1 1")
-    .split(/\s+/)
-    .map((value) => Number(value));
+function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number): Point {
+  const point = svg.createSVGPoint?.();
+  const screenMatrix = svg.getScreenCTM?.();
+  if (!point || !screenMatrix) return { x: clientX, y: clientY };
 
-  return {
-    x: width / Math.max(svg.clientWidth, 1),
-    y: height / Math.max(svg.clientHeight, 1),
-  };
+  point.x = clientX;
+  point.y = clientY;
+  const svgPoint = point.matrixTransform(screenMatrix.inverse());
+  return { x: svgPoint.x, y: svgPoint.y };
 }
 
 function ButtonNode({ node, selected, onSelectNode }: { node: TreeNode; selected: boolean; onSelectNode: (nodeId: string) => void }) {
