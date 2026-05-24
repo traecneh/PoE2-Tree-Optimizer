@@ -93,6 +93,22 @@ npm run validate:graph
 
 The extractor writes `var/output/tree-graph.json` and `public/tree-graph.json`.
 
+## Passive Icon Export
+
+Passive skill rows include `Icon_DDSFile` paths. The graph normalizer preserves those paths and adds stable asset keys so the viewer can render generated PNGs from:
+
+```text
+public/tree-assets/icons/<asset-key>.png
+```
+
+Generated icon assets are local game data derivatives and are ignored by git. Export them with:
+
+```powershell
+npm run extract:icons
+```
+
+The command reads `public/tree-graph.json`, exports the unique DDS icons through `pathofexile-dat`, converts them to PNG, and writes `public/tree-assets/icon-manifest.json`. On machines without ImageMagick, the command builds a local `magick` shim in `var/icon-export/bin` that converts DDS bytes with Python/Pillow. On this install the main tree currently exports 543 unique icon PNGs for 4972 icon-bearing nodes.
+
 ## PSG Format Notes
 
 The exported PSG is a little-endian version 3 binary graph:

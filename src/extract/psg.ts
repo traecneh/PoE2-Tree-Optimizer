@@ -1,5 +1,6 @@
 import type { TreeEdge, TreeGraph, TreeGroup, TreeNode } from "../tree/types";
 import { POE2_ORBIT_RADII } from "../tree/orbits";
+import { passiveIconAssetKey } from "../tree/passiveIconAssets";
 
 export type ParsedPassiveSkillGraph = {
   version: 3;
@@ -185,8 +186,13 @@ function normalizeNodeRef(
       keystone,
       jewelSocket,
     },
-    art: typeof skill?.Icon_DDSFile === "string" ? { icon: skill.Icon_DDSFile } : undefined,
+    art: normalizePassiveIconArt(skill),
   };
+}
+
+function normalizePassiveIconArt(skill: Poe2PassiveSkillRow | undefined): TreeNode["art"] {
+  if (typeof skill?.Icon_DDSFile !== "string" || skill.Icon_DDSFile.trim() === "") return undefined;
+  return { icon: skill.Icon_DDSFile, assetKey: passiveIconAssetKey(skill.Icon_DDSFile) };
 }
 
 function resolveNodePosition(

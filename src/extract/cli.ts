@@ -4,13 +4,14 @@ import { discoverPoe2Install } from "./discovery";
 import { ExtractionError } from "./errors";
 import { inventoryGameData } from "./inventory";
 import { normalizePassiveTreePayload } from "./normalize";
+import { exportPassiveIconAssets, readTreeGraph } from "./passiveIconAssets";
 import { normalizePoe2PassiveTreeData, parsePassiveSkillGraph } from "./psg";
 import { validateTreeGraph } from "../tree/validateTreeGraph";
 import type { TreeGraph } from "../tree/types";
 
 const usage =
-  "Usage: tsx src/extract/cli.ts <inventory|graph|validate> [--install PATH] [--raw PATH] [--psg PATH] [--skills PATH] [--graph PATH] [--report PATH]";
-const knownFlags = new Set(["--install", "--raw", "--psg", "--skills", "--graph", "--report"]);
+  "Usage: tsx src/extract/cli.ts <inventory|graph|validate|icons> [--install PATH] [--raw PATH] [--psg PATH] [--skills PATH] [--graph PATH] [--report PATH] [--assets PATH] [--workdir PATH] [--limit COUNT]";
+const knownFlags = new Set(["--install", "--raw", "--psg", "--skills", "--graph", "--report", "--assets", "--workdir", "--limit"]);
 const command = process.argv[2];
 
 class CliError extends Error {
@@ -29,6 +30,8 @@ try {
   const rawPath = args.raw ?? "var/cache/raw-passive-tree.json";
   const graphPath = args.graph ?? "var/output/tree-graph.json";
   const reportPath = args.report ?? "var/output/validation-report.json";
+  const assetsPath = args.assets ?? "public/tree-assets";
+  const workDir = args.workdir ?? "var/icon-export";
 
   if (command === "inventory") {
     const install = discoverPoe2Install({ explicitPath });
@@ -55,6 +58,17 @@ try {
     writeJson(reportPath, report);
     console.log(`Wrote ${reportPath}`);
     if (report.issues.some((issue) => issue.code !== "missing-stats")) process.exitCode = 1;
+  } else if (command === "icons") {
+    const install = discoverPoe2Install({ explicitPath });
+    const graph = readTreeGraph(args.graph ?? "public/tree-graph.json");
+    const result = exportPassiveIconAssets({
+      graph,
+      installPath: install.installPath,
+      assetsDir: assetsPath,
+      workDir,
+      limit: parseLimit(args.limit),
+    });
+    console.log(`Wrote ${result.copiedIcons} icons to ${result.assetsDir} and ${result.manifestPath}`);
   } else {
     console.error(usage);
     process.exitCode = 2;
@@ -82,6 +96,9 @@ type CliArgs = {
   skills?: string;
   graph?: string;
   report?: string;
+  assets?: string;
+  workdir?: string;
+  limit?: string;
 };
 
 function readArgs(argv: string[]): CliArgs {
@@ -103,9 +120,21 @@ function readArgs(argv: string[]): CliArgs {
     else if (flag === "--skills") args.skills = value;
     else if (flag === "--graph") args.graph = value;
     else if (flag === "--report") args.report = value;
+    else if (flag === "--assets") args.assets = value;
+    else if (flag === "--workdir") args.workdir = value;
+    else if (flag === "--limit") args.limit = value;
   }
 
   return args;
+}
+
+function parseLimit(limit: string | undefined): number | undefined {
+  if (limit === undefined) return undefined;
+  const value = Number(limit);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new CliError("--limit must be a positive integer", 2);
+  }
+  return value;
 }
 
 function validateGraphArgs(args: CliArgs): void {

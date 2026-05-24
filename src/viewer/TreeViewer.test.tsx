@@ -442,6 +442,29 @@ describe("TreeViewer", () => {
     expect(attribute.querySelector(".node-glyph.attribute-glyph")).not.toBeNull();
   });
 
+  it("renders a game icon image for nodes with passive icon art", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        precise_shot: {
+          ...sampleGraph.nodes.precise_shot,
+          art: { icon: "Art/2DArt/SkillIcons/passives/CriticalNotable.dds" },
+        },
+      },
+    };
+
+    render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const node = screen.getByRole("button", { name: "Precise Shot" });
+    const icon = node.querySelector(".node-icon");
+
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute("href")).toBe("/tree-assets/icons/art-2dart-skillicons-passives-criticalnotable.png");
+    expect(icon?.getAttribute("width")).toBe("28.8");
+    expect(node.querySelector(".node-glyph.notable-glyph")).toBeNull();
+  });
+
   it("marks nodes missing stats and orphan nodes when debug overlays are enabled", () => {
     const graph = {
       ...sampleGraph,

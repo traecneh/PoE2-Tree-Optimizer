@@ -112,6 +112,24 @@ describe("normalizePoe2PassiveTreeData", () => {
 
     expect(graph.nodes["100"].stats).toEqual(["stat:2=10"]);
   });
+
+  it("does not create passive icon art for empty icon fields", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+          Icon_DDSFile: "",
+        },
+      ],
+    });
+
+    expect(graph.nodes["100"].art).toBeUndefined();
+  });
 });
 
 function makePsgFixture(): Buffer {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent, PointerEvent, WheelEvent } from "react";
+import { passiveIconPublicPath } from "../tree/passiveIconAssets";
 import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
 import type { DebugOverlayState } from "./DebugControls";
 import { buildTreeEdgePath } from "./treeEdgePath";
@@ -25,6 +26,7 @@ type NodeVisual = {
   haloRadius?: number;
   glyph?: NodeGlyph;
   accentClass: string;
+  iconSize: number;
 };
 
 type ViewportTransform = {
@@ -284,6 +286,9 @@ function ButtonNode({
   const visual = nodeVisual(node, typeClass);
   const radius = visual.coreRadius;
   const label = node.name ?? node.id;
+  const iconPath = node.art?.icon
+    ? passiveIconPublicPath(node.art.icon, node.art.assetKey)
+    : undefined;
   const missingStats = debug.highlightMissingStats && node.stats.length === 0 && !node.flags.jewelSocket && !node.flags.classStart;
   const handleSelect = () => onSelectNode(node.id);
   const handleKeyDown = (event: KeyboardEvent<SVGGElement>) => {
@@ -310,7 +315,18 @@ function ButtonNode({
       <circle className="node-core" r={radius}>
         <title>{label}</title>
       </circle>
-      {renderNodeGlyph(visual)}
+      {iconPath ? (
+        <image
+          className="node-icon"
+          href={iconPath}
+          x={-visual.iconSize / 2}
+          y={-visual.iconSize / 2}
+          width={visual.iconSize}
+          height={visual.iconSize}
+          preserveAspectRatio="xMidYMid meet"
+          aria-hidden="true"
+        />
+      ) : renderNodeGlyph(visual)}
       {debug.showNodeIds ? <text className="node-id-label" y={-radius - 8}>{node.id}</text> : null}
     </g>
   );
@@ -325,6 +341,7 @@ function nodeVisual(node: TreeNode, typeClass: string): NodeVisual {
     haloRadius: nodeHaloRadius(typeClass, coreRadius),
     glyph: nodeGlyph(typeClass),
     accentClass: nodeAccentClass(node),
+    iconSize: roundNodeVisualNumber(coreRadius * 1.6),
   };
 }
 
@@ -438,4 +455,8 @@ function renderNodeGlyph(visual: NodeVisual) {
       aria-hidden="true"
     />
   );
+}
+
+function roundNodeVisualNumber(value: number): number {
+  return Math.round(value * 10) / 10;
 }

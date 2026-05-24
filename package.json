@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "extract:inventory": "tsx src/extract/cli.ts inventory",
     "extract:graph": "tsx src/extract/cli.ts graph",
+    "extract:icons": "tsx src/extract/cli.ts icons",
     "validate:graph": "tsx src/extract/cli.ts validate"
   },
   "dependencies": {

@@ -167,6 +167,11 @@ button {
   stroke-width: 3;
 }
 
+.tree-node .node-icon {
+  opacity: 0.94;
+  pointer-events: none;
+}
+
 .tree-node.small .node-frame,
 .tree-node.attribute .node-frame {
   stroke: #506173;
