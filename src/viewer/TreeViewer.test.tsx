@@ -395,6 +395,53 @@ describe("TreeViewer", () => {
     expect(screen.getByText("mercenary_start").classList.contains("node-id-label")).toBe(true);
   });
 
+  it("renders distinct visual layers for passive node types", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        mind_over_matter: {
+          id: "mind_over_matter",
+          groupId: "g3",
+          name: "Mind over Matter",
+          stats: ["Keystone passive skill"],
+          position: { x: 480, y: -80 },
+          flags: { keystone: true },
+        },
+        dexterity: {
+          id: "dexterity",
+          groupId: "g3",
+          name: "Dexterity",
+          stats: ["+5 to Dexterity"],
+          position: { x: 520, y: 80 },
+          flags: { attribute: true },
+        },
+      },
+      groups: {
+        ...sampleGraph.groups,
+        g3: { id: "g3", position: { x: 500, y: 0 }, nodeIds: ["mind_over_matter", "dexterity"] },
+      },
+      bounds: { ...sampleGraph.bounds, maxX: 520, minY: -80 },
+    };
+
+    render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const classStart = screen.getByRole("button", { name: "Mercenary" });
+    const notable = screen.getByRole("button", { name: "Precise Shot" });
+    const jewel = screen.getByRole("button", { name: "Jewel Socket" });
+    const keystone = screen.getByRole("button", { name: "Mind over Matter" });
+    const attribute = screen.getByRole("button", { name: "Dexterity" });
+
+    expect(classStart.querySelector(".node-halo")).not.toBeNull();
+    expect(classStart.querySelector(".node-frame")).not.toBeNull();
+    expect(classStart.querySelector(".node-glyph.class-start-glyph")).not.toBeNull();
+    expect(notable.querySelector(".node-glyph.notable-glyph")).not.toBeNull();
+    expect(jewel.querySelector(".node-glyph.jewel-socket-glyph")).not.toBeNull();
+    expect(keystone.querySelector(".node-glyph.keystone-glyph")).not.toBeNull();
+    expect(attribute.classList.contains("node-accent-dexterity")).toBe(true);
+    expect(attribute.querySelector(".node-glyph.attribute-glyph")).not.toBeNull();
+  });
+
   it("marks nodes missing stats and orphan nodes when debug overlays are enabled", () => {
     const graph = {
       ...sampleGraph,
@@ -425,7 +472,7 @@ describe("TreeViewer", () => {
     expect(node.classList.contains("orphan-node")).toBe(true);
   });
 
-  it("keeps selected node core above debug overlay rings", () => {
+  it("keeps selected node visuals above debug overlay rings", () => {
     const graph = {
       ...sampleGraph,
       nodes: {
@@ -458,6 +505,7 @@ describe("TreeViewer", () => {
     expect(circles.map((circle) => circle.getAttribute("class"))).toEqual([
       "debug-ring orphan-ring",
       "debug-ring missing-stats-ring",
+      "node-frame",
       "node-core",
     ]);
   });

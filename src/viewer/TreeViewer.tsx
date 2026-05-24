@@ -17,6 +17,16 @@ type Point = {
   y: number;
 };
 
+type NodeGlyph = "class-start" | "keystone" | "notable" | "jewel-socket" | "attribute";
+
+type NodeVisual = {
+  coreRadius: number;
+  frameRadius: number;
+  haloRadius?: number;
+  glyph?: NodeGlyph;
+  accentClass: string;
+};
+
 type ViewportTransform = {
   x: number;
   y: number;
@@ -270,7 +280,9 @@ function ButtonNode({
   orphan: boolean;
   onSelectNode: (nodeId: string) => void;
 }) {
-  const radius = nodeRadius(node);
+  const typeClass = nodeClass(node);
+  const visual = nodeVisual(node, typeClass);
+  const radius = visual.coreRadius;
   const label = node.name ?? node.id;
   const missingStats = debug.highlightMissingStats && node.stats.length === 0 && !node.flags.jewelSocket && !node.flags.classStart;
   const handleSelect = () => onSelectNode(node.id);
@@ -282,7 +294,7 @@ function ButtonNode({
 
   return (
     <g
-      className={`tree-node ${nodeClass(node)}${selected ? " selected" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
+      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}
@@ -293,12 +305,27 @@ function ButtonNode({
     >
       {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14} /> : null}
       {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8} /> : null}
+      {visual.haloRadius ? <circle className="node-halo" r={visual.haloRadius} /> : null}
+      <circle className="node-frame" r={visual.frameRadius} />
       <circle className="node-core" r={radius}>
         <title>{label}</title>
       </circle>
+      {renderNodeGlyph(visual)}
       {debug.showNodeIds ? <text className="node-id-label" y={-radius - 8}>{node.id}</text> : null}
     </g>
   );
+}
+
+function nodeVisual(node: TreeNode, typeClass: string): NodeVisual {
+  const coreRadius = nodeRadius(node);
+  const isSmallFrame = typeClass === "small" || typeClass === "attribute";
+  return {
+    coreRadius,
+    frameRadius: coreRadius + (isSmallFrame ? 3 : 5),
+    haloRadius: nodeHaloRadius(typeClass, coreRadius),
+    glyph: nodeGlyph(typeClass),
+    accentClass: nodeAccentClass(node),
+  };
 }
 
 function nodeRadius(node: TreeNode): number {
@@ -316,4 +343,99 @@ function nodeClass(node: TreeNode): string {
   if (node.flags.jewelSocket) return "jewel-socket";
   if (node.flags.attribute) return "attribute";
   return "small";
+}
+
+function nodeHaloRadius(typeClass: string, coreRadius: number): number | undefined {
+  if (typeClass === "class-start") return coreRadius + 12;
+  if (typeClass === "keystone") return coreRadius + 10;
+  if (typeClass === "notable" || typeClass === "jewel-socket") return coreRadius + 7;
+  return undefined;
+}
+
+function nodeGlyph(typeClass: string): NodeGlyph | undefined {
+  if (
+    typeClass === "class-start"
+    || typeClass === "keystone"
+    || typeClass === "notable"
+    || typeClass === "jewel-socket"
+    || typeClass === "attribute"
+  ) {
+    return typeClass;
+  }
+  return undefined;
+}
+
+function nodeAccentClass(node: TreeNode): string {
+  const text = node.stats.join(" ").toLowerCase();
+  if (text.includes("strength")) return "node-accent-strength";
+  if (text.includes("dexterity")) return "node-accent-dexterity";
+  if (text.includes("intelligence")) return "node-accent-intelligence";
+  if (text.includes("critical")) return "node-accent-critical";
+  if (text.includes("evasion")) return "node-accent-evasion";
+  if (text.includes("energy shield")) return "node-accent-energy-shield";
+  if (text.includes("armour")) return "node-accent-armour";
+  if (text.includes("spell")) return "node-accent-spell";
+  if (text.includes("minion")) return "node-accent-minion";
+  if (text.includes("fire")) return "node-accent-fire";
+  if (text.includes("cold")) return "node-accent-cold";
+  if (text.includes("lightning")) return "node-accent-lightning";
+  if (text.includes("chaos")) return "node-accent-chaos";
+  return "node-accent-default";
+}
+
+function renderNodeGlyph(visual: NodeVisual) {
+  if (!visual.glyph) return null;
+
+  const r = Math.round(visual.coreRadius * 0.48);
+  const inner = Math.round(r * 0.42);
+  const outer = Math.round(r * 0.82);
+  const className = `node-glyph ${visual.glyph}-glyph`;
+
+  if (visual.glyph === "class-start") {
+    return (
+      <path
+        className={className}
+        d={`M 0 ${-r} L 0 ${r} M ${-r} 0 L ${r} 0 M ${-outer} ${-outer} L ${outer} ${outer} M ${-outer} ${outer} L ${outer} ${-outer}`}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (visual.glyph === "keystone") {
+    return (
+      <path
+        className={className}
+        d={`M 0 ${-r} L ${inner} ${-inner} L ${r} 0 L ${inner} ${inner} L 0 ${r} L ${-inner} ${inner} L ${-r} 0 L ${-inner} ${-inner} Z`}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (visual.glyph === "notable") {
+    return (
+      <path
+        className={className}
+        d={`M 0 ${-r} L ${r} 0 L 0 ${r} L ${-r} 0 Z`}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (visual.glyph === "jewel-socket") {
+    return (
+      <path
+        className={className}
+        d={`M 0 ${-r} L ${outer} ${-inner} L ${outer} ${inner} L 0 ${r} L ${-outer} ${inner} L ${-outer} ${-inner} Z`}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return (
+    <path
+      className={className}
+      d={`M ${-r} 0 L ${r} 0 M 0 ${-r} L 0 ${r}`}
+      aria-hidden="true"
+    />
+  );
 }

@@ -134,10 +134,42 @@ button {
   stroke-width: 12px;
 }
 
+.tree-node .node-halo,
+.tree-node .node-frame,
 .tree-node .node-core {
   cursor: pointer;
-  stroke: #111827;
-  stroke-width: 4;
+}
+
+.tree-node .node-halo {
+  fill: #263648;
+  opacity: 0.34;
+  pointer-events: none;
+}
+
+.tree-node .node-frame {
+  fill: #10161e;
+  stroke: #2f3a49;
+  stroke-width: 3;
+}
+
+.tree-node .node-core {
+  fill: #8fa4bb;
+  stroke: #0a0f16;
+  stroke-width: 2;
+}
+
+.tree-node .node-glyph {
+  fill: none;
+  pointer-events: none;
+  stroke: #dce6f1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.tree-node.small .node-frame,
+.tree-node.attribute .node-frame {
+  stroke: #506173;
 }
 
 .tree-node.small .node-core,
@@ -145,25 +177,142 @@ button {
   fill: #8fa4bb;
 }
 
+.tree-node.attribute .node-glyph {
+  stroke: #e2ebf4;
+  stroke-width: 2.5;
+}
+
 .tree-node.notable .node-core {
-  fill: #d6b35d;
+  fill: #6c5323;
+}
+
+.tree-node.notable .node-halo {
+  fill: #5f451f;
+}
+
+.tree-node.notable .node-frame {
+  stroke: #caa557;
+  stroke-width: 4;
+}
+
+.tree-node.notable .node-glyph {
+  fill: rgba(214, 179, 93, 0.32);
+  stroke: #f1d391;
 }
 
 .tree-node.keystone .node-core {
-  fill: #c9704c;
+  fill: #5e2a20;
+}
+
+.tree-node.keystone .node-halo {
+  fill: #623021;
+}
+
+.tree-node.keystone .node-frame {
+  stroke: #c9704c;
+  stroke-width: 5;
+}
+
+.tree-node.keystone .node-glyph {
+  fill: rgba(201, 112, 76, 0.38);
+  stroke: #f0b28f;
 }
 
 .tree-node.jewel-socket .node-core {
-  fill: #6bb6a6;
+  fill: #184842;
+}
+
+.tree-node.jewel-socket .node-halo {
+  fill: #1d514a;
+}
+
+.tree-node.jewel-socket .node-frame {
+  stroke: #66b5a4;
+  stroke-width: 4;
+}
+
+.tree-node.jewel-socket .node-glyph {
+  fill: rgba(107, 182, 166, 0.3);
+  stroke: #a6eadf;
 }
 
 .tree-node.class-start .node-core {
-  fill: #b8c7d8;
+  fill: #4c5e70;
 }
 
-.tree-node.selected .node-core {
+.tree-node.class-start .node-halo {
+  fill: #66788c;
+}
+
+.tree-node.class-start .node-frame {
+  stroke: #c9d8e8;
+  stroke-width: 5;
+}
+
+.tree-node.class-start .node-glyph {
+  stroke: #f2f7fb;
+  stroke-width: 3.2;
+}
+
+.tree-node.node-accent-strength .node-core {
+  fill: #a45f54;
+}
+
+.tree-node.node-accent-dexterity .node-core {
+  fill: #639a73;
+}
+
+.tree-node.node-accent-intelligence .node-core {
+  fill: #5c79b6;
+}
+
+.tree-node.node-accent-critical .node-core {
+  fill: #b08a46;
+}
+
+.tree-node.node-accent-evasion .node-core {
+  fill: #5f947f;
+}
+
+.tree-node.node-accent-energy-shield .node-core,
+.tree-node.node-accent-spell .node-core {
+  fill: #637db2;
+}
+
+.tree-node.node-accent-armour .node-core {
+  fill: #967057;
+}
+
+.tree-node.node-accent-minion .node-core {
+  fill: #806aa6;
+}
+
+.tree-node.node-accent-fire .node-core {
+  fill: #a66545;
+}
+
+.tree-node.node-accent-cold .node-core {
+  fill: #6f9fb3;
+}
+
+.tree-node.node-accent-lightning .node-core {
+  fill: #aaa054;
+}
+
+.tree-node.node-accent-chaos .node-core {
+  fill: #755a91;
+}
+
+.tree-node.selected .node-frame,
+.tree-node:focus-visible .node-frame {
   stroke: #ffffff;
-  stroke-width: 7;
+  stroke-width: 6;
+}
+
+.tree-node.selected .node-core,
+.tree-node:focus-visible .node-core {
+  stroke: #ffffff;
+  stroke-width: 2.5;
 }
 
 .tree-node .debug-ring {
@@ -191,11 +340,6 @@ button {
 
 .tree-node:focus {
   outline: none;
-}
-
-.tree-node:focus-visible .node-core {
-  stroke: #ffffff;
-  stroke-width: 7;
 }
 
 .inspector {
