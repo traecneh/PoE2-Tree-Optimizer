@@ -120,10 +120,10 @@ describe("TreeViewer", () => {
 
     render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
 
-    const lines = Array.from(document.querySelectorAll(".tree-edge"));
+    const paths = Array.from(document.querySelectorAll(".tree-edge"));
 
-    expect(lines).toHaveLength(1);
-    expect(lines[0].getAttribute("x2")).toBe("100");
+    expect(paths).toHaveLength(1);
+    expect(paths[0].getAttribute("d")).toBe("M 0 0 L 100 0");
   });
 
   it("does not draw long guide edges from outside ascendancy path nodes back to class starts", () => {
@@ -163,10 +163,42 @@ describe("TreeViewer", () => {
 
     render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
 
-    const lines = Array.from(document.querySelectorAll(".tree-edge"));
+    const paths = Array.from(document.querySelectorAll(".tree-edge"));
 
-    expect(lines).toHaveLength(1);
-    expect(lines[0].getAttribute("x2")).toBe("100");
+    expect(paths).toHaveLength(1);
+    expect(paths[0].getAttribute("d")).toBe("M 0 0 L 100 0");
+  });
+
+  it("draws same-orbit group edges as arcs", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        east: {
+          id: "east",
+          groupId: "g1",
+          name: "East",
+          stats: [],
+          position: { x: 100, y: 0 },
+          flags: { small: true },
+        },
+        south: {
+          id: "south",
+          groupId: "g1",
+          name: "South",
+          stats: [],
+          position: { x: 0, y: 100 },
+          flags: { small: true },
+        },
+      },
+      edges: [{ from: "east", to: "south" }],
+      groups: { g1: { id: "g1", position: { x: 0, y: 0 }, nodeIds: ["east", "south"] } },
+      classStarts: {},
+      bounds: { minX: 0, maxX: 100, minY: 0, maxY: 100 },
+    };
+
+    render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    expect(document.querySelector(".tree-edge")?.getAttribute("d")).toBe("M 100 0 A 100 100 0 0 1 0 100");
   });
 
   it("updates the viewport transform without React commits during pan and zoom", () => {

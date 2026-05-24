@@ -91,6 +91,7 @@ button {
 }
 
 .tree-edge {
+  fill: none;
   stroke: #56657a;
   stroke-width: 5;
   stroke-linecap: round;

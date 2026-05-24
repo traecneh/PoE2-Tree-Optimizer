@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent, PointerEvent, WheelEvent } from "react";
 import type { TreeGraph, TreeNode } from "../tree/types";
 import type { DebugOverlayState } from "./DebugControls";
+import { buildTreeEdgePath } from "./treeEdgePath";
 import { buildFitViewBox } from "./treeViewBox";
 
 type TreeViewerProps = {
@@ -33,8 +34,17 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
   const viewBox = buildFitViewBox(graph.bounds, 160);
   const connectedNodeIds = useMemo(() => new Set(graph.edges.flatMap((edge) => [edge.from, edge.to])), [graph.edges]);
   const renderedEdges = useMemo(
-    () => graph.edges.filter((edge) => shouldDrawEdge(graph.nodes[edge.from], graph.nodes[edge.to])),
-    [graph.edges, graph.nodes],
+    () => graph.edges.flatMap((edge) => {
+      const from = graph.nodes[edge.from];
+      const to = graph.nodes[edge.to];
+      if (!shouldDrawEdge(from, to)) return [];
+      const group = from.groupId && from.groupId === to.groupId ? graph.groups[from.groupId] : undefined;
+      return [{
+        id: `${edge.from}-${edge.to}`,
+        path: buildTreeEdgePath(from, to, group),
+      }];
+    }),
+    [graph.edges, graph.groups, graph.nodes],
   );
 
   useEffect(() => {
@@ -138,21 +148,7 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
       >
         <g ref={viewportRef} transform={formatViewportTransform(viewportTransform.current)}>
           <g className="edge-layer">
-            {renderedEdges.map((edge) => {
-              const from = graph.nodes[edge.from];
-              const to = graph.nodes[edge.to];
-              if (!from || !to) return null;
-              return (
-                <line
-                  key={`${edge.from}-${edge.to}`}
-                  className="tree-edge"
-                  x1={from.position.x}
-                  y1={from.position.y}
-                  x2={to.position.x}
-                  y2={to.position.y}
-                />
-              );
-            })}
+            {renderedEdges.map((edge) => <path key={edge.id} className="tree-edge" d={edge.path} />)}
           </g>
           <g className="node-layer">
             {Object.values(graph.nodes).map((node) => (
