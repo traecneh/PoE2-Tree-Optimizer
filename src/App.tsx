@@ -12,6 +12,8 @@ export default function App() {
     showNodeIds: false,
     highlightMissingStats: false,
     highlightOrphans: false,
+    showEdgeRoutes: false,
+    showEdgeRouteLabels: false,
   });
   const selectedNode = useMemo(
     () => (selectedNodeId ? graph.nodes[selectedNodeId] : undefined),

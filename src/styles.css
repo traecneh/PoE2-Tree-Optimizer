@@ -50,6 +50,7 @@ button {
 
 .debug-controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   color: #c6d0df;
@@ -95,6 +96,42 @@ button {
   stroke: #56657a;
   stroke-width: 5;
   stroke-linecap: round;
+}
+
+.tree-edge.edge-route-debug {
+  opacity: 0.9;
+  stroke-width: 7;
+}
+
+.tree-edge.edge-route-zero {
+  stroke: #415069;
+}
+
+.tree-edge.edge-route-positive {
+  stroke: #5dc9e6;
+}
+
+.tree-edge.edge-route-negative {
+  stroke: #e073b7;
+}
+
+.tree-edge.edge-route-sentinel {
+  stroke: #f0bd58;
+}
+
+.tree-edge.edge-route-unknown {
+  stroke: #d8dee9;
+}
+
+.edge-route-label {
+  fill: #f4f7fb;
+  font-size: 44px;
+  font-weight: 700;
+  pointer-events: none;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #0d1118;
+  stroke-width: 12px;
 }
 
 .tree-node .node-core {

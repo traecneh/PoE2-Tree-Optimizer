@@ -10,6 +10,8 @@ describe("TreeViewer", () => {
     showNodeIds: false,
     highlightMissingStats: false,
     highlightOrphans: false,
+    showEdgeRoutes: false,
+    showEdgeRouteLabels: false,
   };
 
   function mockSvgCoordinateConversion(svg: SVGSVGElement, scale = 1.7) {
@@ -199,6 +201,103 @@ describe("TreeViewer", () => {
     render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
 
     expect(document.querySelector(".tree-edge")?.getAttribute("d")).toBe("M 100 0 A 100 100 0 0 1 0 100");
+  });
+
+  it("marks edge route classes and metadata when route debugging is enabled", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        a: {
+          id: "a",
+          name: "A",
+          stats: [],
+          position: { x: 0, y: 0 },
+          flags: { small: true },
+        },
+        b: {
+          id: "b",
+          name: "B",
+          stats: [],
+          position: { x: 100, y: 0 },
+          flags: { small: true },
+        },
+        c: {
+          id: "c",
+          name: "C",
+          stats: [],
+          position: { x: 200, y: 0 },
+          flags: { small: true },
+        },
+      },
+      edges: [
+        { from: "a", to: "b", connectionOrbit: 3 },
+        { from: "b", to: "c", connectionOrbit: -3 },
+      ],
+      groups: {},
+      classStarts: {},
+      bounds: { minX: 0, maxX: 200, minY: 0, maxY: 0 },
+    };
+
+    render(
+      <TreeViewer
+        graph={graph}
+        onSelectNode={vi.fn()}
+        debug={{ ...debugOff, showEdgeRoutes: true }}
+      />,
+    );
+
+    const paths = Array.from(document.querySelectorAll(".tree-edge"));
+    expect(paths[0].classList.contains("edge-route-positive")).toBe(true);
+    expect(paths[0].getAttribute("data-route-orbit")).toBe("3");
+    expect(paths[1].classList.contains("edge-route-negative")).toBe(true);
+    expect(paths[1].getAttribute("data-route-orbit")).toBe("-3");
+  });
+
+  it("labels non-zero routed edges when route labels are enabled", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        a: {
+          id: "a",
+          name: "A",
+          stats: [],
+          position: { x: 0, y: 0 },
+          flags: { small: true },
+        },
+        b: {
+          id: "b",
+          name: "B",
+          stats: [],
+          position: { x: 100, y: 0 },
+          flags: { small: true },
+        },
+        c: {
+          id: "c",
+          name: "C",
+          stats: [],
+          position: { x: 200, y: 0 },
+          flags: { small: true },
+        },
+      },
+      edges: [
+        { from: "a", to: "b", connectionOrbit: 3 },
+        { from: "b", to: "c", connectionOrbit: 0 },
+      ],
+      groups: {},
+      classStarts: {},
+      bounds: { minX: 0, maxX: 200, minY: 0, maxY: 0 },
+    };
+
+    render(
+      <TreeViewer
+        graph={graph}
+        onSelectNode={vi.fn()}
+        debug={{ ...debugOff, showEdgeRoutes: true, showEdgeRouteLabels: true }}
+      />,
+    );
+
+    expect(screen.getByText("+3").classList.contains("edge-route-label")).toBe(true);
+    expect(document.querySelectorAll(".edge-route-label")).toHaveLength(1);
   });
 
   it("updates the viewport transform without React commits during pan and zoom", () => {

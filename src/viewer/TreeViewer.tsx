@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent, PointerEvent, WheelEvent } from "react";
-import type { TreeGraph, TreeNode } from "../tree/types";
+import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
 import type { DebugOverlayState } from "./DebugControls";
 import { buildTreeEdgePath } from "./treeEdgePath";
 import { buildFitViewBox } from "./treeViewBox";
@@ -42,9 +42,13 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
       return [{
         id: `${edge.from}-${edge.to}`,
         path: buildTreeEdgePath(from, to, group, edge),
+        routeOrbit: edge.connectionOrbit,
+        className: debug.showEdgeRoutes ? `tree-edge edge-route-debug ${edgeRouteClass(edge)}` : "tree-edge",
+        label: formatEdgeRouteLabel(edge.connectionOrbit),
+        labelPosition: midpoint(from, to),
       }];
     }),
-    [graph.edges, graph.groups, graph.nodes],
+    [debug.showEdgeRoutes, graph.edges, graph.groups, graph.nodes],
   );
 
   useEffect(() => {
@@ -148,8 +152,31 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
       >
         <g ref={viewportRef} transform={formatViewportTransform(viewportTransform.current)}>
           <g className="edge-layer">
-            {renderedEdges.map((edge) => <path key={edge.id} className="tree-edge" d={edge.path} />)}
+            {renderedEdges.map((edge) => (
+              <path
+                key={edge.id}
+                className={edge.className}
+                d={edge.path}
+                data-route-orbit={debug.showEdgeRoutes ? edge.routeOrbit : undefined}
+              />
+            ))}
           </g>
+          {debug.showEdgeRoutes && debug.showEdgeRouteLabels ? (
+            <g className="edge-label-layer" aria-hidden="true">
+              {renderedEdges.flatMap((edge) => (
+                edge.label ? [
+                  <text
+                    key={edge.id}
+                    className="edge-route-label"
+                    x={edge.labelPosition.x}
+                    y={edge.labelPosition.y - 8}
+                  >
+                    {edge.label}
+                  </text>,
+                ] : []
+              ))}
+            </g>
+          ) : null}
           <g className="node-layer">
             {Object.values(graph.nodes).map((node) => (
               <ButtonNode
@@ -176,6 +203,27 @@ function shouldDrawEdge(from: TreeNode | undefined, to: TreeNode | undefined): b
 
 function edgeLength(from: TreeNode, to: TreeNode): number {
   return Math.hypot(to.position.x - from.position.x, to.position.y - from.position.y);
+}
+
+function midpoint(from: TreeNode, to: TreeNode): Point {
+  return {
+    x: (from.position.x + to.position.x) / 2,
+    y: (from.position.y + to.position.y) / 2,
+  };
+}
+
+function edgeRouteClass(edge: TreeEdge): string {
+  const orbit = edge.connectionOrbit;
+  if (orbit === undefined) return "edge-route-unknown";
+  if (orbit === 0) return "edge-route-zero";
+  if (orbit === 2147483647) return "edge-route-sentinel";
+  return orbit > 0 ? "edge-route-positive" : "edge-route-negative";
+}
+
+function formatEdgeRouteLabel(connectionOrbit: number | undefined): string | undefined {
+  if (connectionOrbit === undefined || connectionOrbit === 0) return undefined;
+  if (connectionOrbit === 2147483647) return "max";
+  return connectionOrbit > 0 ? `+${connectionOrbit}` : String(connectionOrbit);
 }
 
 function applyViewportTransform(layer: SVGGElement | null, transform: ViewportTransform) {

@@ -2,6 +2,8 @@ export type DebugOverlayState = {
   showNodeIds: boolean;
   highlightMissingStats: boolean;
   highlightOrphans: boolean;
+  showEdgeRoutes: boolean;
+  showEdgeRouteLabels: boolean;
 };
 
 export function DebugControls({
@@ -36,6 +38,22 @@ export function DebugControls({
           onChange={(event) => onChange({ ...value, highlightOrphans: event.currentTarget.checked })}
         />{" "}
         Orphans
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={value.showEdgeRoutes}
+          onChange={(event) => onChange({ ...value, showEdgeRoutes: event.currentTarget.checked })}
+        />{" "}
+        Edge routes
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={value.showEdgeRouteLabels}
+          onChange={(event) => onChange({ ...value, showEdgeRouteLabels: event.currentTarget.checked })}
+        />{" "}
+        Route labels
       </label>
     </div>
   );
