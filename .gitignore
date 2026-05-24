@@ -6,3 +6,4 @@ coverage/
 .env
 var/
 public/tree-graph.json
+*.tsbuildinfo
