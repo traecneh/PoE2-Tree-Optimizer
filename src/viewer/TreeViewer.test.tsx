@@ -126,6 +126,49 @@ describe("TreeViewer", () => {
     expect(lines[0].getAttribute("x2")).toBe("100");
   });
 
+  it("does not draw long guide edges from outside ascendancy path nodes back to class starts", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        central_start_neighbor: {
+          id: "central_start_neighbor",
+          name: "Melee Damage",
+          stats: ["10% increased Melee Damage"],
+          position: { x: 0, y: 0 },
+          flags: { small: true },
+        },
+        nearby_passive: {
+          id: "nearby_passive",
+          name: "Nearby Passive",
+          stats: ["10% increased Damage"],
+          position: { x: 100, y: 0 },
+          flags: { small: true },
+        },
+        outside_path_node: {
+          id: "outside_path_node",
+          name: "Path of the Warrior",
+          stats: [],
+          position: { x: 18000, y: 0 },
+          flags: { small: true },
+        },
+      },
+      edges: [
+        { from: "central_start_neighbor", to: "nearby_passive" },
+        { from: "central_start_neighbor", to: "outside_path_node" },
+      ],
+      groups: {},
+      classStarts: {},
+      bounds: { minX: 0, maxX: 18000, minY: 0, maxY: 0 },
+    };
+
+    render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const lines = Array.from(document.querySelectorAll(".tree-edge"));
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0].getAttribute("x2")).toBe("100");
+  });
+
   it("updates the viewport transform without React commits during pan and zoom", () => {
     let updateCount = 0;
 

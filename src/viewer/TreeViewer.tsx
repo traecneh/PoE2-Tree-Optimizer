@@ -23,6 +23,7 @@ type ViewportTransform = {
 };
 
 const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
+const maxVisibleEdgeLength = 3000;
 
 export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeViewerProps) {
   const viewportRef = useRef<SVGGElement | null>(null);
@@ -173,7 +174,12 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
 
 function shouldDrawEdge(from: TreeNode | undefined, to: TreeNode | undefined): boolean {
   if (!from || !to) return false;
+  if (edgeLength(from, to) > maxVisibleEdgeLength) return false;
   return !(from.flags.classStart && to.flags.classStart);
+}
+
+function edgeLength(from: TreeNode, to: TreeNode): number {
+  return Math.hypot(to.position.x - from.position.x, to.position.y - from.position.y);
 }
 
 function applyViewportTransform(layer: SVGGElement | null, transform: ViewportTransform) {
