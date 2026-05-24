@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent, WheelEvent } from "react";
 import type { TreeGraph, TreeNode } from "../tree/types";
 import type { DebugOverlayState } from "./DebugControls";
@@ -21,7 +21,7 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
   const suppressNextNodeClick = useRef(false);
   const viewBox = buildFitViewBox(graph.bounds, 160);
-  const connectedNodeIds = new Set(graph.edges.flatMap((edge) => [edge.from, edge.to]));
+  const connectedNodeIds = useMemo(() => new Set(graph.edges.flatMap((edge) => [edge.from, edge.to])), [graph.edges]);
 
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
@@ -198,7 +198,9 @@ function ButtonNode({
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
     >
-      <circle r={radius}>
+      {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14} /> : null}
+      {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8} /> : null}
+      <circle className="node-core" r={radius}>
         <title>{label}</title>
       </circle>
       {debug.showNodeIds ? <text className="node-id-label" y={-radius - 8}>{node.id}</text> : null}

@@ -168,4 +168,41 @@ describe("TreeViewer", () => {
     expect(node.classList.contains("missing-stats")).toBe(true);
     expect(node.classList.contains("orphan-node")).toBe(true);
   });
+
+  it("keeps selected node core above debug overlay rings", () => {
+    const graph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        missing_stats: {
+          id: "missing_stats",
+          groupId: "g3",
+          name: "Missing Stats",
+          stats: [],
+          position: { x: 480, y: 120 },
+          flags: { small: true },
+        },
+      },
+      bounds: { ...sampleGraph.bounds, maxX: 480, maxY: 120 },
+    };
+
+    render(
+      <TreeViewer
+        graph={graph}
+        selectedNodeId="missing_stats"
+        onSelectNode={vi.fn()}
+        debug={{ ...debugOff, highlightMissingStats: true, highlightOrphans: true }}
+      />,
+    );
+
+    const node = screen.getByRole("button", { name: "Missing Stats" });
+    const circles = Array.from(node.querySelectorAll("circle"));
+
+    expect(node.classList.contains("selected")).toBe(true);
+    expect(circles.map((circle) => circle.getAttribute("class"))).toEqual([
+      "debug-ring orphan-ring",
+      "debug-ring missing-stats-ring",
+      "node-core",
+    ]);
+  });
 });

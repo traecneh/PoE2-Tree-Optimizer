@@ -30,7 +30,7 @@ export function NodeInspector({ node, edges }: { node?: TreeNode; edges: TreeEdg
         <dd>{connected.join(", ") || "none"}</dd>
       </dl>
       <h3>Stats</h3>
-      <ul>{node.stats.map((stat) => <li key={stat}>{stat}</li>)}</ul>
+      <ul>{node.stats.map((stat, index) => <li key={`${stat}-${index}`}>{stat}</li>)}</ul>
       <h3>Flags</h3>
       <pre>{JSON.stringify(node.flags, null, 2)}</pre>
     </aside>

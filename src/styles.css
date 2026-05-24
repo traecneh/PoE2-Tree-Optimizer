@@ -96,43 +96,49 @@ button {
   stroke-linecap: round;
 }
 
-.tree-node circle {
+.tree-node .node-core {
   cursor: pointer;
   stroke: #111827;
   stroke-width: 4;
 }
 
-.tree-node.small circle,
-.tree-node.attribute circle {
+.tree-node.small .node-core,
+.tree-node.attribute .node-core {
   fill: #8fa4bb;
 }
 
-.tree-node.notable circle {
+.tree-node.notable .node-core {
   fill: #d6b35d;
 }
 
-.tree-node.keystone circle {
+.tree-node.keystone .node-core {
   fill: #c9704c;
 }
 
-.tree-node.jewel-socket circle {
+.tree-node.jewel-socket .node-core {
   fill: #6bb6a6;
 }
 
-.tree-node.class-start circle {
+.tree-node.class-start .node-core {
   fill: #b8c7d8;
 }
 
-.tree-node.selected circle {
+.tree-node.selected .node-core {
   stroke: #ffffff;
   stroke-width: 7;
 }
 
-.tree-node.missing-stats circle {
+.tree-node .debug-ring {
+  fill: none;
+  pointer-events: none;
+  stroke-width: 4;
+}
+
+.tree-node .missing-stats-ring {
   stroke: #ff4d4d;
 }
 
-.tree-node.orphan-node circle {
+.tree-node .orphan-ring {
   stroke: #ffcc4d;
 }
 
@@ -149,7 +155,7 @@ button {
   outline: none;
 }
 
-.tree-node:focus-visible circle {
+.tree-node:focus-visible .node-core {
   stroke: #ffffff;
   stroke-width: 7;
 }
