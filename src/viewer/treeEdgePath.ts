@@ -19,7 +19,7 @@ function buildConnectionOrbitArc(from: TreeNode, to: TreeNode, connectionOrbit: 
   const chordLength = distance(from.position, to.position);
   if (chordLength === 0 || chordLength > radius * 2) return undefined;
 
-  return buildArcPath(from, to, radius, connectionOrbit > 0 ? 1 : 0);
+  return buildArcPath(from, to, radius, connectionOrbit > 0 ? 0 : 1);
 }
 
 function buildSameOrbitArc(

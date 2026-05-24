@@ -18,13 +18,26 @@ describe("buildTreeEdgePath", () => {
 
   it("uses the game connection orbit as a routed arc radius", () => {
     expect(buildTreeEdgePath(node("a", 0, 0), node("b", 100, 0), undefined, edge("a", "b", 1))).toBe(
-      "M 0 0 A 82 82 0 0 1 100 0",
+      "M 0 0 A 82 82 0 0 0 100 0",
     );
   });
 
   it("uses the game connection orbit sign to choose the other routed arc side", () => {
     expect(buildTreeEdgePath(node("a", 0, 0), node("b", 100, 0), undefined, edge("a", "b", -1))).toBe(
-      "M 0 0 A 82 82 0 0 0 100 0",
+      "M 0 0 A 82 82 0 0 1 100 0",
+    );
+  });
+
+  it("routes the SIX start branch positive orbit on the alternate side", () => {
+    expect(
+      buildTreeEdgePath(
+        node("skill_speed", 1394.404456, -956.444946),
+        node("attribute", 1248.046163, -1533.944946),
+        undefined,
+        edge("skill_speed", "attribute", 4),
+      ),
+    ).toBe(
+      "M 1394.404456 -956.444946 A 493 493 0 0 0 1248.046163 -1533.944946",
     );
   });
 
