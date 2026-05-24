@@ -1,9 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { sampleGraph } from "./tree/sampleGraph";
 import type { TreeGraph } from "./tree/types";
+import { TreeViewer } from "./viewer/TreeViewer";
 
 export default function App() {
   const [graph, setGraph] = useState<TreeGraph>(sampleGraph);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
+  const selectedNode = useMemo(
+    () => (selectedNodeId ? graph.nodes[selectedNodeId] : undefined),
+    [graph.nodes, selectedNodeId],
+  );
 
   useEffect(() => {
     fetch("/tree-graph.json")
@@ -21,7 +27,11 @@ export default function App() {
         </div>
       </header>
       <section className="workspace">
-        <div className="viewer-empty-state">Tree viewer loads in Task 10.</div>
+        <TreeViewer graph={graph} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} />
+        <aside className="inspector">
+          <h2>{selectedNode?.name ?? "Select a node"}</h2>
+          <pre>{selectedNode ? JSON.stringify(selectedNode, null, 2) : "No node selected."}</pre>
+        </aside>
       </section>
     </main>
   );
