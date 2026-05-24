@@ -1,4 +1,5 @@
-import type { KeyboardEvent } from "react";
+import { useRef, useState } from "react";
+import type { KeyboardEvent, PointerEvent, WheelEvent } from "react";
 import type { TreeGraph, TreeNode } from "../tree/types";
 import { buildFitViewBox } from "./treeViewBox";
 
@@ -9,36 +10,79 @@ type TreeViewerProps = {
 };
 
 export function TreeViewer({ graph, selectedNodeId, onSelectNode }: TreeViewerProps) {
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const lastPointer = useRef<{ x: number; y: number } | null>(null);
+
+  function handleWheel(event: WheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+    const nextScale = Math.min(4, Math.max(0.2, transform.scale * (event.deltaY > 0 ? 0.9 : 1.1)));
+    setTransform((current) => ({ ...current, scale: nextScale }));
+  }
+
+  function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    lastPointer.current = { x: event.clientX, y: event.clientY };
+  }
+
+  function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
+    if (!lastPointer.current) return;
+    const dx = event.clientX - lastPointer.current.x;
+    const dy = event.clientY - lastPointer.current.y;
+    lastPointer.current = { x: event.clientX, y: event.clientY };
+    setTransform((current) => ({ ...current, x: current.x + dx, y: current.y + dy }));
+  }
+
+  function handlePointerUp(event: PointerEvent<SVGSVGElement>) {
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    lastPointer.current = null;
+  }
+
   return (
-    <svg className="tree-svg" viewBox={buildFitViewBox(graph.bounds, 160)} role="img" aria-label="PoE2 passive skill tree">
-      <g className="edge-layer">
-        {graph.edges.map((edge) => {
-          const from = graph.nodes[edge.from];
-          const to = graph.nodes[edge.to];
-          if (!from || !to) return null;
-          return (
-            <line
-              key={`${edge.from}-${edge.to}`}
-              className="tree-edge"
-              x1={from.position.x}
-              y1={from.position.y}
-              x2={to.position.x}
-              y2={to.position.y}
-            />
-          );
-        })}
-      </g>
-      <g className="node-layer">
-        {Object.values(graph.nodes).map((node) => (
-          <ButtonNode
-            key={node.id}
-            node={node}
-            selected={node.id === selectedNodeId}
-            onSelectNode={onSelectNode}
-          />
-        ))}
-      </g>
-    </svg>
+    <div className="tree-viewer">
+      <button className="tool-button reset-view-button" type="button" onClick={() => setTransform({ x: 0, y: 0, scale: 1 })}>
+        Reset View
+      </button>
+      <svg
+        className="tree-svg"
+        viewBox={buildFitViewBox(graph.bounds, 160)}
+        role="img"
+        aria-label="PoE2 passive skill tree"
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      >
+        <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.scale})`}>
+          <g className="edge-layer">
+            {graph.edges.map((edge) => {
+              const from = graph.nodes[edge.from];
+              const to = graph.nodes[edge.to];
+              if (!from || !to) return null;
+              return (
+                <line
+                  key={`${edge.from}-${edge.to}`}
+                  className="tree-edge"
+                  x1={from.position.x}
+                  y1={from.position.y}
+                  x2={to.position.x}
+                  y2={to.position.y}
+                />
+              );
+            })}
+          </g>
+          <g className="node-layer">
+            {Object.values(graph.nodes).map((node) => (
+              <ButtonNode
+                key={node.id}
+                node={node}
+                selected={node.id === selectedNodeId}
+                onSelectNode={onSelectNode}
+              />
+            ))}
+          </g>
+        </g>
+      </svg>
+    </div>
   );
 }
 
