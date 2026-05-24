@@ -14,6 +14,6 @@ describe("inventoryGameData", () => {
     const inventory = inventoryGameData(root);
 
     expect(inventory.contentGgpk.exists).toBe(true);
-    expect(inventory.passiveCandidates.map((candidate) => candidate.relativePath)).toContain("Data\\passive_skill_trees.json");
+    expect(inventory.passiveCandidates.map((candidate) => candidate.relativePath)).toContain(join("Data", "passive_skill_trees.json"));
   });
 });
