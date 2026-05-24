@@ -25,6 +25,8 @@ type ViewportTransform = {
 
 const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
 const maxVisibleEdgeLength = 3000;
+const maxViewportScale = 12;
+const minViewportScale = 0.2;
 
 export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeViewerProps) {
   const viewportRef = useRef<SVGGElement | null>(null);
@@ -60,7 +62,7 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
     const current = viewportTransform.current;
     setViewportTransform({
       ...current,
-      scale: Math.min(4, Math.max(0.2, current.scale * (event.deltaY > 0 ? 0.9 : 1.1))),
+      scale: Math.min(maxViewportScale, Math.max(minViewportScale, current.scale * (event.deltaY > 0 ? 0.9 : 1.1))),
     });
   }
 
