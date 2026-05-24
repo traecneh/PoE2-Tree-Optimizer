@@ -27,8 +27,16 @@ const defaultSteamRoots = [
 ];
 
 export function discoverPoe2Install(options: InstallDiscoveryOptions = {}): Poe2Install {
+  if (options.explicitPath !== undefined) {
+    const contentGgpkPath = join(options.explicitPath, "Content.ggpk");
+    if (existsSync(contentGgpkPath)) {
+      return { installPath: options.explicitPath, contentGgpkPath };
+    }
+
+    throw new ExtractionError(`Configured PoE2 path does not contain Content.ggpk: ${options.explicitPath}`, "invalid-install-path");
+  }
+
   const candidates = [
-    options.explicitPath,
     process.env.POE2_INSTALL_PATH,
     ...steamLibraryCandidates(options.steamRoots ?? defaultSteamRoots),
     ...(options.commonPaths ?? defaultCommonPaths),
@@ -39,10 +47,6 @@ export function discoverPoe2Install(options: InstallDiscoveryOptions = {}): Poe2
     if (existsSync(contentGgpkPath)) {
       return { installPath: candidate, contentGgpkPath };
     }
-  }
-
-  if (options.explicitPath) {
-    throw new ExtractionError(`Configured PoE2 path does not contain Content.ggpk: ${options.explicitPath}`, "invalid-install-path");
   }
 
   throw new ExtractionError("Could not find a Path of Exile 2 install containing Content.ggpk.", "install-not-found");
