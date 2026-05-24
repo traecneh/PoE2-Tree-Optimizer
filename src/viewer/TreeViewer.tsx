@@ -41,7 +41,7 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
       const group = from.groupId && from.groupId === to.groupId ? graph.groups[from.groupId] : undefined;
       return [{
         id: `${edge.from}-${edge.to}`,
-        path: buildTreeEdgePath(from, to, group),
+        path: buildTreeEdgePath(from, to, group, edge),
       }];
     }),
     [graph.edges, graph.groups, graph.nodes],

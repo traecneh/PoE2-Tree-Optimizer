@@ -16,6 +16,10 @@ export type TreeNode = {
   groupId?: GroupId;
   name?: string;
   stats: string[];
+  layout?: {
+    orbit: number;
+    orbitIndex: number;
+  };
   position: { x: number; y: number };
   flags: TreeNodeFlags;
   art?: {
@@ -33,6 +37,7 @@ export type TreeGroup = {
 export type TreeEdge = {
   from: NodeId;
   to: NodeId;
+  connectionOrbit?: number;
 };
 
 export type TreeGraph = {

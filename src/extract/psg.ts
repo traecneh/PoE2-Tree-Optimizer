@@ -1,7 +1,5 @@
 import type { TreeEdge, TreeGraph, TreeGroup, TreeNode } from "../tree/types";
-
-// PSG stores orbit indexes and positions, but the orbit radii are not in the PSG payload.
-const POE2_ORBIT_RADII = [0, 82, 162, 335, 493, 662, 846, 249, 1020, 1200];
+import { POE2_ORBIT_RADII } from "../tree/orbits";
 
 export type ParsedPassiveSkillGraph = {
   version: 3;
@@ -108,7 +106,7 @@ export function normalizePoe2PassiveTreeData(input: {
       const node = normalizeNodeRef(nodeRef, group, input.graph.orbits, rootNodeIds, skill);
       nodes[node.id] = node;
       for (const connection of nodeRef.connections) {
-        edges.push({ from: node.id, to: String(connection.nodeId) });
+        edges.push({ from: node.id, to: String(connection.nodeId), connectionOrbit: connection.orbit });
       }
     }
   }
@@ -174,6 +172,10 @@ function normalizeNodeRef(
     groupId: group.id,
     name: skill?.Name,
     stats: formatStats(skill),
+    layout: {
+      orbit: nodeRef.orbit,
+      orbitIndex: nodeRef.orbitIndex,
+    },
     position: resolveNodePosition(group.position, nodeRef, orbits),
     flags: {
       classStart,

@@ -22,7 +22,7 @@ describe("parsePassiveSkillGraph", () => {
               id: 100,
               orbit: 0,
               orbitIndex: 0,
-              connections: [{ nodeId: 101, orbit: 0 }],
+              connections: [{ nodeId: 101, orbit: 3 }],
             },
             {
               id: 101,
@@ -74,6 +74,7 @@ describe("normalizePoe2PassiveTreeData", () => {
     expect(graph.nodes["100"]).toMatchObject({
       name: "Class Start",
       groupId: "0",
+      layout: { orbit: 0, orbitIndex: 0 },
       stats: ["stat:1=5"],
       position: { x: 100, y: 200 },
       flags: { classStart: true, attribute: true },
@@ -81,12 +82,13 @@ describe("normalizePoe2PassiveTreeData", () => {
     expect(graph.nodes["101"]).toMatchObject({
       name: "Critical Notable",
       groupId: "0",
+      layout: { orbit: 1, orbitIndex: 0 },
       stats: ["stat:2=10"],
       position: { x: 100, y: 118 },
       flags: { notable: true },
     });
     expect(graph.groups["0"].nodeIds).toEqual(["100", "101"]);
-    expect(graph.edges).toEqual([{ from: "100", to: "101" }]);
+    expect(graph.edges).toEqual([{ from: "100", to: "101", connectionOrbit: 3 }]);
     expect(graph.classStarts).toEqual({ "Class Start": "100" });
     expect(graph.bounds).toEqual({ minX: 100, maxX: 100, minY: 118, maxY: 200 });
   });
@@ -154,7 +156,7 @@ function makePsgFixture(): Buffer {
   u32(0);
   u32(1);
   u32(101);
-  i32(0);
+  i32(3);
 
   u32(101);
   u32(1);

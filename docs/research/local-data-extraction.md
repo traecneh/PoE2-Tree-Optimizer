@@ -122,6 +122,8 @@ groups:
       i32 orbit
 ```
 
+The signed connection `orbit` is part of the edge routing data. For non-zero values, the absolute value indexes the same orbit radius table used for node placement; the sign selects which of the two possible circle intersections to use for the arc side. A zero value means the edge follows the shared group orbit only when both nodes are in the same group and node orbit; otherwise it is a straight link.
+
 The PSG stores orbit indices and orbit slot counts, but not the actual orbit radii used to place nodes around a group. The current implementation uses the community-validated PoE2 radii from the public parser discussion as a starting point:
 
 ```text
