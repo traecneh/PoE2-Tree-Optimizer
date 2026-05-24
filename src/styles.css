@@ -13,6 +13,14 @@ button {
   font: inherit;
 }
 
+.tool-button {
+  border: 1px solid #3a4658;
+  background: #202938;
+  color: #eef2f7;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
 .app-shell {
   display: grid;
   grid-template-rows: auto 1fr;
@@ -37,6 +45,14 @@ button {
 .top-bar p {
   margin: 4px 0 0;
   color: #aab4c4;
+  font-size: 13px;
+}
+
+.debug-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #c6d0df;
   font-size: 13px;
 }
 
@@ -112,6 +128,23 @@ button {
   stroke-width: 7;
 }
 
+.tree-node.missing-stats circle {
+  stroke: #ff4d4d;
+}
+
+.tree-node.orphan-node circle {
+  stroke: #ffcc4d;
+}
+
+.node-id-label {
+  fill: #e5edf7;
+  font-size: 11px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #0d1118;
+  stroke-width: 4;
+}
+
 .tree-node:focus {
   outline: none;
 }
@@ -132,6 +165,20 @@ button {
 .inspector h2 {
   margin: 0 0 12px;
   font-size: 16px;
+}
+
+.inspector dl {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px 10px;
+}
+
+.inspector dt {
+  color: #8fa4bb;
+}
+
+.inspector dd {
+  margin: 0;
 }
 
 .inspector pre {

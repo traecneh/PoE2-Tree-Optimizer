@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { sampleGraph } from "./tree/sampleGraph";
 import type { TreeGraph } from "./tree/types";
+import { DebugControls, type DebugOverlayState } from "./viewer/DebugControls";
+import { NodeInspector } from "./viewer/NodeInspector";
 import { TreeViewer } from "./viewer/TreeViewer";
 
 export default function App() {
   const [graph, setGraph] = useState<TreeGraph>(sampleGraph);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
+  const [debug, setDebug] = useState<DebugOverlayState>({
+    showNodeIds: false,
+    highlightMissingStats: false,
+    highlightOrphans: false,
+  });
   const selectedNode = useMemo(
     () => (selectedNodeId ? graph.nodes[selectedNodeId] : undefined),
     [graph.nodes, selectedNodeId],
@@ -25,13 +32,11 @@ export default function App() {
           <h1>PoE2 Passive Tree Viewer</h1>
           <p>{Object.keys(graph.nodes).length} nodes, {graph.edges.length} links, version {graph.gameVersion}</p>
         </div>
+        <DebugControls value={debug} onChange={setDebug} />
       </header>
       <section className="workspace">
-        <TreeViewer graph={graph} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} />
-        <aside className="inspector">
-          <h2>{selectedNode?.name ?? "Select a node"}</h2>
-          <pre>{selectedNode ? JSON.stringify(selectedNode, null, 2) : "No node selected."}</pre>
-        </aside>
+        <TreeViewer graph={graph} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} debug={debug} />
+        <NodeInspector node={selectedNode} edges={graph.edges} />
       </section>
     </main>
   );

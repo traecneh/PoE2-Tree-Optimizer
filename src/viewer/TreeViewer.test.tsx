@@ -4,6 +4,12 @@ import { sampleGraph } from "../tree/sampleGraph";
 import { TreeViewer } from "./TreeViewer";
 
 describe("TreeViewer", () => {
+  const debugOff = {
+    showNodeIds: false,
+    highlightMissingStats: false,
+    highlightOrphans: false,
+  };
+
   function mockSvgCoordinateConversion(svg: SVGSVGElement, scale = 1.7) {
     Object.defineProperties(svg, {
       createSVGPoint: {
@@ -26,7 +32,7 @@ describe("TreeViewer", () => {
   }
 
   it("resets the view after zooming", () => {
-    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} />);
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 
     const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" });
     const transformLayer = svg.querySelector("g");
@@ -43,7 +49,7 @@ describe("TreeViewer", () => {
   });
 
   it("pans in viewBox units and resets the pan", () => {
-    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} />);
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 
     const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
     const transformLayer = svg.querySelector("g");
@@ -61,7 +67,7 @@ describe("TreeViewer", () => {
   });
 
   it("keeps pan distance consistent after zooming", () => {
-    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} />);
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 
     const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
     const transformLayer = svg.querySelector("g");
@@ -76,7 +82,7 @@ describe("TreeViewer", () => {
   });
 
   it("does not pan below the drag threshold", () => {
-    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} />);
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 
     const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
     const transformLayer = svg.querySelector("g");
@@ -92,7 +98,7 @@ describe("TreeViewer", () => {
   it("does not select a node after dragging from it", () => {
     const onSelectNode = vi.fn();
 
-    render(<TreeViewer graph={sampleGraph} onSelectNode={onSelectNode} />);
+    render(<TreeViewer graph={sampleGraph} onSelectNode={onSelectNode} debug={debugOff} />);
 
     const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
     const node = screen.getByRole("button", { name: "Mercenary" });
@@ -109,7 +115,7 @@ describe("TreeViewer", () => {
   it("selects a focused node with Enter or Space", () => {
     const onSelectNode = vi.fn();
 
-    render(<TreeViewer graph={sampleGraph} onSelectNode={onSelectNode} />);
+    render(<TreeViewer graph={sampleGraph} onSelectNode={onSelectNode} debug={debugOff} />);
 
     const node = screen.getByRole("button", { name: "Mercenary" });
     expect(node.getAttribute("tabindex")).toBe("0");
@@ -119,5 +125,47 @@ describe("TreeViewer", () => {
 
     expect(onSelectNode).toHaveBeenNthCalledWith(1, "mercenary_start");
     expect(onSelectNode).toHaveBeenNthCalledWith(2, "mercenary_start");
+  });
+
+  it("renders node id labels when the debug overlay is enabled", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        onSelectNode={vi.fn()}
+        debug={{ ...debugOff, showNodeIds: true }}
+      />,
+    );
+
+    expect(screen.getByText("mercenary_start").classList.contains("node-id-label")).toBe(true);
+  });
+
+  it("marks nodes missing stats and orphan nodes when debug overlays are enabled", () => {
+    const graph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        missing_stats: {
+          id: "missing_stats",
+          groupId: "g3",
+          name: "Missing Stats",
+          stats: [],
+          position: { x: 480, y: 120 },
+          flags: { small: true },
+        },
+      },
+      bounds: { ...sampleGraph.bounds, maxX: 480, maxY: 120 },
+    };
+
+    render(
+      <TreeViewer
+        graph={graph}
+        onSelectNode={vi.fn()}
+        debug={{ ...debugOff, highlightMissingStats: true, highlightOrphans: true }}
+      />,
+    );
+
+    const node = screen.getByRole("button", { name: "Missing Stats" });
+    expect(node.classList.contains("missing-stats")).toBe(true);
+    expect(node.classList.contains("orphan-node")).toBe(true);
   });
 });

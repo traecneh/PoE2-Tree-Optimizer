@@ -1,12 +1,14 @@
 import { useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent, WheelEvent } from "react";
 import type { TreeGraph, TreeNode } from "../tree/types";
+import type { DebugOverlayState } from "./DebugControls";
 import { buildFitViewBox } from "./treeViewBox";
 
 type TreeViewerProps = {
   graph: TreeGraph;
   selectedNodeId?: string;
   onSelectNode: (nodeId: string) => void;
+  debug: DebugOverlayState;
 };
 
 type Point = {
@@ -14,11 +16,12 @@ type Point = {
   y: number;
 };
 
-export function TreeViewer({ graph, selectedNodeId, onSelectNode }: TreeViewerProps) {
+export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeViewerProps) {
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
   const suppressNextNodeClick = useRef(false);
   const viewBox = buildFitViewBox(graph.bounds, 160);
+  const connectedNodeIds = new Set(graph.edges.flatMap((edge) => [edge.from, edge.to]));
 
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
@@ -128,6 +131,8 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode }: TreeViewerPr
                 key={node.id}
                 node={node}
                 selected={node.id === selectedNodeId}
+                debug={debug}
+                orphan={debug.highlightOrphans && !connectedNodeIds.has(node.id)}
                 onSelectNode={handleSelectNode}
               />
             ))}
@@ -159,9 +164,22 @@ function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number):
   return { x: svgPoint.x, y: svgPoint.y };
 }
 
-function ButtonNode({ node, selected, onSelectNode }: { node: TreeNode; selected: boolean; onSelectNode: (nodeId: string) => void }) {
+function ButtonNode({
+  node,
+  selected,
+  debug,
+  orphan,
+  onSelectNode,
+}: {
+  node: TreeNode;
+  selected: boolean;
+  debug: DebugOverlayState;
+  orphan: boolean;
+  onSelectNode: (nodeId: string) => void;
+}) {
   const radius = nodeRadius(node);
   const label = node.name ?? node.id;
+  const missingStats = debug.highlightMissingStats && node.stats.length === 0 && !node.flags.jewelSocket && !node.flags.classStart;
   const handleSelect = () => onSelectNode(node.id);
   const handleKeyDown = (event: KeyboardEvent<SVGGElement>) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -171,7 +189,7 @@ function ButtonNode({ node, selected, onSelectNode }: { node: TreeNode; selected
 
   return (
     <g
-      className={`tree-node ${nodeClass(node)}${selected ? " selected" : ""}`}
+      className={`tree-node ${nodeClass(node)}${selected ? " selected" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}
@@ -183,6 +201,7 @@ function ButtonNode({ node, selected, onSelectNode }: { node: TreeNode; selected
       <circle r={radius}>
         <title>{label}</title>
       </circle>
+      {debug.showNodeIds ? <text className="node-id-label" y={-radius - 8}>{node.id}</text> : null}
     </g>
   );
 }
