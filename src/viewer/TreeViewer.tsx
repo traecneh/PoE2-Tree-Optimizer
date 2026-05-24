@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import type { TreeGraph, TreeNode } from "../tree/types";
 import { buildFitViewBox } from "./treeViewBox";
 
@@ -43,10 +44,27 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode }: TreeViewerPr
 
 function ButtonNode({ node, selected, onSelectNode }: { node: TreeNode; selected: boolean; onSelectNode: (nodeId: string) => void }) {
   const radius = nodeRadius(node);
+  const label = node.name ?? node.id;
+  const handleSelect = () => onSelectNode(node.id);
+  const handleKeyDown = (event: KeyboardEvent<SVGGElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    handleSelect();
+  };
+
   return (
-    <g className={`tree-node ${nodeClass(node)}${selected ? " selected" : ""}`} transform={`translate(${node.position.x} ${node.position.y})`}>
-      <circle r={radius} onClick={() => onSelectNode(node.id)}>
-        <title>{node.name ?? node.id}</title>
+    <g
+      className={`tree-node ${nodeClass(node)}${selected ? " selected" : ""}`}
+      transform={`translate(${node.position.x} ${node.position.y})`}
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      aria-pressed={selected}
+      onClick={handleSelect}
+      onKeyDown={handleKeyDown}
+    >
+      <circle r={radius}>
+        <title>{label}</title>
       </circle>
     </g>
   );

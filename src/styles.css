@@ -16,6 +16,7 @@ button {
 .app-shell {
   display: grid;
   grid-template-rows: auto 1fr;
+  height: 100vh;
   min-height: 100vh;
 }
 
@@ -52,7 +53,9 @@ button {
 
 .tree-svg {
   width: 100%;
-  height: calc(100vh - 65px);
+  height: 100%;
+  min-height: 0;
+  display: block;
   background: radial-gradient(circle at center, #1a2230 0, #0d1118 68%);
 }
 
@@ -94,7 +97,17 @@ button {
   stroke-width: 7;
 }
 
+.tree-node:focus {
+  outline: none;
+}
+
+.tree-node:focus-visible circle {
+  stroke: #ffffff;
+  stroke-width: 7;
+}
+
 .inspector {
+  min-height: 0;
   overflow: auto;
   border-left: 1px solid #283241;
   background: #151b24;
