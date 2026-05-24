@@ -39,6 +39,7 @@ const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
 const maxVisibleEdgeLength = 3000;
 const maxViewportScale = 12;
 const minViewportScale = 0.2;
+const nodeVisualScale = 2;
 
 export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeViewerProps) {
   const viewportRef = useRef<SVGGElement | null>(null);
@@ -334,10 +335,10 @@ function ButtonNode({
 
 function nodeVisual(node: TreeNode, typeClass: string): NodeVisual {
   const coreRadius = nodeRadius(node);
-  const isSmallFrame = typeClass === "small" || typeClass === "attribute";
+  const frameInset = typeClass === "small" || typeClass === "attribute" ? 3 : 5;
   return {
     coreRadius,
-    frameRadius: coreRadius + (isSmallFrame ? 3 : 5),
+    frameRadius: coreRadius + frameInset * nodeVisualScale,
     haloRadius: nodeHaloRadius(typeClass, coreRadius),
     glyph: nodeGlyph(typeClass),
     accentClass: nodeAccentClass(node),
@@ -346,11 +347,11 @@ function nodeVisual(node: TreeNode, typeClass: string): NodeVisual {
 }
 
 function nodeRadius(node: TreeNode): number {
-  if (node.flags.classStart) return 26;
-  if (node.flags.keystone) return 24;
-  if (node.flags.notable) return 18;
-  if (node.flags.jewelSocket) return 16;
-  return 10;
+  if (node.flags.classStart) return 26 * nodeVisualScale;
+  if (node.flags.keystone) return 24 * nodeVisualScale;
+  if (node.flags.notable) return 18 * nodeVisualScale;
+  if (node.flags.jewelSocket) return 16 * nodeVisualScale;
+  return 10 * nodeVisualScale;
 }
 
 function nodeClass(node: TreeNode): string {
@@ -363,9 +364,9 @@ function nodeClass(node: TreeNode): string {
 }
 
 function nodeHaloRadius(typeClass: string, coreRadius: number): number | undefined {
-  if (typeClass === "class-start") return coreRadius + 12;
-  if (typeClass === "keystone") return coreRadius + 10;
-  if (typeClass === "notable" || typeClass === "jewel-socket") return coreRadius + 7;
+  if (typeClass === "class-start") return coreRadius + 12 * nodeVisualScale;
+  if (typeClass === "keystone") return coreRadius + 10 * nodeVisualScale;
+  if (typeClass === "notable" || typeClass === "jewel-socket") return coreRadius + 7 * nodeVisualScale;
   return undefined;
 }
 

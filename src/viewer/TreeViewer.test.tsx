@@ -457,11 +457,15 @@ describe("TreeViewer", () => {
     render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
 
     const node = screen.getByRole("button", { name: "Precise Shot" });
+    const frame = node.querySelector(".node-frame");
+    const core = node.querySelector(".node-core");
     const icon = node.querySelector(".node-icon");
 
+    expect(frame?.getAttribute("r")).toBe("46");
+    expect(core?.getAttribute("r")).toBe("36");
     expect(icon).not.toBeNull();
     expect(icon?.getAttribute("href")).toBe("/tree-assets/icons/art-2dart-skillicons-passives-criticalnotable.png");
-    expect(icon?.getAttribute("width")).toBe("28.8");
+    expect(icon?.getAttribute("width")).toBe("57.6");
     expect(node.querySelector(".node-glyph.notable-glyph")).toBeNull();
   });
 
