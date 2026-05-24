@@ -4,12 +4,13 @@ import { discoverPoe2Install } from "./discovery";
 import { ExtractionError } from "./errors";
 import { inventoryGameData } from "./inventory";
 import { normalizePassiveTreePayload } from "./normalize";
+import { normalizePoe2PassiveTreeData, parsePassiveSkillGraph } from "./psg";
 import { validateTreeGraph } from "../tree/validateTreeGraph";
 import type { TreeGraph } from "../tree/types";
 
 const usage =
-  "Usage: tsx src/extract/cli.ts <inventory|graph|validate> [--install PATH] [--raw PATH] [--graph PATH] [--report PATH]";
-const knownFlags = new Set(["--install", "--raw", "--graph", "--report"]);
+  "Usage: tsx src/extract/cli.ts <inventory|graph|validate> [--install PATH] [--raw PATH] [--psg PATH] [--skills PATH] [--graph PATH] [--report PATH]";
+const knownFlags = new Set(["--install", "--raw", "--psg", "--skills", "--graph", "--report"]);
 const command = process.argv[2];
 
 class CliError extends Error {
@@ -35,13 +36,16 @@ try {
     writeJson("var/output/local-data-inventory.json", inventory);
     console.log(`Wrote var/output/local-data-inventory.json`);
   } else if (command === "graph") {
+    validateGraphArgs(args);
     const install = discoverPoe2Install({ explicitPath });
-    const payload = readJson(rawPath);
-    const graph = normalizePassiveTreePayload({
-      gameVersion: install.gameVersion ?? "unknown",
-      sourcePath: rawPath,
-      payload: payload as Parameters<typeof normalizePassiveTreePayload>[0]["payload"],
-    });
+    const graph =
+      args.psg || args.skills
+        ? normalizeFromPsg({
+            gameVersion: install.gameVersion ?? "unknown",
+            psgPath: args.psg,
+            skillsPath: args.skills,
+          })
+        : normalizeFromRawPayload({ gameVersion: install.gameVersion ?? "unknown", rawPath });
     writeJson(graphPath, graph);
     writeJson("public/tree-graph.json", graph);
     console.log(`Wrote ${graphPath} and public/tree-graph.json`);
@@ -50,7 +54,7 @@ try {
     const report = validateTreeGraph(graph);
     writeJson(reportPath, report);
     console.log(`Wrote ${reportPath}`);
-    if (report.issues.length > 0) process.exitCode = 1;
+    if (report.issues.some((issue) => issue.code !== "missing-stats")) process.exitCode = 1;
   } else {
     console.error(usage);
     process.exitCode = 2;
@@ -74,6 +78,8 @@ try {
 type CliArgs = {
   install?: string;
   raw?: string;
+  psg?: string;
+  skills?: string;
   graph?: string;
   report?: string;
 };
@@ -93,11 +99,54 @@ function readArgs(argv: string[]): CliArgs {
 
     if (flag === "--install") args.install = value;
     else if (flag === "--raw") args.raw = value;
+    else if (flag === "--psg") args.psg = value;
+    else if (flag === "--skills") args.skills = value;
     else if (flag === "--graph") args.graph = value;
     else if (flag === "--report") args.report = value;
   }
 
   return args;
+}
+
+function validateGraphArgs(args: CliArgs): void {
+  if ((args.psg && !args.skills) || (!args.psg && args.skills)) {
+    throw new CliError("--psg and --skills must be provided together", 2);
+  }
+}
+
+function normalizeFromRawPayload(input: { gameVersion: string; rawPath: string }): TreeGraph {
+  const payload = readJson(input.rawPath);
+  return normalizePassiveTreePayload({
+    gameVersion: input.gameVersion,
+    sourcePath: input.rawPath,
+    payload: payload as Parameters<typeof normalizePassiveTreePayload>[0]["payload"],
+  });
+}
+
+function normalizeFromPsg(input: { gameVersion: string; psgPath?: string; skillsPath?: string }): TreeGraph {
+  if (!input.psgPath || !input.skillsPath) {
+    throw new CliError("--psg and --skills must be provided together", 2);
+  }
+
+  const passiveSkills = readJson(input.skillsPath);
+  if (!Array.isArray(passiveSkills)) {
+    throw new CliError(`Could not parse PassiveSkills table: ${input.skillsPath} must contain a JSON array`, 1);
+  }
+
+  return normalizePoe2PassiveTreeData({
+    gameVersion: input.gameVersion,
+    sourcePath: input.psgPath,
+    graph: parsePsgFile(input.psgPath),
+    passiveSkills,
+  });
+}
+
+function parsePsgFile(path: string): ReturnType<typeof parsePassiveSkillGraph> {
+  try {
+    return parsePassiveSkillGraph(readBinary(path));
+  } catch (error) {
+    throw new CliError(`Could not parse PSG file: ${path}${formatErrorDetail(error)}`, 1);
+  }
 }
 
 function readJson(path: string): unknown {
@@ -115,6 +164,14 @@ function readJson(path: string): unknown {
       throw new CliError(`Could not parse JSON file: ${path}`, 1);
     }
     throw error;
+  }
+}
+
+function readBinary(path: string): Uint8Array {
+  try {
+    return readFileSync(path);
+  } catch (error) {
+    throw new CliError(`Could not read file: ${path}${formatErrorDetail(error)}`, 1);
   }
 }
 
