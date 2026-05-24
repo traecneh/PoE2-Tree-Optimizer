@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { Profiler } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { sampleGraph } from "../tree/sampleGraph";
+import type { TreeGraph } from "../tree/types";
 import { TreeViewer } from "./TreeViewer";
 
 describe("TreeViewer", () => {
@@ -80,6 +81,49 @@ describe("TreeViewer", () => {
     fireEvent.pointerUp(svg, { pointerId: 1 });
 
     expect(transformLayer?.getAttribute("transform")).toBe("translate(68 34) scale(1.1)");
+  });
+
+  it("does not draw class-start to ascendancy-start edges", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        central_start: {
+          id: "central_start",
+          name: "Central Start",
+          stats: [],
+          position: { x: 0, y: 0 },
+          flags: { classStart: true },
+        },
+        nearby_passive: {
+          id: "nearby_passive",
+          name: "Nearby Passive",
+          stats: ["10% increased Damage"],
+          position: { x: 100, y: 0 },
+          flags: { small: true },
+        },
+        ascendancy_start: {
+          id: "ascendancy_start",
+          name: "Ascendancy Start",
+          stats: [],
+          position: { x: 5000, y: 0 },
+          flags: { classStart: true },
+        },
+      },
+      edges: [
+        { from: "central_start", to: "nearby_passive" },
+        { from: "central_start", to: "ascendancy_start" },
+      ],
+      groups: {},
+      classStarts: { Test: "central_start" },
+      bounds: { minX: 0, maxX: 5000, minY: 0, maxY: 0 },
+    };
+
+    render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const lines = Array.from(document.querySelectorAll(".tree-edge"));
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0].getAttribute("x2")).toBe("100");
   });
 
   it("updates the viewport transform without React commits during pan and zoom", () => {

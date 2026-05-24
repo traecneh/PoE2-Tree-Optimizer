@@ -31,6 +31,10 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
   const suppressNextNodeClick = useRef(false);
   const viewBox = buildFitViewBox(graph.bounds, 160);
   const connectedNodeIds = useMemo(() => new Set(graph.edges.flatMap((edge) => [edge.from, edge.to])), [graph.edges]);
+  const renderedEdges = useMemo(
+    () => graph.edges.filter((edge) => shouldDrawEdge(graph.nodes[edge.from], graph.nodes[edge.to])),
+    [graph.edges, graph.nodes],
+  );
 
   useEffect(() => {
     applyViewportTransform(viewportRef.current, viewportTransform.current);
@@ -133,7 +137,7 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
       >
         <g ref={viewportRef} transform={formatViewportTransform(viewportTransform.current)}>
           <g className="edge-layer">
-            {graph.edges.map((edge) => {
+            {renderedEdges.map((edge) => {
               const from = graph.nodes[edge.from];
               const to = graph.nodes[edge.to];
               if (!from || !to) return null;
@@ -165,6 +169,11 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
       </svg>
     </div>
   );
+}
+
+function shouldDrawEdge(from: TreeNode | undefined, to: TreeNode | undefined): boolean {
+  if (!from || !to) return false;
+  return !(from.flags.classStart && to.flags.classStart);
 }
 
 function applyViewportTransform(layer: SVGGElement | null, transform: ViewportTransform) {
