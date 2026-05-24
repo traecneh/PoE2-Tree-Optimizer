@@ -61,8 +61,8 @@ function normalizeNode(id: string, raw: Record<string, unknown>): TreeNode {
     name: typeof name === "string" ? name : undefined,
     stats: Array.isArray(stats) ? stats.map(String) : [],
     position: {
-      x: Number(raw.x ?? 0),
-      y: Number(raw.y ?? 0),
+      x: raw.x === undefined ? Number.NaN : Number(raw.x),
+      y: raw.y === undefined ? Number.NaN : Number(raw.y),
     },
     flags: {
       classStart: Boolean(raw.isClassStart || raw.type === "ClassStart"),

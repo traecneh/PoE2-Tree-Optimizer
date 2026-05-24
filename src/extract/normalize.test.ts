@@ -48,4 +48,34 @@ describe("normalizePassiveTreePayload", () => {
     expect(graph.edges).toEqual([{ from: "100", to: "101" }]);
     expect(graph.bounds).toEqual({ minX: 10, maxX: 90, minY: 20, maxY: 20 });
   });
+
+  it("preserves missing node coordinates as non-finite values", () => {
+    const graph = normalizePassiveTreePayload({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.json",
+      payload: {
+        nodes: {
+          "100": {
+            id: 100,
+            dn: "Missing Coordinates",
+            sd: [],
+          },
+        },
+      },
+    });
+
+    expect(Number.isFinite(graph.nodes["100"].position.x)).toBe(false);
+    expect(Number.isFinite(graph.nodes["100"].position.y)).toBe(false);
+    expect(graph.bounds).toEqual({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
+  });
+
+  it("falls back to zero bounds for empty payloads", () => {
+    const graph = normalizePassiveTreePayload({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.json",
+      payload: {},
+    });
+
+    expect(graph.bounds).toEqual({ minX: 0, maxX: 0, minY: 0, maxY: 0 });
+  });
 });
