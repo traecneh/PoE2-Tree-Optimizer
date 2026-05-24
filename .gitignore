@@ -1,2 +1,8 @@
 .superpowers/
 .worktrees/
+node_modules/
+dist/
+coverage/
+.env
+var/
+public/tree-graph.json
