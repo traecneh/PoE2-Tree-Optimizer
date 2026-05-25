@@ -522,6 +522,34 @@ describe("TreeViewer", () => {
     expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("allocation-path")).toBe(true);
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(false);
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(2);
+    expect(document.querySelectorAll(".path-highlight-layer .allocation-path-edge")).toHaveLength(2);
+  });
+
+  it("marks the selected map node with a prominent target ring", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        selectedNodeId="precise_shot"
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    const selectedNode = screen.getByRole("button", { name: "Precise Shot" });
+    const otherNode = screen.getByRole("button", { name: "Projectile Damage" });
+
+    expect(selectedNode.querySelector(".target-marker")).not.toBeNull();
+    expect(otherNode.querySelector(".target-marker")).toBeNull();
+  });
+
+  it("gives map nodes an expanded pointer hit target", () => {
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const node = screen.getByRole("button", { name: "Projectile Damage" });
+    const hitTarget = node.querySelector(".node-hit-target");
+    const frame = node.querySelector(".node-frame");
+
+    expect(Number(hitTarget?.getAttribute("r"))).toBeGreaterThan(Number(frame?.getAttribute("r")));
   });
 
   it("shows a passive tooltip while hovering a node", () => {
@@ -621,8 +649,10 @@ describe("TreeViewer", () => {
 
     expect(node.classList.contains("selected")).toBe(true);
     expect(circles.map((circle) => circle.getAttribute("class"))).toEqual([
+      "node-hit-target",
       "debug-ring orphan-ring",
       "debug-ring missing-stats-ring",
+      "target-marker",
       "node-frame",
       "node-core",
     ]);

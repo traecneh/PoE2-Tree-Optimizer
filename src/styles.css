@@ -217,6 +217,20 @@ button {
   opacity: 0.98;
 }
 
+.path-highlight-layer {
+  pointer-events: none;
+}
+
+.allocation-path-edge {
+  fill: none;
+  opacity: 0.95;
+  pointer-events: none;
+  stroke: #ffe89a;
+  stroke-linecap: round;
+  stroke-width: 7;
+  vector-effect: non-scaling-stroke;
+}
+
 .edge-route-label {
   fill: #f4f7fb;
   font-size: 44px;
@@ -228,10 +242,25 @@ button {
   stroke-width: 12px;
 }
 
+.tree-node .node-hit-target,
 .tree-node .node-halo,
 .tree-node .node-frame,
 .tree-node .node-core {
   cursor: pointer;
+}
+
+.tree-node .node-hit-target {
+  fill: transparent;
+  pointer-events: all;
+  stroke: none;
+}
+
+.tree-node .target-marker {
+  fill: rgba(255, 232, 154, 0.12);
+  pointer-events: none;
+  stroke: #ffe89a;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
 }
 
 .tree-node .node-halo {

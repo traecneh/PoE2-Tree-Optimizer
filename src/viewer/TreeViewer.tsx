@@ -75,13 +75,15 @@ export function TreeViewer({
       if (!shouldDrawEdge(from, to)) return [];
       const group = from.groupId && from.groupId === to.groupId ? graph.groups[from.groupId] : undefined;
       const classNames = ["tree-edge"];
+      const allocationPath = allocationPathEdgeKeys?.has(treeEdgeKey(edge.from, edge.to)) ?? false;
       if (debug.showEdgeRoutes) classNames.push("edge-route-debug", edgeRouteClass(edge));
-      if (allocationPathEdgeKeys?.has(treeEdgeKey(edge.from, edge.to))) classNames.push("allocation-path");
+      if (allocationPath) classNames.push("allocation-path");
       return [{
         id: `${edge.from}-${edge.to}`,
         path: buildTreeEdgePath(from, to, group, edge),
         routeOrbit: edge.connectionOrbit,
         className: classNames.join(" "),
+        allocationPath,
         label: formatEdgeRouteLabel(edge.connectionOrbit),
         labelPosition: midpoint(from, to),
       }];
@@ -210,6 +212,17 @@ export function TreeViewer({
                 d={edge.path}
                 data-route-orbit={debug.showEdgeRoutes ? edge.routeOrbit : undefined}
               />
+            ))}
+          </g>
+          <g className="path-highlight-layer" aria-hidden="true">
+            {renderedEdges.flatMap((edge) => (
+              edge.allocationPath ? [
+                <path
+                  key={`${edge.id}-path-highlight`}
+                  className="allocation-path-edge"
+                  d={edge.path}
+                />,
+              ] : []
             ))}
           </g>
           {debug.showEdgeRoutes && debug.showEdgeRouteLabels ? (
@@ -368,9 +381,11 @@ function ButtonNode({
       onFocus={(event) => onShowTooltipAtElement(node, event.currentTarget)}
       onBlur={onHideTooltip}
     >
+      <circle className="node-hit-target" r={visual.frameRadius + 16 * nodeVisualScale} />
       {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14 * nodeVisualScale} /> : null}
       {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8 * nodeVisualScale} /> : null}
       {visual.haloRadius ? <circle className="node-halo" r={visual.haloRadius} /> : null}
+      {selected ? <circle className="target-marker" r={visual.frameRadius + 34 * nodeVisualScale} /> : null}
       <circle className="node-frame" r={visual.frameRadius} />
       <circle className="node-core" r={radius}>
         <title>{label}</title>
