@@ -611,6 +611,21 @@ describe("TreeViewer", () => {
     expect(Number(hitTarget?.getAttribute("r"))).toBeGreaterThan(Number(frame?.getAttribute("r")));
   });
 
+  it("selects a node when the pointer press starts on it and releases on the viewer", () => {
+    const onSelectNode = vi.fn();
+
+    render(<TreeViewer graph={sampleGraph} onSelectNode={onSelectNode} debug={debugOff} />);
+
+    const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
+    const node = screen.getByRole("button", { name: "Precise Shot" });
+    mockSvgCoordinateConversion(svg);
+
+    fireEvent.pointerDown(node, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerUp(svg, { pointerId: 1 });
+
+    expect(onSelectNode).toHaveBeenCalledWith("precise_shot");
+  });
+
   it("shows a passive tooltip while hovering a node", () => {
     render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 

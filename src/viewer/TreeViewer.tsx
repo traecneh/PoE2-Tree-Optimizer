@@ -72,6 +72,7 @@ export function TreeViewer({
   const viewportRef = useRef<SVGGElement | null>(null);
   const viewportTransform = useRef<ViewportTransform>({ ...initialViewportTransform });
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
+  const pendingNodePress = useRef<string | null>(null);
   const suppressNextNodeClick = useRef(false);
   const [tooltip, setTooltip] = useState<TooltipState | undefined>();
   const viewBox = buildFitViewBox(graph.bounds, 160);
@@ -154,9 +155,19 @@ export function TreeViewer({
 
   function handlePointerUp(event: PointerEvent<SVGSVGElement>) {
     const dragged = lastPointer.current?.dragged;
+    const pendingNodeId = pendingNodePress.current;
     releasePointerCapture(event.currentTarget, event.pointerId);
     lastPointer.current = null;
+    pendingNodePress.current = null;
     if (dragged) {
+      window.setTimeout(() => {
+        suppressNextNodeClick.current = false;
+      }, 0);
+      return;
+    }
+    if (pendingNodeId) {
+      suppressNextNodeClick.current = true;
+      onSelectNode(pendingNodeId);
       window.setTimeout(() => {
         suppressNextNodeClick.current = false;
       }, 0);
@@ -166,6 +177,7 @@ export function TreeViewer({
   function handlePointerCancel(event: PointerEvent<SVGSVGElement>) {
     releasePointerCapture(event.currentTarget, event.pointerId);
     lastPointer.current = null;
+    pendingNodePress.current = null;
   }
 
   function setViewportTransform(nextTransform: ViewportTransform) {
@@ -183,6 +195,10 @@ export function TreeViewer({
       return;
     }
     onSelectNode(nodeId);
+  }
+
+  function handleBeginNodePress(nodeId: string) {
+    pendingNodePress.current = nodeId;
   }
 
   function showTooltipAtPointer(node: TreeNode, event: MouseEvent<SVGGElement>) {
@@ -280,6 +296,7 @@ export function TreeViewer({
                 onShowTooltipAtPointer={showTooltipAtPointer}
                 onShowTooltipAtElement={showTooltipAtElement}
                 onHideTooltip={hideTooltip}
+                onBeginNodePress={handleBeginNodePress}
                 onSelectNode={handleSelectNode}
               />
             ))}
@@ -364,6 +381,7 @@ function ButtonNode({
   onShowTooltipAtPointer,
   onShowTooltipAtElement,
   onHideTooltip,
+  onBeginNodePress,
   onSelectNode,
 }: {
   node: TreeNode;
@@ -379,6 +397,7 @@ function ButtonNode({
   onShowTooltipAtPointer: (node: TreeNode, event: MouseEvent<SVGGElement>) => void;
   onShowTooltipAtElement: (node: TreeNode, element: SVGGElement) => void;
   onHideTooltip: () => void;
+  onBeginNodePress: (nodeId: string) => void;
   onSelectNode: (nodeId: string) => void;
 }) {
   const typeClass = nodeClass(node);
@@ -405,6 +424,7 @@ function ButtonNode({
       tabIndex={0}
       aria-label={label}
       aria-pressed={selected}
+      onPointerDown={() => onBeginNodePress(node.id)}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       onMouseEnter={(event) => onShowTooltipAtPointer(node, event)}
