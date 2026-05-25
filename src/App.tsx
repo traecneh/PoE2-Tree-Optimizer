@@ -64,6 +64,12 @@ export default function App() {
     () => new Set(allocationPlan.previewNodePath.length > 0 ? allocationPlan.previewNodePath : allocatedNodePath),
     [allocatedNodePath, allocationPlan.previewNodePath],
   );
+  const currentAllocationEdgeKeys = useMemo(
+    () => new Set(allocationPlan.previewEdgeKeys.length > 0
+      ? allocationPlan.previewEdgeKeys
+      : allocationPlan.committedEdgeKeys),
+    [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys],
+  );
   const allocationDistances = useMemo(
     () => findAllocationDistancesFrom(graph, allocationDistanceNodeIds),
     [allocationDistanceNodeIds, graph],
@@ -110,18 +116,18 @@ export default function App() {
     [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys],
   );
   const hoverAllocationPath = useMemo(
-    () => (hoverPreviewTargetNodeId && !allocatedNodeIds.has(hoverPreviewTargetNodeId)
-      ? findShortestAllocationPathFromAllocated(graph, allocatedNodeIds, hoverPreviewTargetNodeId)
+    () => (hoverPreviewTargetNodeId && !allocationDistanceNodeIds.has(hoverPreviewTargetNodeId)
+      ? findShortestAllocationPathFromAllocated(graph, allocationDistanceNodeIds, hoverPreviewTargetNodeId)
       : undefined),
-    [allocatedNodeIds, graph, hoverPreviewTargetNodeId],
+    [allocationDistanceNodeIds, graph, hoverPreviewTargetNodeId],
   );
   const hoverAllocationPathNodeIds = useMemo(
-    () => new Set(hoverAllocationPath?.nodeIds ?? []),
-    [hoverAllocationPath],
+    () => new Set((hoverAllocationPath?.nodeIds ?? []).filter((nodeId) => !allocationDistanceNodeIds.has(nodeId))),
+    [allocationDistanceNodeIds, hoverAllocationPath],
   );
   const hoverAllocationPathEdgeKeys = useMemo(
-    () => new Set(hoverAllocationPath?.edgeKeys ?? []),
-    [hoverAllocationPath],
+    () => new Set((hoverAllocationPath?.edgeKeys ?? []).filter((edgeKey) => !currentAllocationEdgeKeys.has(edgeKey))),
+    [currentAllocationEdgeKeys, hoverAllocationPath],
   );
   const noAllocationPathNodeId = allocationPlan.noAllocationPathNodeId;
   const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);

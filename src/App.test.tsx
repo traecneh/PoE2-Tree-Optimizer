@@ -223,7 +223,7 @@ describe("App", () => {
 
     expect(screen.getByText("No node selected.")).not.toBeNull();
     expect(target.classList.contains("selected")).toBe(false);
-    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("hover-allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("hover-allocation-path")).toBe(false);
     expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("hover-allocation-path")).toBe(true);
     expect(target.classList.contains("hover-allocation-path")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(2);
@@ -247,10 +247,26 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
     fireEvent.mouseEnter(screen.getByRole("button", { name: "Near Start Branch" }), { clientX: 20, clientY: 140 });
 
-    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("hover-allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("hover-allocation-path")).toBe(false);
     expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("hover-allocation-path")).toBe(true);
     expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("hover-allocation-path")).toBe(false);
     expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(1);
+  });
+
+  it("previews only the unallocated hover extension from a pending path", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Jewel Socket" }), { clientX: 320, clientY: 180 });
+
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("hover-allocation-path")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(1);
+    expect(document.querySelectorAll(".tree-edge.allocation-path.hover-allocation-path")).toHaveLength(0);
   });
 
   it("commits previewed allocation paths and previews new paths from allocated nodes", () => {
