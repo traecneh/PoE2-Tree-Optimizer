@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { BuildGoalsOptimizeResult } from "./tree/buildGoalsOptimizer";
+import { runBuildGoalsOptimization, type BuildGoalsOptimizationRun } from "./tree/buildGoalsOptimizerClient";
 import {
   findAllocationDistancesFrom,
   findShortestAllocationPathFromAllocated,
@@ -7,7 +9,8 @@ import {
 } from "./tree/pathAllocation";
 import { searchPassiveTree } from "./tree/passiveSearch";
 import { sampleGraph } from "./tree/sampleGraph";
-import type { TreeGraph } from "./tree/types";
+import type { TreeGraph, TreeNode } from "./tree/types";
+import { BuildGoalsPanel, type BuildGoalsPanelGoal, type BuildGoalsPanelStatus } from "./viewer/BuildGoalsPanel";
 import { DebugControls, type DebugOverlayState } from "./viewer/DebugControls";
 import { NodeInspector } from "./viewer/NodeInspector";
 import { PassiveSearchPanel, type PassiveSearchPanelResult } from "./viewer/PassiveSearchPanel";
@@ -21,6 +24,8 @@ type AllocationPlan = {
   previewNodePath: string[];
   previewEdgeKeys: string[];
   previewRouteNodePath: string[];
+  previewHighlightNodeIds?: string[];
+  previewHighlightEdgeKeys?: string[];
   noAllocationPathNodeId?: string;
 };
 
@@ -39,6 +44,10 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>();
   const [hoverPreviewTargetNodeId, setHoverPreviewTargetNodeId] = useState<string | undefined>();
+  const [buildGoalNodeIds, setBuildGoalNodeIds] = useState<string[]>([]);
+  const [buildGoalStatus, setBuildGoalStatus] = useState<BuildGoalsPanelStatus>({ kind: "idle" });
+  const [optimizedPreview, setOptimizedPreview] = useState<BuildGoalsOptimizeResult | undefined>();
+  const optimizerRun = useRef<BuildGoalsOptimizationRun | undefined>(undefined);
   const [debug, setDebug] = useState<DebugOverlayState>({
     showNodeIds: false,
     highlightMissingStats: false,
@@ -74,6 +83,22 @@ export default function App() {
     () => findAllocationDistancesFrom(graph, allocationDistanceNodeIds),
     [allocationDistanceNodeIds, graph],
   );
+  const buildGoalNodeIdSet = useMemo(
+    () => new Set(buildGoalNodeIds),
+    [buildGoalNodeIds],
+  );
+  const buildGoalPanelGoals = useMemo<BuildGoalsPanelGoal[]>(
+    () => buildGoalNodeIds.flatMap((nodeId) => {
+      const node = graph.nodes[nodeId];
+      if (!node) return [];
+      return [{
+        node,
+        allocationDistance: allocationDistances.get(nodeId),
+        reached: allocationDistanceNodeIds.has(nodeId),
+      }];
+    }),
+    [allocationDistanceNodeIds, allocationDistances, buildGoalNodeIds, graph.nodes],
+  );
   const searchResultsWithAllocationDistance = useMemo<PassiveSearchPanelResult[]>(
     () => searchResults
       .map((result, searchIndex) => ({
@@ -108,12 +133,21 @@ export default function App() {
     [searchResults],
   );
   const allocationPathNodeIds = useMemo(
-    () => pendingAllocationNodeIds(allocationPlan.previewNodePath, allocatedNodePath, previewRouteNodePath),
-    [allocatedNodePath, allocationPlan.previewNodePath, previewRouteNodePath],
+    () => pendingAllocationNodeIds(
+      allocationPlan.previewNodePath,
+      allocatedNodePath,
+      previewRouteNodePath,
+      allocationPlan.previewHighlightNodeIds,
+    ),
+    [allocatedNodePath, allocationPlan.previewHighlightNodeIds, allocationPlan.previewNodePath, previewRouteNodePath],
   );
   const allocationPathEdgeKeys = useMemo(
-    () => pendingAllocationEdgeKeys(allocationPlan.previewEdgeKeys, allocationPlan.committedEdgeKeys),
-    [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys],
+    () => pendingAllocationEdgeKeys(
+      allocationPlan.previewEdgeKeys,
+      allocationPlan.committedEdgeKeys,
+      allocationPlan.previewHighlightEdgeKeys,
+    ),
+    [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys, allocationPlan.previewHighlightEdgeKeys],
   );
   const hoverAllocationPath = useMemo(
     () => (hoverPreviewTargetNodeId && !allocationDistanceNodeIds.has(hoverPreviewTargetNodeId)
@@ -136,7 +170,15 @@ export default function App() {
     [allocationPath, graph.nodes],
   );
 
+  function clearOptimizedRouteState(nextStatus: BuildGoalsPanelStatus = { kind: "idle" }) {
+    optimizerRun.current?.cancel();
+    optimizerRun.current = undefined;
+    setOptimizedPreview(undefined);
+    setBuildGoalStatus(nextStatus);
+  }
+
   function resetAllocation() {
+    clearOptimizedRouteState();
     setAllocationPlan({
       committedNodePath: pathStartNodeId ? [pathStartNodeId] : [],
       committedEdgeKeys: [],
@@ -153,6 +195,7 @@ export default function App() {
 
   function allocatePreviewPath() {
     if (!allocationPath || allocationPath.pointCost === 0) return;
+    clearOptimizedRouteState();
     setAllocationPlan((current) => ({
       committedNodePath: current.previewNodePath,
       committedEdgeKeys: current.previewEdgeKeys,
@@ -162,7 +205,114 @@ export default function App() {
     }));
   }
 
+  function addBuildGoal(nodeId: string) {
+    const node = graph.nodes[nodeId];
+    if (!node || !isBuildGoalableNode(node)) return;
+    clearOptimizedRouteState();
+    setBuildGoalNodeIds((current) => (current.includes(nodeId) ? current : [...current, nodeId]));
+  }
+
+  function removeBuildGoal(nodeId: string) {
+    clearOptimizedRouteState();
+    setBuildGoalNodeIds((current) => current.filter((currentNodeId) => currentNodeId !== nodeId));
+  }
+
+  function clearBuildGoals() {
+    clearOptimizedRouteState();
+    setBuildGoalNodeIds([]);
+  }
+
+  function optimizeBuildGoalsRoute() {
+    if (buildGoalNodeIds.length === 0) return;
+
+    optimizerRun.current?.cancel();
+    setOptimizedPreview(undefined);
+    setBuildGoalStatus({ kind: "running" });
+
+    const baseNodeIds = allocationPlan.previewNodePath.length > 0
+      ? allocationPlan.previewNodePath
+      : allocationPlan.committedNodePath;
+    const baseEdgeKeys = allocationPlan.previewEdgeKeys.length > 0
+      ? allocationPlan.previewEdgeKeys
+      : allocationPlan.committedEdgeKeys;
+    const run = runBuildGoalsOptimization({
+      graph,
+      baseNodeIds,
+      baseEdgeKeys,
+      goalNodeIds: buildGoalNodeIds,
+      mode: "shortest",
+    });
+
+    optimizerRun.current = run;
+    run.promise.then((result) => {
+      if (optimizerRun.current !== run) return;
+      optimizerRun.current = undefined;
+      handleOptimizedResult(result);
+    });
+  }
+
+  function cancelBuildGoalsOptimization() {
+    if (!optimizerRun.current) return;
+    optimizerRun.current.cancel();
+    optimizerRun.current = undefined;
+    setBuildGoalStatus({ kind: "cancelled" });
+  }
+
+  function handleOptimizedResult(result: BuildGoalsOptimizeResult) {
+    if (result.status === "cancelled") {
+      setBuildGoalStatus({ kind: "cancelled" });
+      return;
+    }
+
+    if (result.status === "error") {
+      setBuildGoalStatus({ kind: "error", message: result.message ?? "Build goal optimization failed." });
+      return;
+    }
+
+    if (result.status === "unreachable") {
+      setBuildGoalStatus({
+        kind: "unreachable",
+        unreachableGoals: result.unreachableGoalNodeIds.flatMap((nodeId) => graph.nodes[nodeId] ? [graph.nodes[nodeId]] : []),
+      });
+      return;
+    }
+
+    if (result.pointCost === 0) {
+      setBuildGoalStatus({ kind: "already-reached" });
+      return;
+    }
+
+    setOptimizedPreview(result);
+    setBuildGoalStatus({ kind: "success", pointCost: result.pointCost });
+    setAllocationPlan((current) => ({
+      ...current,
+      previewNodePath: result.totalNodeIds,
+      previewEdgeKeys: result.totalEdgeKeys,
+      previewRouteNodePath: [],
+      previewHighlightNodeIds: result.addedNodeIds,
+      previewHighlightEdgeKeys: result.addedEdgeKeys,
+      noAllocationPathNodeId: undefined,
+    }));
+  }
+
+  function applyOptimizedRoute() {
+    if (!optimizedPreview || optimizedPreview.pointCost === 0) return;
+
+    optimizerRun.current?.cancel();
+    optimizerRun.current = undefined;
+    setAllocationPlan({
+      committedNodePath: optimizedPreview.orderedNodeIds,
+      committedEdgeKeys: optimizedPreview.totalEdgeKeys,
+      previewNodePath: [],
+      previewEdgeKeys: [],
+      previewRouteNodePath: [],
+    });
+    setOptimizedPreview(undefined);
+    setBuildGoalStatus({ kind: "already-reached" });
+  }
+
   function selectTreeNode(nodeId: string) {
+    clearOptimizedRouteState();
     setSelectedNodeId(nodeId);
     setAllocationPlan((current) => {
       const committedNodeIndex = current.committedNodePath.lastIndexOf(nodeId);
@@ -186,6 +336,10 @@ export default function App() {
           previewNodePath,
           previewEdgeKeys: filterEdgeKeysToNodeIds(current.previewEdgeKeys, previewNodePath),
           previewRouteNodePath,
+          previewHighlightNodeIds: current.previewHighlightNodeIds?.filter((highlightNodeId) => previewNodePath.includes(highlightNodeId)),
+          previewHighlightEdgeKeys: current.previewHighlightEdgeKeys
+            ? filterEdgeKeysToNodeIds(current.previewHighlightEdgeKeys, previewNodePath)
+            : undefined,
           noAllocationPathNodeId: undefined,
         };
       }
@@ -215,6 +369,8 @@ export default function App() {
         previewNodePath: appendUniqueNodePath(pathStartNodePath, nextPath.nodeIds),
         previewEdgeKeys: mergeEdgeKeys(baseEdgeKeys, Array.from(edgeKeysFromNodePath(nextPath.nodeIds))),
         previewRouteNodePath: nextPath.nodeIds,
+        previewHighlightNodeIds: undefined,
+        previewHighlightEdgeKeys: undefined,
         noAllocationPathNodeId: undefined,
       };
     });
@@ -225,6 +381,10 @@ export default function App() {
   }, [classStartEntries, graph.nodes]);
 
   useEffect(() => {
+    optimizerRun.current?.cancel();
+    optimizerRun.current = undefined;
+    setOptimizedPreview(undefined);
+    setBuildGoalStatus({ kind: "idle" });
     setAllocationPlan({
       committedNodePath: pathStartNodeId && graph.nodes[pathStartNodeId] ? [pathStartNodeId] : [],
       committedEdgeKeys: [],
@@ -233,6 +393,20 @@ export default function App() {
       previewRouteNodePath: [],
     });
   }, [graph.nodes, pathStartNodeId]);
+
+  useEffect(() => {
+    setBuildGoalNodeIds((current) => {
+      const next = current.filter((nodeId) => {
+      const node = graph.nodes[nodeId];
+      return node && isBuildGoalableNode(node);
+      });
+      return next.length === current.length ? current : next;
+    });
+  }, [graph.nodes]);
+
+  useEffect(() => () => {
+    optimizerRun.current?.cancel();
+  }, []);
 
   useEffect(() => {
     fetch("/tree-graph.json")
@@ -294,6 +468,7 @@ export default function App() {
           nodeVisualScale={nodeVisualScale}
           searchMatchNodeIds={searchMatchNodeIds}
           searchFocusedNodeId={searchFocusedNodeId}
+          buildGoalNodeIds={buildGoalNodeIdSet}
           allocatedNodeIds={allocatedNodeIds}
           allocatedEdgeKeys={allocatedEdgeKeys}
           allocationPathNodeIds={allocationPathNodeIds}
@@ -309,9 +484,22 @@ export default function App() {
             query={searchQuery}
             results={searchResultsWithAllocationDistance}
             selectedNodeId={selectedNodeId}
+            buildGoalNodeIds={buildGoalNodeIdSet}
             onQueryChange={updateSearchQuery}
             onSelectNode={selectTreeNode}
             onHoverNode={setSearchFocusedNodeId}
+            canAddBuildGoal={isBuildGoalableNode}
+            onAddBuildGoal={addBuildGoal}
+          />
+          <BuildGoalsPanel
+            goals={buildGoalPanelGoals}
+            status={buildGoalStatus}
+            canApplyOptimizedRoute={Boolean(optimizedPreview && optimizedPreview.pointCost > 0)}
+            onRemoveGoal={removeBuildGoal}
+            onClearGoals={clearBuildGoals}
+            onOptimize={optimizeBuildGoalsRoute}
+            onCancel={cancelBuildGoalsOptimization}
+            onApplyOptimizedRoute={applyOptimizedRoute}
           />
           <NodeInspector
             node={selectedNode}
@@ -321,6 +509,9 @@ export default function App() {
             pathStartName={currentPathEndpointNodeId ? graph.nodes[currentPathEndpointNodeId]?.name : undefined}
             canAllocatePath={allocationPlan.previewNodePath.length > 0 && (allocationPath?.pointCost ?? 0) > 0}
             onAllocatePath={allocatePreviewPath}
+            canAddBuildGoal={selectedNode ? isBuildGoalableNode(selectedNode) : false}
+            isBuildGoal={selectedNodeId ? buildGoalNodeIdSet.has(selectedNodeId) : false}
+            onAddBuildGoal={selectedNodeId ? () => addBuildGoal(selectedNodeId) : undefined}
           />
         </div>
       </section>
@@ -379,7 +570,10 @@ function pendingAllocationNodeIds(
   previewNodePath: string[],
   committedNodePath: string[],
   previewRouteNodePath: string[],
+  previewHighlightNodeIds?: string[],
 ): Set<string> {
+  if (previewHighlightNodeIds) return new Set(previewHighlightNodeIds);
+
   const committedNodeIds = new Set(committedNodePath);
   const nodeIds = new Set(previewNodePath.filter((nodeId) => !committedNodeIds.has(nodeId)));
   const routeStartNodeId = previewRouteNodePath[0];
@@ -387,7 +581,13 @@ function pendingAllocationNodeIds(
   return nodeIds;
 }
 
-function pendingAllocationEdgeKeys(previewEdgeKeys: string[], committedEdgeKeys: string[]): Set<string> {
+function pendingAllocationEdgeKeys(
+  previewEdgeKeys: string[],
+  committedEdgeKeys: string[],
+  previewHighlightEdgeKeys?: string[],
+): Set<string> {
+  if (previewHighlightEdgeKeys) return new Set(previewHighlightEdgeKeys);
+
   const committed = new Set(committedEdgeKeys);
   return new Set(previewEdgeKeys.filter((edgeKey) => !committed.has(edgeKey)));
 }
@@ -412,4 +612,8 @@ function sliceRouteToNode(routeNodePath: string[], nodeId: string): string[] {
 
 function nodePathEndpoint(nodePath: string[]): string | undefined {
   return nodePath[nodePath.length - 1];
+}
+
+function isBuildGoalableNode(node: TreeNode): boolean {
+  return Boolean(node.flags.notable || node.flags.keystone || node.flags.jewelSocket);
 }

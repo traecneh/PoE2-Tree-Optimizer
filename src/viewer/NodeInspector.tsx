@@ -8,7 +8,10 @@ export function NodeInspector({
   allocationPathNodeNames = [],
   pathStartName,
   canAllocatePath = false,
+  canAddBuildGoal = false,
+  isBuildGoal = false,
   onAllocatePath,
+  onAddBuildGoal,
 }: {
   node?: TreeNode;
   edges: TreeEdge[];
@@ -16,7 +19,10 @@ export function NodeInspector({
   allocationPathNodeNames?: string[];
   pathStartName?: string;
   canAllocatePath?: boolean;
+  canAddBuildGoal?: boolean;
+  isBuildGoal?: boolean;
   onAllocatePath?: () => void;
+  onAddBuildGoal?: () => void;
 }) {
   if (!node) {
     return (
@@ -34,6 +40,16 @@ export function NodeInspector({
   return (
     <aside className="inspector">
       <h2>{node.name ?? node.id}</h2>
+      {canAddBuildGoal ? (
+        <button
+          className="tool-button inspector-goal-action"
+          type="button"
+          onClick={onAddBuildGoal}
+          disabled={isBuildGoal}
+        >
+          {isBuildGoal ? "Build goal added" : "Add build goal"}
+        </button>
+      ) : null}
       <dl>
         <dt>ID</dt>
         <dd>{node.id}</dd>

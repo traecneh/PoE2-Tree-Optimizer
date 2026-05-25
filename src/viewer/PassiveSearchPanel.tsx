@@ -10,18 +10,24 @@ type PassiveSearchPanelProps = {
   query: string;
   results: PassiveSearchPanelResult[];
   selectedNodeId?: string;
+  buildGoalNodeIds?: ReadonlySet<string>;
   onQueryChange: (query: string) => void;
   onSelectNode: (nodeId: string) => void;
   onHoverNode?: (nodeId: string | undefined) => void;
+  canAddBuildGoal?: (node: TreeNode) => boolean;
+  onAddBuildGoal?: (nodeId: string) => void;
 };
 
 export function PassiveSearchPanel({
   query,
   results,
   selectedNodeId,
+  buildGoalNodeIds,
   onQueryChange,
   onSelectNode,
   onHoverNode,
+  canAddBuildGoal,
+  onAddBuildGoal,
 }: PassiveSearchPanelProps) {
   const trimmedQuery = query.trim();
 
@@ -41,8 +47,12 @@ export function PassiveSearchPanel({
           <div className="search-summary">{formatMatchCount(results.length)}</div>
           {results.length > 0 ? (
             <ol className="search-results">
-              {results.map(({ node, matchedText, allocationDistance, allocated = false }) => (
-                <li key={node.id}>
+              {results.map(({ node, matchedText, allocationDistance, allocated = false }) => {
+                const goalable = canAddBuildGoal?.(node) ?? false;
+                const alreadyBuildGoal = buildGoalNodeIds?.has(node.id) ?? false;
+
+                return (
+                <li key={node.id} className="search-result-row">
                   <button
                     className={`search-result${node.id === selectedNodeId ? " selected" : ""}`}
                     type="button"
@@ -60,8 +70,22 @@ export function PassiveSearchPanel({
                     <span className="search-result-meta">{formatResultMeta(node, allocationDistance, allocated)}</span>
                     <span className="search-result-match">{matchedText}</span>
                   </button>
+                  {goalable ? (
+                    <button
+                      className="tool-button search-result-goal-action"
+                      type="button"
+                      aria-label={alreadyBuildGoal
+                        ? `${node.name ?? node.id} build goal added`
+                        : `Add ${node.name ?? node.id} to build goals`}
+                      onClick={() => onAddBuildGoal?.(node.id)}
+                      disabled={alreadyBuildGoal}
+                    >
+                      {alreadyBuildGoal ? "Added" : "Goal"}
+                    </button>
+                  ) : null}
                 </li>
-              ))}
+                );
+              })}
             </ol>
           ) : null}
         </>

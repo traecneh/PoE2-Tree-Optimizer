@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { sampleGraph } from "./tree/sampleGraph";
@@ -32,7 +32,7 @@ describe("App", () => {
           name: "Near Start Branch",
           stats: ["10% increased Branch Damage"],
           position: { x: -120, y: 0 },
-          flags: { small: true },
+          flags: { notable: true },
         },
       },
       edges: [
@@ -192,6 +192,144 @@ describe("App", () => {
 
     expect(screen.getByText("1 match")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("search-match")).toBe(true);
+  });
+
+  it("adds, removes, and clears build goals from the node inspector", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const goalsPanel = screen.getByRole("region", { name: "Build goals" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add build goal" }));
+
+    expect(within(goalsPanel).getByText("Precise Shot")).not.toBeNull();
+    expect(within(goalsPanel).getByText("Notable · Reached")).not.toBeNull();
+
+    fireEvent.click(within(goalsPanel).getByRole("button", { name: "Remove Precise Shot build goal" }));
+
+    expect(within(goalsPanel).queryByText("Precise Shot")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add build goal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add build goal" }));
+    fireEvent.click(within(goalsPanel).getByRole("button", { name: "Clear goals" }));
+
+    expect(within(goalsPanel).getByText("No build goals selected.")).not.toBeNull();
+  });
+
+  it("adds build goals from passive search results without duplicating them", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Precise Shot to build goals" }));
+
+    const goalsPanel = screen.getByRole("region", { name: "Build goals" });
+    expect(within(goalsPanel).getAllByText("Precise Shot")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    expect((screen.getByRole("button", { name: "Build goal added" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(goalsPanel).getAllByText("Precise Shot")).toHaveLength(1);
+
+    const searchResult = screen.getByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" });
+    expect(searchResult.querySelector("button")).toBeNull();
+  });
+
+  it("marks build goal nodes on the tree", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add build goal" }));
+
+    const node = screen.getByRole("button", { name: "Precise Shot" });
+    expect(node.classList.contains("build-goal")).toBe(true);
+    expect(node.querySelector(".build-goal-marker")).not.toBeNull();
+  });
+
+  it("optimizes build goals into a preview without applying the route", async () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Precise Shot to build goals" }));
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Jewel Socket to build goals" }));
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+
+    expect(await screen.findByText("Optimized route: 3 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(3);
+    expect((screen.getByRole("button", { name: "Apply optimized route" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("applies an optimized route to committed allocation", async () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Precise Shot to build goals" }));
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Jewel Socket to build goals" }));
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+
+    await screen.findByText("Optimized route: 3 points");
+    fireEvent.click(screen.getByRole("button", { name: "Apply optimized route" }));
+
+    expect(screen.getByText("Allocated 3 points")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(3);
+  });
+
+  it("uses the current pending path as the optimizer base", async () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Jewel Socket to build goals" }));
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+
+    expect(await screen.findByText("Optimized route: 1 point")).not.toBeNull();
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("allocation-path")).toBe(false);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(true);
+  });
+
+  it("applies a branching optimized route with deterministic prune order", async () => {
+    stubTreeFetchWithGraph(endpointFixtureGraph());
+
+    render(<App />);
+
+    await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
+
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Jewel Socket to build goals" }));
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "branch" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Near Start Branch to build goals" }));
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+
+    await screen.findByText("Optimized route: 4 points");
+    fireEvent.click(screen.getByRole("button", { name: "Apply optimized route" }));
+
+    expect(screen.getByText("Allocated 4 points")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Allocated 1 point")).not.toBeNull();
+    });
+    expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(false);
   });
 
   it("previews the allocation path from the selected class start to the selected target", () => {

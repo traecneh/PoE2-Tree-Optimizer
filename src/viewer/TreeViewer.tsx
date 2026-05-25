@@ -15,6 +15,7 @@ type TreeViewerProps = {
   nodeVisualScale?: number;
   searchMatchNodeIds?: ReadonlySet<string>;
   searchFocusedNodeId?: string;
+  buildGoalNodeIds?: ReadonlySet<string>;
   allocatedNodeIds?: ReadonlySet<string>;
   allocatedEdgeKeys?: ReadonlySet<string>;
   allocationPathNodeIds?: ReadonlySet<string>;
@@ -64,6 +65,7 @@ export function TreeViewer({
   nodeVisualScale = defaultNodeVisualScale,
   searchMatchNodeIds,
   searchFocusedNodeId,
+  buildGoalNodeIds,
   allocatedNodeIds,
   allocatedEdgeKeys,
   allocationPathNodeIds,
@@ -397,6 +399,7 @@ export function TreeViewer({
                 nodeVisualScale={nodeVisualScale}
                 searchMatched={searchMatchNodeIds?.has(node.id) ?? false}
                 searchFocused={node.id === searchFocusedNodeId}
+                buildGoal={buildGoalNodeIds?.has(node.id) ?? false}
                 allocated={allocatedNodeIds?.has(node.id) ?? false}
                 allocationPath={allocationPathNodeIds?.has(node.id) ?? false}
                 hoverAllocationPath={hoverAllocationPathNodeIds?.has(node.id) ?? false}
@@ -489,6 +492,7 @@ function ButtonNode({
   nodeVisualScale,
   searchMatched,
   searchFocused,
+  buildGoal,
   allocated,
   allocationPath,
   hoverAllocationPath,
@@ -508,6 +512,7 @@ function ButtonNode({
   nodeVisualScale: number;
   searchMatched: boolean;
   searchFocused: boolean;
+  buildGoal: boolean;
   allocated: boolean;
   allocationPath: boolean;
   hoverAllocationPath: boolean;
@@ -563,7 +568,7 @@ function ButtonNode({
 
   return (
     <g
-      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${searchMatched ? " search-match" : ""}${searchFocused ? " search-focus" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${hoverAllocationPath ? " hover-allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
+      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${searchMatched ? " search-match" : ""}${searchFocused ? " search-focus" : ""}${buildGoal ? " build-goal" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${hoverAllocationPath ? " hover-allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}
@@ -592,6 +597,7 @@ function ButtonNode({
       {visual.haloRadius ? <circle className="node-halo" r={visual.haloRadius} /> : null}
       {searchMatched ? <circle className="search-pulse-marker" r={visual.frameRadius + 20 * nodeVisualScale} /> : null}
       {searchFocused ? <circle className="search-focus-marker" r={visual.frameRadius + 34 * nodeVisualScale} /> : null}
+      {buildGoal ? <circle className="build-goal-marker" r={visual.frameRadius + 52 * nodeVisualScale} /> : null}
       {pathStart ? <circle className="path-start-marker" r={visual.frameRadius + 44 * nodeVisualScale} /> : null}
       {hoverAllocationPath ? <circle className="hover-path-marker" r={visual.frameRadius + 24 * nodeVisualScale} /> : null}
       {noAllocationPath ? <circle className="no-path-marker" r={visual.frameRadius + 28 * nodeVisualScale} /> : null}
