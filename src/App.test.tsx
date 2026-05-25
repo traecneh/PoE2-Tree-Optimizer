@@ -62,4 +62,23 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("allocation-path")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(2);
   });
+
+  it("commits previewed allocation paths and previews new paths from allocated nodes", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+
+    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+
+    expect(screen.getByText("1 point")).not.toBeNull();
+    expect(screen.getByText("Precise Shot -> Jewel Socket")).not.toBeNull();
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(1);
+  });
 });

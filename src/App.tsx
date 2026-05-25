@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { findShortestAllocationPath } from "./tree/pathAllocation";
+import { findShortestAllocationPathFromAllocated } from "./tree/pathAllocation";
 import { searchPassiveTree } from "./tree/passiveSearch";
 import { sampleGraph } from "./tree/sampleGraph";
 import type { TreeGraph } from "./tree/types";
@@ -14,6 +14,8 @@ export default function App() {
   const [graph, setGraph] = useState<TreeGraph>(sampleGraph);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
   const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();
+  const [allocatedNodeIds, setAllocatedNodeIds] = useState<Set<string>>(new Set());
+  const [allocatedEdgeKeys, setAllocatedEdgeKeys] = useState<Set<string>>(new Set());
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(2);
   const [searchQuery, setSearchQuery] = useState("");
   const [debug, setDebug] = useState<DebugOverlayState>({
@@ -32,11 +34,15 @@ export default function App() {
     () => Object.entries(graph.classStarts).filter(([, nodeId]) => Boolean(graph.nodes[nodeId])),
     [graph.classStarts, graph.nodes],
   );
+  const allocationStartNodeIds = useMemo(
+    () => (allocatedNodeIds.size > 0 ? allocatedNodeIds : new Set(pathStartNodeId ? [pathStartNodeId] : [])),
+    [allocatedNodeIds, pathStartNodeId],
+  );
   const allocationPath = useMemo(
-    () => (selectedNodeId && pathStartNodeId
-      ? findShortestAllocationPath(graph, pathStartNodeId, selectedNodeId)
+    () => (selectedNodeId
+      ? findShortestAllocationPathFromAllocated(graph, allocationStartNodeIds, selectedNodeId)
       : undefined),
-    [graph, pathStartNodeId, selectedNodeId],
+    [allocationStartNodeIds, graph, selectedNodeId],
   );
   const searchMatchNodeIds = useMemo(
     () => new Set(searchResults.map(({ node }) => node.id)),
@@ -50,14 +56,34 @@ export default function App() {
     () => new Set(allocationPath?.edgeKeys ?? []),
     [allocationPath],
   );
+  const allocatedPointCount = Math.max(
+    0,
+    allocatedNodeIds.size - (pathStartNodeId && allocatedNodeIds.has(pathStartNodeId) ? 1 : 0),
+  );
   const allocationPathNodeNames = useMemo(
     () => allocationPath?.nodeIds.map((nodeId) => graph.nodes[nodeId]?.name ?? nodeId) ?? [],
     [allocationPath, graph.nodes],
   );
 
+  function resetAllocation() {
+    setAllocatedNodeIds(new Set(pathStartNodeId ? [pathStartNodeId] : []));
+    setAllocatedEdgeKeys(new Set());
+  }
+
+  function allocatePreviewPath() {
+    if (!allocationPath || allocationPath.pointCost === 0) return;
+    setAllocatedNodeIds((current) => new Set([...current, ...allocationPath.nodeIds]));
+    setAllocatedEdgeKeys((current) => new Set([...current, ...allocationPath.edgeKeys]));
+  }
+
   useEffect(() => {
     setPathStartNodeId((current) => (current && graph.nodes[current] ? current : classStartEntries[0]?.[1]));
   }, [classStartEntries, graph.nodes]);
+
+  useEffect(() => {
+    setAllocatedNodeIds(new Set(pathStartNodeId && graph.nodes[pathStartNodeId] ? [pathStartNodeId] : []));
+    setAllocatedEdgeKeys(new Set());
+  }, [graph.nodes, pathStartNodeId]);
 
   useEffect(() => {
     fetch("/tree-graph.json")
@@ -96,6 +122,17 @@ export default function App() {
               ))}
             </select>
           </label>
+          <div className="allocation-control" aria-label="Allocation summary">
+            <span>{formatAllocatedPointCount(allocatedPointCount)}</span>
+            <button
+              className="tool-button"
+              type="button"
+              onClick={resetAllocation}
+              disabled={allocatedPointCount === 0}
+            >
+              Reset allocation
+            </button>
+          </div>
           <DebugControls value={debug} onChange={setDebug} />
         </div>
       </header>
@@ -105,6 +142,8 @@ export default function App() {
           selectedNodeId={selectedNodeId}
           nodeVisualScale={nodeVisualScale}
           searchMatchNodeIds={searchMatchNodeIds}
+          allocatedNodeIds={allocatedNodeIds}
+          allocatedEdgeKeys={allocatedEdgeKeys}
           allocationPathNodeIds={allocationPathNodeIds}
           allocationPathEdgeKeys={allocationPathEdgeKeys}
           onSelectNode={setSelectedNodeId}
@@ -124,9 +163,15 @@ export default function App() {
             allocationPath={allocationPath}
             allocationPathNodeNames={allocationPathNodeNames}
             pathStartName={pathStartNodeId ? graph.nodes[pathStartNodeId]?.name : undefined}
+            canAllocatePath={(allocationPath?.pointCost ?? 0) > 0}
+            onAllocatePath={allocatePreviewPath}
           />
         </div>
       </section>
     </main>
   );
+}
+
+function formatAllocatedPointCount(pointCount: number): string {
+  return `Allocated ${pointCount} ${pointCount === 1 ? "point" : "points"}`;
 }

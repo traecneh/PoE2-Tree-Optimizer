@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { sampleGraph } from "./sampleGraph";
-import { findShortestAllocationPath } from "./pathAllocation";
+import { findShortestAllocationPath, findShortestAllocationPathFromAllocated } from "./pathAllocation";
 import type { TreeGraph } from "./types";
 
 describe("findShortestAllocationPath", () => {
@@ -77,5 +77,33 @@ describe("findShortestAllocationPath", () => {
 
     expect(findShortestAllocationPath(graph, "missing", "precise_shot")).toBeUndefined();
     expect(findShortestAllocationPath(graph, "mercenary_start", "orphan")).toBeUndefined();
+  });
+
+  it("returns the shortest path from the current allocated tree", () => {
+    expect(findShortestAllocationPathFromAllocated(
+      sampleGraph,
+      new Set(["mercenary_start", "projectile_damage", "precise_shot"]),
+      "jewel_socket",
+    )).toEqual({
+      startNodeId: "precise_shot",
+      targetNodeId: "jewel_socket",
+      nodeIds: ["precise_shot", "jewel_socket"],
+      edgeKeys: ["jewel_socket::precise_shot"],
+      pointCost: 1,
+    });
+  });
+
+  it("returns a zero point path when the target is already allocated", () => {
+    expect(findShortestAllocationPathFromAllocated(
+      sampleGraph,
+      new Set(["mercenary_start", "projectile_damage", "precise_shot"]),
+      "projectile_damage",
+    )).toEqual({
+      startNodeId: "projectile_damage",
+      targetNodeId: "projectile_damage",
+      nodeIds: ["projectile_damage"],
+      edgeKeys: [],
+      pointCost: 0,
+    });
   });
 });

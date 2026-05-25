@@ -525,6 +525,26 @@ describe("TreeViewer", () => {
     expect(document.querySelectorAll(".path-highlight-layer .allocation-path-edge")).toHaveLength(2);
   });
 
+  it("marks committed allocated nodes and edges separately from the preview path", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        allocatedNodeIds={new Set(["mercenary_start", "projectile_damage"])}
+        allocatedEdgeKeys={new Set(["mercenary_start::projectile_damage"])}
+        allocationPathNodeIds={new Set(["projectile_damage", "precise_shot"])}
+        allocationPathEdgeKeys={new Set(["precise_shot::projectile_damage"])}
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(1);
+    expect(document.querySelectorAll(".allocated-highlight-layer .allocated-edge")).toHaveLength(1);
+    expect(document.querySelectorAll(".path-highlight-layer .allocation-path-edge")).toHaveLength(1);
+  });
+
   it("marks the selected map node with a prominent target ring", () => {
     render(
       <TreeViewer

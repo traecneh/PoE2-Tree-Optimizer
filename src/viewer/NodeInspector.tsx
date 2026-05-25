@@ -7,12 +7,16 @@ export function NodeInspector({
   allocationPath,
   allocationPathNodeNames = [],
   pathStartName,
+  canAllocatePath = false,
+  onAllocatePath,
 }: {
   node?: TreeNode;
   edges: TreeEdge[];
   allocationPath?: AllocationPath;
   allocationPathNodeNames?: string[];
   pathStartName?: string;
+  canAllocatePath?: boolean;
+  onAllocatePath?: () => void;
 }) {
   if (!node) {
     return (
@@ -46,6 +50,8 @@ export function NodeInspector({
         path={allocationPath}
         nodeNames={allocationPathNodeNames}
         pathStartName={pathStartName}
+        canAllocatePath={canAllocatePath}
+        onAllocatePath={onAllocatePath}
       />
       <h3>Stats</h3>
       <ul>{node.stats.map((stat, index) => <li key={`${stat}-${index}`}>{stat}</li>)}</ul>
@@ -59,10 +65,14 @@ function AllocationPathDetails({
   path,
   nodeNames,
   pathStartName,
+  canAllocatePath,
+  onAllocatePath,
 }: {
   path?: AllocationPath;
   nodeNames: string[];
   pathStartName?: string;
+  canAllocatePath: boolean;
+  onAllocatePath?: () => void;
 }) {
   if (!path) {
     return pathStartName ? (
@@ -78,6 +88,14 @@ function AllocationPathDetails({
       <h3>Allocation path</h3>
       <p className="allocation-path-cost">{formatPointCost(path.pointCost)}</p>
       <p className="allocation-path-route">{nodeNames.join(" -> ")}</p>
+      <button
+        className="tool-button allocation-path-action"
+        type="button"
+        onClick={onAllocatePath}
+        disabled={!canAllocatePath}
+      >
+        Allocate path
+      </button>
     </section>
   );
 }

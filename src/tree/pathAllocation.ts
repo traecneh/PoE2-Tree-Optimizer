@@ -43,6 +43,44 @@ export function findShortestAllocationPath(
   return undefined;
 }
 
+export function findShortestAllocationPathFromAllocated(
+  graph: TreeGraph,
+  allocatedNodeIds: ReadonlySet<NodeId>,
+  targetNodeId: NodeId,
+): AllocationPath | undefined {
+  if (!graph.nodes[targetNodeId]) return undefined;
+  if (allocatedNodeIds.has(targetNodeId)) {
+    return {
+      startNodeId: targetNodeId,
+      targetNodeId,
+      nodeIds: [targetNodeId],
+      edgeKeys: [],
+      pointCost: 0,
+    };
+  }
+
+  const startNodeIds = Array.from(allocatedNodeIds).filter((nodeId) => graph.nodes[nodeId]);
+  if (startNodeIds.length === 0) return undefined;
+
+  const adjacency = buildAllocatableAdjacency(graph);
+  const queue: NodeId[] = [...startNodeIds];
+  const previous = new Map<NodeId, NodeId | undefined>(
+    startNodeIds.map((nodeId) => [nodeId, undefined]),
+  );
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    for (const next of adjacency.get(current) ?? []) {
+      if (previous.has(next)) continue;
+      previous.set(next, current);
+      if (next === targetNodeId) return buildPath(resolvePathStart(targetNodeId, previous), targetNodeId, previous);
+      queue.push(next);
+    }
+  }
+
+  return undefined;
+}
+
 export function treeEdgeKey(from: NodeId, to: NodeId): string {
   return [from, to].sort().join("::");
 }
@@ -87,6 +125,16 @@ function buildPath(startNodeId: NodeId, targetNodeId: NodeId, previous: Map<Node
     edgeKeys: nodeIds.slice(1).map((nodeId, index) => treeEdgeKey(nodeIds[index], nodeId)),
     pointCost: Math.max(0, nodeIds.length - 1),
   };
+}
+
+function resolvePathStart(targetNodeId: NodeId, previous: Map<NodeId, NodeId | undefined>): NodeId {
+  let current = targetNodeId;
+  let parent = previous.get(current);
+  while (parent) {
+    current = parent;
+    parent = previous.get(current);
+  }
+  return current;
 }
 
 function edgeLength(from: TreeNode, to: TreeNode): number {

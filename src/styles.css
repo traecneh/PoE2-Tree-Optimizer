@@ -57,12 +57,18 @@ button {
 }
 
 .node-size-control,
+.allocation-control,
 .path-start-control {
   display: flex;
   align-items: center;
   gap: 8px;
   color: #c6d0df;
   font-size: 13px;
+}
+
+.allocation-control {
+  color: #9edecb;
+  font-weight: 700;
 }
 
 .node-size-control select,
@@ -217,8 +223,25 @@ button {
   opacity: 0.98;
 }
 
+.tree-edge.allocated {
+  opacity: 0.95;
+  stroke: #78d6bd;
+  stroke-width: 9;
+}
+
+.allocated-highlight-layer,
 .path-highlight-layer {
   pointer-events: none;
+}
+
+.allocated-edge {
+  fill: none;
+  opacity: 0.86;
+  pointer-events: none;
+  stroke: #78d6bd;
+  stroke-linecap: round;
+  stroke-width: 5;
+  vector-effect: non-scaling-stroke;
 }
 
 .allocation-path-edge {
@@ -452,6 +475,21 @@ button {
   stroke-width: 3;
 }
 
+.tree-node.allocated .node-halo {
+  fill: #54b899;
+  opacity: 0.35;
+}
+
+.tree-node.allocated .node-frame {
+  stroke: #78d6bd;
+  stroke-width: 6;
+}
+
+.tree-node.allocated .node-core {
+  stroke: #d4fff4;
+  stroke-width: 3;
+}
+
 .tree-node.allocation-path .node-halo {
   fill: #d5b45a;
   opacity: 0.42;
@@ -646,4 +684,8 @@ button {
   color: #c6d0df;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.allocation-path-action {
+  margin-top: 10px;
 }
