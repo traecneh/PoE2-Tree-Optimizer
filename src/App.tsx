@@ -38,6 +38,7 @@ export default function App() {
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(2);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>();
+  const [hoverPreviewTargetNodeId, setHoverPreviewTargetNodeId] = useState<string | undefined>();
   const [debug, setDebug] = useState<DebugOverlayState>({
     showNodeIds: false,
     highlightMissingStats: false,
@@ -107,6 +108,20 @@ export default function App() {
   const allocationPathEdgeKeys = useMemo(
     () => pendingAllocationEdgeKeys(allocationPlan.previewEdgeKeys, allocationPlan.committedEdgeKeys),
     [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys],
+  );
+  const hoverAllocationPath = useMemo(
+    () => (hoverPreviewTargetNodeId && !allocatedNodeIds.has(hoverPreviewTargetNodeId)
+      ? findShortestAllocationPathFromAllocated(graph, allocatedNodeIds, hoverPreviewTargetNodeId)
+      : undefined),
+    [allocatedNodeIds, graph, hoverPreviewTargetNodeId],
+  );
+  const hoverAllocationPathNodeIds = useMemo(
+    () => new Set(hoverAllocationPath?.nodeIds ?? []),
+    [hoverAllocationPath],
+  );
+  const hoverAllocationPathEdgeKeys = useMemo(
+    () => new Set(hoverAllocationPath?.edgeKeys ?? []),
+    [hoverAllocationPath],
   );
   const noAllocationPathNodeId = allocationPlan.noAllocationPathNodeId;
   const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);
@@ -277,7 +292,10 @@ export default function App() {
           allocatedEdgeKeys={allocatedEdgeKeys}
           allocationPathNodeIds={allocationPathNodeIds}
           allocationPathEdgeKeys={allocationPathEdgeKeys}
+          hoverAllocationPathNodeIds={hoverAllocationPathNodeIds}
+          hoverAllocationPathEdgeKeys={hoverAllocationPathEdgeKeys}
           onSelectNode={selectTreeNode}
+          onHoverNode={setHoverPreviewTargetNodeId}
           debug={debug}
         />
         <div className="side-panel">

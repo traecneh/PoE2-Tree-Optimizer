@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject, WheelEvent } from "react";
+import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject, WheelEvent } from "react";
 import { passiveIconPublicPath } from "../tree/passiveIconAssets";
 import { treeEdgeKey } from "../tree/pathAllocation";
 import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
@@ -19,7 +19,10 @@ type TreeViewerProps = {
   allocatedEdgeKeys?: ReadonlySet<string>;
   allocationPathNodeIds?: ReadonlySet<string>;
   allocationPathEdgeKeys?: ReadonlySet<string>;
+  hoverAllocationPathNodeIds?: ReadonlySet<string>;
+  hoverAllocationPathEdgeKeys?: ReadonlySet<string>;
   onSelectNode: (nodeId: string) => void;
+  onHoverNode?: (nodeId: string | undefined) => void;
   debug: DebugOverlayState;
 };
 
@@ -65,7 +68,10 @@ export function TreeViewer({
   allocatedEdgeKeys,
   allocationPathNodeIds,
   allocationPathEdgeKeys,
+  hoverAllocationPathNodeIds,
+  hoverAllocationPathEdgeKeys,
   onSelectNode,
+  onHoverNode,
   debug,
 }: TreeViewerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -90,9 +96,11 @@ export function TreeViewer({
       const classNames = ["tree-edge"];
       const allocated = allocatedEdgeKeys?.has(treeEdgeKey(edge.from, edge.to)) ?? false;
       const allocationPath = allocationPathEdgeKeys?.has(treeEdgeKey(edge.from, edge.to)) ?? false;
+      const hoverAllocationPath = hoverAllocationPathEdgeKeys?.has(treeEdgeKey(edge.from, edge.to)) ?? false;
       if (allocated) classNames.push("allocated");
       if (debug.showEdgeRoutes) classNames.push("edge-route-debug", edgeRouteClass(edge));
       if (allocationPath) classNames.push("allocation-path");
+      if (hoverAllocationPath) classNames.push("hover-allocation-path");
       return [{
         id: `${edge.from}-${edge.to}`,
         path: buildTreeEdgePath(from, to, group, edge),
@@ -100,11 +108,12 @@ export function TreeViewer({
         className: classNames.join(" "),
         allocated,
         allocationPath,
+        hoverAllocationPath,
         label: formatEdgeRouteLabel(edge.connectionOrbit),
         labelPosition: midpoint(from, to),
       }];
     }),
-    [allocatedEdgeKeys, allocationPathEdgeKeys, debug.showEdgeRoutes, graph.edges, graph.groups, graph.nodes],
+    [allocatedEdgeKeys, allocationPathEdgeKeys, debug.showEdgeRoutes, graph.edges, graph.groups, graph.nodes, hoverAllocationPathEdgeKeys],
   );
 
   useEffect(() => {
@@ -240,7 +249,7 @@ export function TreeViewer({
     pendingNodePress.current = nodeId;
   }
 
-  function showTooltipAtPointer(node: TreeNode, event: MouseEvent<SVGGElement>) {
+  function showTooltipAtPointer(node: TreeNode, event: MouseEvent<SVGGElement> | PointerEvent<SVGGElement>) {
     showTooltip(node, tooltipPositionFromClientPoint(event.clientX, event.clientY));
   }
 
@@ -350,6 +359,17 @@ export function TreeViewer({
               ] : []
             ))}
           </g>
+          <g className="hover-path-highlight-layer" aria-hidden="true">
+            {renderedEdges.flatMap((edge) => (
+              edge.hoverAllocationPath ? [
+                <path
+                  key={`${edge.id}-hover-path-highlight`}
+                  className="hover-allocation-path-edge"
+                  d={edge.path}
+                />,
+              ] : []
+            ))}
+          </g>
           {debug.showEdgeRoutes && debug.showEdgeRouteLabels ? (
             <g className="edge-label-layer" aria-hidden="true">
               {renderedEdges.flatMap((edge) => (
@@ -379,11 +399,13 @@ export function TreeViewer({
                 searchFocused={node.id === searchFocusedNodeId}
                 allocated={allocatedNodeIds?.has(node.id) ?? false}
                 allocationPath={allocationPathNodeIds?.has(node.id) ?? false}
+                hoverAllocationPath={hoverAllocationPathNodeIds?.has(node.id) ?? false}
                 debug={debug}
                 orphan={debug.highlightOrphans && !connectedNodeIds.has(node.id)}
                 onShowTooltipAtPointer={showTooltipAtPointer}
                 onShowTooltipAtElement={showTooltipAtElement}
                 onHideTooltip={hideTooltip}
+                onHoverNode={onHoverNode}
                 onBeginNodePress={handleBeginNodePress}
                 onSelectNode={handleSelectNode}
               />
@@ -469,11 +491,13 @@ function ButtonNode({
   searchFocused,
   allocated,
   allocationPath,
+  hoverAllocationPath,
   debug,
   orphan,
   onShowTooltipAtPointer,
   onShowTooltipAtElement,
   onHideTooltip,
+  onHoverNode,
   onBeginNodePress,
   onSelectNode,
 }: {
@@ -486,11 +510,13 @@ function ButtonNode({
   searchFocused: boolean;
   allocated: boolean;
   allocationPath: boolean;
+  hoverAllocationPath: boolean;
   debug: DebugOverlayState;
   orphan: boolean;
-  onShowTooltipAtPointer: (node: TreeNode, event: MouseEvent<SVGGElement>) => void;
+  onShowTooltipAtPointer: (node: TreeNode, event: MouseEvent<SVGGElement> | PointerEvent<SVGGElement>) => void;
   onShowTooltipAtElement: (node: TreeNode, element: SVGGElement) => void;
   onHideTooltip: () => void;
+  onHoverNode?: (nodeId: string | undefined) => void;
   onBeginNodePress: (nodeId: string) => void;
   onSelectNode: (nodeId: string) => void;
 }) {
@@ -510,10 +536,34 @@ function ButtonNode({
     onShowTooltipAtElement(node, event.currentTarget);
     handleSelect();
   };
+  const handleMouseEnter = (event: MouseEvent<SVGGElement>) => {
+    onHoverNode?.(node.id);
+    onShowTooltipAtPointer(node, event);
+  };
+  const handleMouseLeave = () => {
+    onHoverNode?.(undefined);
+    onHideTooltip();
+  };
+  const handlePointerEnter = (event: PointerEvent<SVGGElement>) => {
+    onHoverNode?.(node.id);
+    onShowTooltipAtPointer(node, event);
+  };
+  const handlePointerLeave = () => {
+    onHoverNode?.(undefined);
+    onHideTooltip();
+  };
+  const handleFocus = (event: FocusEvent<SVGGElement>) => {
+    onHoverNode?.(node.id);
+    onShowTooltipAtElement(node, event.currentTarget);
+  };
+  const handleBlur = () => {
+    onHoverNode?.(undefined);
+    onHideTooltip();
+  };
 
   return (
     <g
-      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${searchMatched ? " search-match" : ""}${searchFocused ? " search-focus" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
+      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${searchMatched ? " search-match" : ""}${searchFocused ? " search-focus" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${hoverAllocationPath ? " hover-allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}
@@ -522,10 +572,12 @@ function ButtonNode({
       onPointerDown={() => onBeginNodePress(node.id)}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
-      onMouseEnter={(event) => onShowTooltipAtPointer(node, event)}
-      onMouseLeave={onHideTooltip}
-      onFocus={(event) => onShowTooltipAtElement(node, event.currentTarget)}
-      onBlur={onHideTooltip}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
     >
       {iconClipPathId ? (
         <defs>
@@ -541,6 +593,7 @@ function ButtonNode({
       {searchMatched ? <circle className="search-pulse-marker" r={visual.frameRadius + 20 * nodeVisualScale} /> : null}
       {searchFocused ? <circle className="search-focus-marker" r={visual.frameRadius + 34 * nodeVisualScale} /> : null}
       {pathStart ? <circle className="path-start-marker" r={visual.frameRadius + 44 * nodeVisualScale} /> : null}
+      {hoverAllocationPath ? <circle className="hover-path-marker" r={visual.frameRadius + 24 * nodeVisualScale} /> : null}
       {noAllocationPath ? <circle className="no-path-marker" r={visual.frameRadius + 28 * nodeVisualScale} /> : null}
       {selected ? <circle className="target-marker" r={visual.frameRadius + 34 * nodeVisualScale} /> : null}
       <circle className="node-frame" r={visual.frameRadius} />

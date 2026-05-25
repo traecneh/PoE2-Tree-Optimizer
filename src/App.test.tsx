@@ -212,6 +212,47 @@ describe("App", () => {
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(2);
   });
 
+  it("previews a hover path from the closest allocated node without selecting the target", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const target = screen.getByRole("button", { name: "Precise Shot" });
+
+    fireEvent.mouseEnter(target, { clientX: 220, clientY: 140 });
+
+    expect(screen.getByText("No node selected.")).not.toBeNull();
+    expect(target.classList.contains("selected")).toBe(false);
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("hover-allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("hover-allocation-path")).toBe(true);
+    expect(target.classList.contains("hover-allocation-path")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(2);
+    expect(document.querySelectorAll(".hover-path-highlight-layer .hover-allocation-path-edge")).toHaveLength(2);
+
+    fireEvent.mouseLeave(target);
+
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(0);
+    expect(document.querySelectorAll(".hover-path-highlight-layer .hover-allocation-path-edge")).toHaveLength(0);
+  });
+
+  it("previews hover paths from the nearest committed allocation", async () => {
+    stubTreeFetchWithGraph(endpointFixtureGraph());
+
+    render(<App />);
+
+    await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Near Start Branch" }), { clientX: 20, clientY: 140 });
+
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("hover-allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("hover-allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(1);
+  });
+
   it("commits previewed allocation paths and previews new paths from allocated nodes", () => {
     stubTreeFetch();
 
