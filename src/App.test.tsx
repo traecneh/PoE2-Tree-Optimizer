@@ -214,7 +214,7 @@ describe("App", () => {
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(1);
   });
 
-  it("previews new paths from the last allocated node instead of the nearest allocated node", async () => {
+  it("previews new paths from the closest allocated node", async () => {
     stubTreeFetchWithGraph(endpointFixtureGraph());
 
     render(<App />);
@@ -225,11 +225,19 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
     fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
 
-    expect(screen.getByText("4 points")).not.toBeNull();
-    expect(screen.getByText("Jewel Socket -> Precise Shot -> Projectile Damage -> Mercenary -> Near Start Branch")).not.toBeNull();
+    expect(screen.getByText("1 point")).not.toBeNull();
+    expect(screen.getByText("Mercenary -> Near Start Branch")).not.toBeNull();
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+
+    expect(screen.getByText("Allocated 4 points")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("allocated")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(4);
   });
 
-  it("chains uncommitted preview paths from the current preview endpoint", async () => {
+  it("branches uncommitted preview paths from the closest pending node", async () => {
     stubTreeFetchWithGraph(endpointFixtureGraph());
 
     render(<App />);
@@ -244,8 +252,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
 
     expect(screen.getByText("Allocated 0 points")).not.toBeNull();
-    expect(screen.getByText("7 points")).not.toBeNull();
-    expect(screen.getByText("Mercenary -> Projectile Damage -> Precise Shot -> Jewel Socket -> Precise Shot -> Projectile Damage -> Mercenary -> Near Start Branch")).not.toBeNull();
+    expect(screen.getByText("1 point")).not.toBeNull();
+    expect(screen.getByText("Mercenary -> Near Start Branch")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(true);
     expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("allocation-path")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(4);

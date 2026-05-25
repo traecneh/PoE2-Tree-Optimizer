@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   findAllocationDistancesFrom,
-  findShortestAllocationPath,
+  findShortestAllocationPathFromAllocated,
   treeEdgeKey,
   type AllocationPath,
 } from "./tree/pathAllocation";
@@ -17,7 +17,10 @@ const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
 
 type AllocationPlan = {
   committedNodePath: string[];
+  committedEdgeKeys: string[];
   previewNodePath: string[];
+  previewEdgeKeys: string[];
+  previewRouteNodePath: string[];
   noAllocationPathNodeId?: string;
 };
 
@@ -27,7 +30,10 @@ export default function App() {
   const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();
   const [allocationPlan, setAllocationPlan] = useState<AllocationPlan>({
     committedNodePath: [],
+    committedEdgeKeys: [],
     previewNodePath: [],
+    previewEdgeKeys: [],
+    previewRouteNodePath: [],
   });
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(2);
   const [searchQuery, setSearchQuery] = useState("");
@@ -73,17 +79,11 @@ export default function App() {
       .map(({ result }) => result),
     [allocationDistances, searchResults],
   );
-  const allocatedEdgeKeys = useMemo(
-    () => edgeKeysFromNodePath(allocatedNodePath),
-    [allocatedNodePath],
-  );
+  const allocatedEdgeKeys = useMemo(() => new Set(allocationPlan.committedEdgeKeys), [allocationPlan.committedEdgeKeys]);
   const currentPathEndpointNodeId = nodePathEndpoint(allocationPlan.previewNodePath)
     ?? nodePathEndpoint(allocatedNodePath)
     ?? pathStartNodeId;
-  const previewRouteNodePath = useMemo(
-    () => allocationPlan.previewNodePath.slice(Math.max(0, allocatedNodePath.length - 1)),
-    [allocatedNodePath.length, allocationPlan.previewNodePath],
-  );
+  const previewRouteNodePath = allocationPlan.previewRouteNodePath;
   const previewRouteEndpointNodeId = nodePathEndpoint(previewRouteNodePath);
   const allocationPath = useMemo(
     () => (selectedNodeId && selectedNodeId === previewRouteEndpointNodeId
@@ -96,12 +96,12 @@ export default function App() {
     [searchResults],
   );
   const allocationPathNodeIds = useMemo(
-    () => new Set(previewRouteNodePath),
-    [previewRouteNodePath],
+    () => pendingAllocationNodeIds(allocationPlan.previewNodePath, allocatedNodePath, previewRouteNodePath),
+    [allocatedNodePath, allocationPlan.previewNodePath, previewRouteNodePath],
   );
   const allocationPathEdgeKeys = useMemo(
-    () => edgeKeysFromNodePath(previewRouteNodePath),
-    [previewRouteNodePath],
+    () => pendingAllocationEdgeKeys(allocationPlan.previewEdgeKeys, allocationPlan.committedEdgeKeys),
+    [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys],
   );
   const noAllocationPathNodeId = allocationPlan.noAllocationPathNodeId;
   const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);
@@ -113,7 +113,10 @@ export default function App() {
   function resetAllocation() {
     setAllocationPlan({
       committedNodePath: pathStartNodeId ? [pathStartNodeId] : [],
+      committedEdgeKeys: [],
       previewNodePath: [],
+      previewEdgeKeys: [],
+      previewRouteNodePath: [],
     });
   }
 
@@ -126,7 +129,10 @@ export default function App() {
     if (!allocationPath || allocationPath.pointCost === 0) return;
     setAllocationPlan((current) => ({
       committedNodePath: current.previewNodePath,
+      committedEdgeKeys: current.previewEdgeKeys,
       previewNodePath: [],
+      previewEdgeKeys: [],
+      previewRouteNodePath: [],
     }));
   }
 
@@ -135,17 +141,25 @@ export default function App() {
     setAllocationPlan((current) => {
       const committedNodeIndex = current.committedNodePath.lastIndexOf(nodeId);
       if (committedNodeIndex !== -1) {
+        const committedNodePath = current.committedNodePath.slice(0, committedNodeIndex + 1);
         return {
-          committedNodePath: current.committedNodePath.slice(0, committedNodeIndex + 1),
+          committedNodePath,
+          committedEdgeKeys: filterEdgeKeysToNodeIds(current.committedEdgeKeys, committedNodePath),
           previewNodePath: [],
+          previewEdgeKeys: [],
+          previewRouteNodePath: [],
         };
       }
 
       const previewNodeIndex = current.previewNodePath.lastIndexOf(nodeId);
       if (previewNodeIndex !== -1) {
+        const previewNodePath = current.previewNodePath.slice(0, previewNodeIndex + 1);
+        const previewRouteNodePath = sliceRouteToNode(current.previewRouteNodePath, nodeId);
         return {
           ...current,
-          previewNodePath: current.previewNodePath.slice(0, previewNodeIndex + 1),
+          previewNodePath,
+          previewEdgeKeys: filterEdgeKeysToNodeIds(current.previewEdgeKeys, previewNodePath),
+          previewRouteNodePath,
           noAllocationPathNodeId: undefined,
         };
       }
@@ -153,9 +167,14 @@ export default function App() {
       const baseNodePath = current.previewNodePath.length > 0
         ? current.previewNodePath
         : current.committedNodePath;
-      const startNodeId = nodePathEndpoint(baseNodePath) ?? pathStartNodeId;
-      const nextPath = startNodeId
-        ? findShortestAllocationPath(graph, startNodeId, nodeId)
+      const baseEdgeKeys = current.previewNodePath.length > 0
+        ? current.previewEdgeKeys
+        : current.committedEdgeKeys;
+      const pathStartNodePath = baseNodePath.length > 0
+        ? baseNodePath
+        : pathStartNodeId ? [pathStartNodeId] : [];
+      const nextPath = pathStartNodePath.length > 0
+        ? findShortestAllocationPathFromAllocated(graph, new Set(pathStartNodePath), nodeId)
         : undefined;
 
       if (!nextPath) {
@@ -167,7 +186,9 @@ export default function App() {
 
       return {
         ...current,
-        previewNodePath: appendAllocationPath(baseNodePath, nextPath.nodeIds),
+        previewNodePath: appendUniqueNodePath(pathStartNodePath, nextPath.nodeIds),
+        previewEdgeKeys: mergeEdgeKeys(baseEdgeKeys, Array.from(edgeKeysFromNodePath(nextPath.nodeIds))),
+        previewRouteNodePath: nextPath.nodeIds,
         noAllocationPathNodeId: undefined,
       };
     });
@@ -180,7 +201,10 @@ export default function App() {
   useEffect(() => {
     setAllocationPlan({
       committedNodePath: pathStartNodeId && graph.nodes[pathStartNodeId] ? [pathStartNodeId] : [],
+      committedEdgeKeys: [],
       previewNodePath: [],
+      previewEdgeKeys: [],
+      previewRouteNodePath: [],
     });
   }, [graph.nodes, pathStartNodeId]);
 
@@ -301,17 +325,60 @@ function allocationPathFromNodePath(nodePath: string[]): AllocationPath | undefi
   };
 }
 
-function appendAllocationPath(currentNodePath: string[], previewNodePath: string[]): string[] {
-  if (previewNodePath.length === 0) return currentNodePath;
-  const currentEndpoint = currentNodePath[currentNodePath.length - 1];
-  const extension = currentEndpoint && previewNodePath[0] === currentEndpoint
-    ? previewNodePath.slice(1)
-    : previewNodePath;
-  return [...currentNodePath, ...extension];
+function appendUniqueNodePath(currentNodePath: string[], routeNodePath: string[]): string[] {
+  const nodeIds = [...currentNodePath];
+  const seen = new Set(nodeIds);
+
+  for (const nodeId of routeNodePath) {
+    if (seen.has(nodeId)) continue;
+    seen.add(nodeId);
+    nodeIds.push(nodeId);
+  }
+
+  return nodeIds;
 }
 
 function edgeKeysFromNodePath(nodePath: string[]): Set<string> {
   return new Set(nodePath.slice(1).map((nodeId, index) => treeEdgeKey(nodePath[index], nodeId)));
+}
+
+function mergeEdgeKeys(...edgeKeyGroups: string[][]): string[] {
+  return Array.from(new Set(edgeKeyGroups.flat()));
+}
+
+function pendingAllocationNodeIds(
+  previewNodePath: string[],
+  committedNodePath: string[],
+  previewRouteNodePath: string[],
+): Set<string> {
+  const committedNodeIds = new Set(committedNodePath);
+  const nodeIds = new Set(previewNodePath.filter((nodeId) => !committedNodeIds.has(nodeId)));
+  const routeStartNodeId = previewRouteNodePath[0];
+  if (routeStartNodeId) nodeIds.add(routeStartNodeId);
+  return nodeIds;
+}
+
+function pendingAllocationEdgeKeys(previewEdgeKeys: string[], committedEdgeKeys: string[]): Set<string> {
+  const committed = new Set(committedEdgeKeys);
+  return new Set(previewEdgeKeys.filter((edgeKey) => !committed.has(edgeKey)));
+}
+
+function filterEdgeKeysToNodeIds(edgeKeys: string[], nodePath: string[]): string[] {
+  const nodeIds = new Set(nodePath);
+  return edgeKeys.filter((edgeKey) => {
+    const [from, to] = edgeKeyNodeIds(edgeKey);
+    return nodeIds.has(from) && nodeIds.has(to);
+  });
+}
+
+function edgeKeyNodeIds(edgeKey: string): [string, string] {
+  const [from, to] = edgeKey.split("::");
+  return [from, to];
+}
+
+function sliceRouteToNode(routeNodePath: string[], nodeId: string): string[] {
+  const routeNodeIndex = routeNodePath.lastIndexOf(nodeId);
+  return routeNodeIndex === -1 ? [] : routeNodePath.slice(0, routeNodeIndex + 1);
 }
 
 function nodePathEndpoint(nodePath: string[]): string | undefined {
