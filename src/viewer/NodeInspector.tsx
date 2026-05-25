@@ -1,6 +1,19 @@
+import type { AllocationPath } from "../tree/pathAllocation";
 import type { TreeEdge, TreeNode } from "../tree/types";
 
-export function NodeInspector({ node, edges }: { node?: TreeNode; edges: TreeEdge[] }) {
+export function NodeInspector({
+  node,
+  edges,
+  allocationPath,
+  allocationPathNodeNames = [],
+  pathStartName,
+}: {
+  node?: TreeNode;
+  edges: TreeEdge[];
+  allocationPath?: AllocationPath;
+  allocationPathNodeNames?: string[];
+  pathStartName?: string;
+}) {
   if (!node) {
     return (
       <aside className="inspector">
@@ -29,10 +42,46 @@ export function NodeInspector({ node, edges }: { node?: TreeNode; edges: TreeEdg
         <dt>Connected</dt>
         <dd>{connected.join(", ") || "none"}</dd>
       </dl>
+      <AllocationPathDetails
+        path={allocationPath}
+        nodeNames={allocationPathNodeNames}
+        pathStartName={pathStartName}
+      />
       <h3>Stats</h3>
       <ul>{node.stats.map((stat, index) => <li key={`${stat}-${index}`}>{stat}</li>)}</ul>
       <h3>Flags</h3>
       <pre>{JSON.stringify(node.flags, null, 2)}</pre>
     </aside>
   );
+}
+
+function AllocationPathDetails({
+  path,
+  nodeNames,
+  pathStartName,
+}: {
+  path?: AllocationPath;
+  nodeNames: string[];
+  pathStartName?: string;
+}) {
+  if (!path) {
+    return pathStartName ? (
+      <section className="allocation-path-summary">
+        <h3>Allocation path</h3>
+        <p>No allocatable path from {pathStartName}.</p>
+      </section>
+    ) : null;
+  }
+
+  return (
+    <section className="allocation-path-summary">
+      <h3>Allocation path</h3>
+      <p className="allocation-path-cost">{formatPointCost(path.pointCost)}</p>
+      <p className="allocation-path-route">{nodeNames.join(" -> ")}</p>
+    </section>
+  );
+}
+
+function formatPointCost(pointCost: number): string {
+  return `${pointCost} ${pointCost === 1 ? "point" : "points"}`;
 }

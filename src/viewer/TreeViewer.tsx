@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent, WheelEvent } from "react";
 import { passiveIconPublicPath } from "../tree/passiveIconAssets";
+import { treeEdgeKey } from "../tree/pathAllocation";
 import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
 import type { DebugOverlayState } from "./DebugControls";
 import { buildTreeEdgePath } from "./treeEdgePath";
@@ -11,6 +12,8 @@ type TreeViewerProps = {
   selectedNodeId?: string;
   nodeVisualScale?: number;
   searchMatchNodeIds?: ReadonlySet<string>;
+  allocationPathNodeIds?: ReadonlySet<string>;
+  allocationPathEdgeKeys?: ReadonlySet<string>;
   onSelectNode: (nodeId: string) => void;
   debug: DebugOverlayState;
 };
@@ -53,6 +56,8 @@ export function TreeViewer({
   selectedNodeId,
   nodeVisualScale = defaultNodeVisualScale,
   searchMatchNodeIds,
+  allocationPathNodeIds,
+  allocationPathEdgeKeys,
   onSelectNode,
   debug,
 }: TreeViewerProps) {
@@ -69,16 +74,19 @@ export function TreeViewer({
       const to = graph.nodes[edge.to];
       if (!shouldDrawEdge(from, to)) return [];
       const group = from.groupId && from.groupId === to.groupId ? graph.groups[from.groupId] : undefined;
+      const classNames = ["tree-edge"];
+      if (debug.showEdgeRoutes) classNames.push("edge-route-debug", edgeRouteClass(edge));
+      if (allocationPathEdgeKeys?.has(treeEdgeKey(edge.from, edge.to))) classNames.push("allocation-path");
       return [{
         id: `${edge.from}-${edge.to}`,
         path: buildTreeEdgePath(from, to, group, edge),
         routeOrbit: edge.connectionOrbit,
-        className: debug.showEdgeRoutes ? `tree-edge edge-route-debug ${edgeRouteClass(edge)}` : "tree-edge",
+        className: classNames.join(" "),
         label: formatEdgeRouteLabel(edge.connectionOrbit),
         labelPosition: midpoint(from, to),
       }];
     }),
-    [debug.showEdgeRoutes, graph.edges, graph.groups, graph.nodes],
+    [allocationPathEdgeKeys, debug.showEdgeRoutes, graph.edges, graph.groups, graph.nodes],
   );
 
   useEffect(() => {
@@ -228,6 +236,7 @@ export function TreeViewer({
                 selected={node.id === selectedNodeId}
                 nodeVisualScale={nodeVisualScale}
                 searchMatched={searchMatchNodeIds?.has(node.id) ?? false}
+                allocationPath={allocationPathNodeIds?.has(node.id) ?? false}
                 debug={debug}
                 orphan={debug.highlightOrphans && !connectedNodeIds.has(node.id)}
                 onShowTooltipAtPointer={showTooltipAtPointer}
@@ -308,6 +317,7 @@ function ButtonNode({
   selected,
   nodeVisualScale,
   searchMatched,
+  allocationPath,
   debug,
   orphan,
   onShowTooltipAtPointer,
@@ -319,6 +329,7 @@ function ButtonNode({
   selected: boolean;
   nodeVisualScale: number;
   searchMatched: boolean;
+  allocationPath: boolean;
   debug: DebugOverlayState;
   orphan: boolean;
   onShowTooltipAtPointer: (node: TreeNode, event: MouseEvent<SVGGElement>) => void;
@@ -344,7 +355,7 @@ function ButtonNode({
 
   return (
     <g
-      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${searchMatched ? " search-match" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
+      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${searchMatched ? " search-match" : ""}${allocationPath ? " allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}

@@ -507,6 +507,23 @@ describe("TreeViewer", () => {
     expect(otherNode.classList.contains("search-match")).toBe(false);
   });
 
+  it("marks allocation path nodes and edges", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        allocationPathNodeIds={new Set(["mercenary_start", "projectile_damage", "precise_shot"])}
+        allocationPathEdgeKeys={new Set(["mercenary_start::projectile_damage", "precise_shot::projectile_damage"])}
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(2);
+  });
+
   it("shows a passive tooltip while hovering a node", () => {
     render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 

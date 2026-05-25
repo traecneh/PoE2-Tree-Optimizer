@@ -56,7 +56,8 @@ button {
   gap: 12px 18px;
 }
 
-.node-size-control {
+.node-size-control,
+.path-start-control {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -64,7 +65,8 @@ button {
   font-size: 13px;
 }
 
-.node-size-control select {
+.node-size-control select,
+.path-start-control select {
   border: 1px solid #3a4658;
   background: #202938;
   color: #eef2f7;
@@ -207,6 +209,12 @@ button {
 
 .tree-edge.edge-route-unknown {
   stroke: #d8dee9;
+}
+
+.tree-edge.allocation-path {
+  stroke: #f3d67a;
+  stroke-width: 10;
+  opacity: 0.98;
 }
 
 .edge-route-label {
@@ -415,6 +423,21 @@ button {
   stroke-width: 3;
 }
 
+.tree-node.allocation-path .node-halo {
+  fill: #d5b45a;
+  opacity: 0.42;
+}
+
+.tree-node.allocation-path .node-frame {
+  stroke: #f3d67a;
+  stroke-width: 7;
+}
+
+.tree-node.allocation-path .node-core {
+  stroke: #fff1b6;
+  stroke-width: 3;
+}
+
 .tree-node.selected .node-core,
 .tree-node:focus-visible .node-core {
   stroke: #ffffff;
@@ -569,4 +592,29 @@ button {
   white-space: pre-wrap;
   color: #c6d0df;
   font-size: 12px;
+}
+
+.allocation-path-summary {
+  margin: 14px 0;
+  border-top: 1px solid #283241;
+  border-bottom: 1px solid #283241;
+  padding: 12px 0;
+}
+
+.allocation-path-summary h3 {
+  margin-top: 0;
+}
+
+.allocation-path-cost {
+  margin: 0 0 8px;
+  color: #f3d67a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.allocation-path-route {
+  margin: 0;
+  color: #c6d0df;
+  font-size: 12px;
+  line-height: 1.4;
 }
