@@ -392,6 +392,50 @@ describe("TreeViewer", () => {
     expect(updateCount).toBe(0);
   });
 
+  it("pauses search pulse animations while the viewport is moving without React commits", () => {
+    vi.useFakeTimers();
+    let updateCount = 0;
+
+    try {
+      render(
+        <Profiler id="tree-viewer" onRender={(_id, phase) => {
+          if (phase === "update") updateCount += 1;
+        }}>
+          <TreeViewer
+            graph={sampleGraph}
+            searchMatchNodeIds={new Set(["precise_shot"])}
+            onSelectNode={vi.fn()}
+            debug={debugOff}
+          />
+        </Profiler>,
+      );
+
+      const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
+      const viewer = document.querySelector(".tree-viewer");
+      mockSvgCoordinateConversion(svg);
+
+      expect(screen.getByRole("button", { name: "Precise Shot" }).querySelector(".search-pulse-marker")).not.toBeNull();
+      expect(viewer?.classList.contains("viewport-moving")).toBe(false);
+
+      fireEvent.wheel(svg, { deltaY: -100 });
+
+      expect(viewer?.classList.contains("viewport-moving")).toBe(true);
+      expect(updateCount).toBe(0);
+
+      vi.advanceTimersByTime(180);
+
+      expect(viewer?.classList.contains("viewport-moving")).toBe(false);
+
+      fireEvent.pointerDown(svg, { pointerId: 1, clientX: 100, clientY: 100 });
+      fireEvent.pointerMove(svg, { pointerId: 1, clientX: 140, clientY: 120 });
+
+      expect(viewer?.classList.contains("viewport-moving")).toBe(true);
+      expect(updateCount).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not pan below the drag threshold", () => {
     render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 

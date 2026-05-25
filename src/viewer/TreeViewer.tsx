@@ -50,6 +50,7 @@ const maxViewportScale = 18;
 const minViewportScale = 0.2;
 const viewportZoomStep = 1.1;
 const defaultNodeVisualScale = 2;
+const viewportMovingIdleMs = 180;
 
 export function TreeViewer({
   graph,
@@ -65,9 +66,11 @@ export function TreeViewer({
   onSelectNode,
   debug,
 }: TreeViewerProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const viewportRef = useRef<SVGGElement | null>(null);
   const viewportTransform = useRef<ViewportTransform>({ ...initialViewportTransform });
+  const viewportMovingTimer = useRef<number | undefined>(undefined);
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
   const pendingNodePress = useRef<string | null>(null);
   const suppressNextNodeClick = useRef(false);
@@ -105,6 +108,12 @@ export function TreeViewer({
   useEffect(() => {
     applyViewportTransform(viewportRef.current, viewportTransform.current);
   }, [graph]);
+
+  useEffect(() => () => {
+    if (viewportMovingTimer.current !== undefined) {
+      window.clearTimeout(viewportMovingTimer.current);
+    }
+  }, []);
 
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
@@ -199,10 +208,22 @@ export function TreeViewer({
   function setViewportTransform(nextTransform: ViewportTransform) {
     viewportTransform.current = nextTransform;
     applyViewportTransform(viewportRef.current, nextTransform);
+    markViewportMoving();
   }
 
   function resetViewportTransform() {
     setViewportTransform({ ...initialViewportTransform });
+  }
+
+  function markViewportMoving() {
+    rootRef.current?.classList.add("viewport-moving");
+    if (viewportMovingTimer.current !== undefined) {
+      window.clearTimeout(viewportMovingTimer.current);
+    }
+    viewportMovingTimer.current = window.setTimeout(() => {
+      rootRef.current?.classList.remove("viewport-moving");
+      viewportMovingTimer.current = undefined;
+    }, viewportMovingIdleMs);
   }
 
   function handleSelectNode(nodeId: string) {
@@ -245,7 +266,7 @@ export function TreeViewer({
   }
 
   return (
-    <div className="tree-viewer">
+    <div ref={rootRef} className="tree-viewer">
       <div className="viewport-toolbar" role="toolbar" aria-label="Tree viewport controls">
         <button
           className="tool-button viewport-button"
