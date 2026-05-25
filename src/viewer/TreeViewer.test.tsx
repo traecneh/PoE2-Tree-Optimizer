@@ -562,7 +562,9 @@ describe("TreeViewer", () => {
     const otherNode = screen.getByRole("button", { name: "Projectile Damage" });
 
     expect(matchingNode.classList.contains("search-match")).toBe(true);
+    expect(matchingNode.querySelector(".search-pulse-marker")).not.toBeNull();
     expect(otherNode.classList.contains("search-match")).toBe(false);
+    expect(otherNode.querySelector(".search-pulse-marker")).toBeNull();
   });
 
   it("marks allocation path nodes and edges", () => {

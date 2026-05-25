@@ -345,6 +345,15 @@ button {
   pointer-events: none;
 }
 
+.tree-node .search-pulse-marker {
+  animation: search-pulse 1.6s ease-in-out infinite;
+  fill: rgba(241, 199, 95, 0.1);
+  pointer-events: none;
+  stroke: #ffd766;
+  stroke-width: 5;
+  vector-effect: non-scaling-stroke;
+}
+
 .tree-node .node-frame {
   fill: #10161e;
   stroke: #2f3a49;
@@ -526,6 +535,26 @@ button {
 .tree-node.search-match .node-core {
   stroke: #fff0bd;
   stroke-width: 3;
+}
+
+@keyframes search-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    stroke-width: 4;
+  }
+
+  50% {
+    opacity: 1;
+    stroke-width: 9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tree-node .search-pulse-marker {
+    animation: none;
+    opacity: 0.8;
+  }
 }
 
 .tree-node.allocated .node-halo {

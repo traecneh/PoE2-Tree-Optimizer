@@ -512,6 +512,7 @@ function ButtonNode({
       {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14 * nodeVisualScale} /> : null}
       {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8 * nodeVisualScale} /> : null}
       {visual.haloRadius ? <circle className="node-halo" r={visual.haloRadius} /> : null}
+      {searchMatched ? <circle className="search-pulse-marker" r={visual.frameRadius + 20 * nodeVisualScale} /> : null}
       {pathStart ? <circle className="path-start-marker" r={visual.frameRadius + 44 * nodeVisualScale} /> : null}
       {noAllocationPath ? <circle className="no-path-marker" r={visual.frameRadius + 28 * nodeVisualScale} /> : null}
       {selected ? <circle className="target-marker" r={visual.frameRadius + 34 * nodeVisualScale} /> : null}
