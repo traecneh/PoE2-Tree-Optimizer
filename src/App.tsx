@@ -58,10 +58,19 @@ export default function App() {
     [allocatedNodeIds, graph],
   );
   const searchResultsWithAllocationDistance = useMemo<PassiveSearchPanelResult[]>(
-    () => searchResults.map((result) => ({
-      ...result,
-      allocationDistance: allocationDistances.get(result.node.id),
-    })),
+    () => searchResults
+      .map((result, searchIndex) => ({
+        result: {
+          ...result,
+          allocationDistance: allocationDistances.get(result.node.id),
+        },
+        searchIndex,
+      }))
+      .sort((left, right) => (
+        compareAllocationDistances(left.result.allocationDistance, right.result.allocationDistance)
+        || left.searchIndex - right.searchIndex
+      ))
+      .map(({ result }) => result),
     [allocationDistances, searchResults],
   );
   const allocatedEdgeKeys = useMemo(
@@ -268,6 +277,14 @@ export default function App() {
 
 function formatAllocatedPointCount(pointCount: number): string {
   return `Allocated ${pointCount} ${pointCount === 1 ? "point" : "points"}`;
+}
+
+function compareAllocationDistances(left: number | undefined, right: number | undefined): number {
+  return allocationDistanceSortValue(left) - allocationDistanceSortValue(right);
+}
+
+function allocationDistanceSortValue(distance: number | undefined): number {
+  return distance ?? Number.POSITIVE_INFINITY;
 }
 
 function allocationPathFromNodePath(nodePath: string[]): AllocationPath | undefined {

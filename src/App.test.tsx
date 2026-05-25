@@ -43,6 +43,36 @@ describe("App", () => {
     };
   }
 
+  function searchSortFixtureGraph(): TreeGraph {
+    return {
+      ...sampleGraph,
+      gameVersion: "search-sort-fixture",
+      nodes: {
+        ...sampleGraph.nodes,
+        close_critical: {
+          id: "close_critical",
+          groupId: "g1",
+          name: "Close Critical",
+          stats: ["10% increased Critical Hit Chance"],
+          position: { x: 80, y: 80 },
+          flags: { small: true },
+        },
+      },
+      groups: {
+        ...sampleGraph.groups,
+        g1: {
+          ...sampleGraph.groups.g1,
+          nodeIds: [...sampleGraph.groups.g1.nodeIds, "close_critical"],
+        },
+      },
+      edges: [
+        ...sampleGraph.edges,
+        { from: "mercenary_start", to: "close_critical" },
+      ],
+      bounds: { ...sampleGraph.bounds, maxY: 90 },
+    };
+  }
+
   it("lets the viewer node size be adjusted", () => {
     stubTreeFetch();
 
@@ -117,6 +147,23 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
 
     expect(screen.getByText("Notable · Allocated")).not.toBeNull();
+  });
+
+  it("sorts passive search results by closest allocation distance", async () => {
+    stubTreeFetchWithGraph(searchSortFixtureGraph());
+
+    render(<App />);
+
+    await screen.findByText("5 nodes, 4 links, version search-sort-fixture");
+
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+
+    const resultNames = Array.from(document.querySelectorAll(".search-result-name"))
+      .map((element) => element.textContent);
+
+    expect(resultNames.slice(0, 2)).toEqual(["Close Critical", "Precise Shot"]);
+    expect(screen.getByText("Small · 1 point from allocation")).not.toBeNull();
+    expect(screen.getByText("Notable · 2 points from allocation")).not.toBeNull();
   });
 
   it("matches jewel sockets when searching for empty jewel slots", () => {
