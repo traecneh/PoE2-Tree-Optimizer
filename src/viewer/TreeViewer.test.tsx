@@ -611,6 +611,26 @@ describe("TreeViewer", () => {
     expect(otherNode.querySelector(".search-pulse-marker")).toBeNull();
   });
 
+  it("marks the focused search result with a distinct map pulse", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        searchMatchNodeIds={new Set(["precise_shot"])}
+        searchFocusedNodeId="precise_shot"
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    const focusedNode = screen.getByRole("button", { name: "Precise Shot" });
+    const otherNode = screen.getByRole("button", { name: "Projectile Damage" });
+
+    expect(focusedNode.classList.contains("search-focus")).toBe(true);
+    expect(focusedNode.querySelector(".search-focus-marker")).not.toBeNull();
+    expect(otherNode.classList.contains("search-focus")).toBe(false);
+    expect(otherNode.querySelector(".search-focus-marker")).toBeNull();
+  });
+
   it("marks allocation path nodes and edges", () => {
     render(
       <TreeViewer

@@ -81,6 +81,36 @@ export function findShortestAllocationPathFromAllocated(
   return undefined;
 }
 
+export function findAllocationDistancesFrom(
+  graph: TreeGraph,
+  startNodeIds: Iterable<NodeId>,
+): Map<NodeId, number> {
+  const validStartNodeIds = Array.from(startNodeIds).filter((nodeId) => graph.nodes[nodeId]);
+  const distances = new Map<NodeId, number>();
+  const queue: NodeId[] = [];
+
+  for (const nodeId of validStartNodeIds) {
+    if (distances.has(nodeId)) continue;
+    distances.set(nodeId, 0);
+    queue.push(nodeId);
+  }
+
+  if (queue.length === 0) return distances;
+
+  const adjacency = buildAllocatableAdjacency(graph);
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    const currentDistance = distances.get(current) ?? 0;
+    for (const next of adjacency.get(current) ?? []) {
+      if (distances.has(next)) continue;
+      distances.set(next, currentDistance + 1);
+      queue.push(next);
+    }
+  }
+
+  return distances;
+}
+
 export function treeEdgeKey(from: NodeId, to: NodeId): string {
   return [from, to].sort().join("::");
 }

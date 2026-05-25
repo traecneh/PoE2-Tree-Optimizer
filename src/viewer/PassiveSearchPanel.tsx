@@ -1,12 +1,17 @@
 import type { PassiveSearchResult } from "../tree/passiveSearch";
 import type { TreeNode } from "../tree/types";
 
+export type PassiveSearchPanelResult = PassiveSearchResult & {
+  allocationDistance?: number;
+};
+
 type PassiveSearchPanelProps = {
   query: string;
-  results: PassiveSearchResult[];
+  results: PassiveSearchPanelResult[];
   selectedNodeId?: string;
   onQueryChange: (query: string) => void;
   onSelectNode: (nodeId: string) => void;
+  onHoverNode?: (nodeId: string | undefined) => void;
 };
 
 export function PassiveSearchPanel({
@@ -15,6 +20,7 @@ export function PassiveSearchPanel({
   selectedNodeId,
   onQueryChange,
   onSelectNode,
+  onHoverNode,
 }: PassiveSearchPanelProps) {
   const trimmedQuery = query.trim();
 
@@ -34,16 +40,23 @@ export function PassiveSearchPanel({
           <div className="search-summary">{formatMatchCount(results.length)}</div>
           {results.length > 0 ? (
             <ol className="search-results">
-              {results.map(({ node, matchedText }) => (
+              {results.map(({ node, matchedText, allocationDistance }) => (
                 <li key={node.id}>
                   <button
                     className={`search-result${node.id === selectedNodeId ? " selected" : ""}`}
                     type="button"
                     aria-label={formatResultLabel(node)}
-                    onClick={() => onSelectNode(node.id)}
+                    onClick={() => {
+                      onHoverNode?.(node.id);
+                      onSelectNode(node.id);
+                    }}
+                    onMouseEnter={() => onHoverNode?.(node.id)}
+                    onMouseLeave={() => onHoverNode?.(undefined)}
+                    onFocus={() => onHoverNode?.(node.id)}
+                    onBlur={() => onHoverNode?.(undefined)}
                   >
                     <span className="search-result-name">{node.name ?? node.id}</span>
-                    <span className="search-result-meta">{nodeTypeLabel(node)} · {node.id}</span>
+                    <span className="search-result-meta">{formatResultMeta(node, allocationDistance)}</span>
                     <span className="search-result-match">{matchedText}</span>
                   </button>
                 </li>
@@ -63,6 +76,16 @@ function formatMatchCount(count: number): string {
 function formatResultLabel(node: TreeNode): string {
   const statText = node.stats[0];
   return statText ? `${node.name ?? node.id} ${statText}` : `${node.name ?? node.id} ${nodeTypeLabel(node)}`;
+}
+
+function formatResultMeta(node: TreeNode, allocationDistance: number | undefined): string {
+  return `${nodeTypeLabel(node)} · ${formatAllocationDistance(allocationDistance)}`;
+}
+
+function formatAllocationDistance(distance: number | undefined): string {
+  if (distance === undefined) return "No allocated path";
+  if (distance === 0) return "Allocated";
+  return `${distance} ${distance === 1 ? "point" : "points"} from allocation`;
 }
 
 function nodeTypeLabel(node: TreeNode): string {

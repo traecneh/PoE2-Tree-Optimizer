@@ -66,6 +66,57 @@ describe("App", () => {
     expect(screen.getByText("1 match")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("search-match")).toBe(true);
     expect(screen.getByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" })).not.toBeNull();
+    expect(screen.getByText("Notable · 2 points from allocation")).not.toBeNull();
+    expect(screen.queryByText("Notable · precise_shot")).toBeNull();
+  });
+
+  it("focuses the map highlight when hovering a passive search result", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+
+    const result = screen.getByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" });
+    const mapNode = screen.getByRole("button", { name: "Precise Shot" });
+
+    fireEvent.mouseEnter(result);
+
+    expect(mapNode.classList.contains("search-focus")).toBe(true);
+    expect(mapNode.querySelector(".search-focus-marker")).not.toBeNull();
+
+    fireEvent.mouseLeave(result);
+
+    expect(mapNode.classList.contains("search-focus")).toBe(false);
+    expect(mapNode.querySelector(".search-focus-marker")).toBeNull();
+  });
+
+  it("keeps the map highlight focused when selecting a passive search result", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+
+    const result = screen.getByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" });
+    const mapNode = screen.getByRole("button", { name: "Precise Shot" });
+
+    fireEvent.click(result);
+
+    expect(mapNode.classList.contains("search-focus")).toBe(true);
+    expect(mapNode.querySelector(".search-focus-marker")).not.toBeNull();
+  });
+
+  it("shows allocated status for passive search results that are already allocated", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+
+    expect(screen.getByText("Notable · Allocated")).not.toBeNull();
   });
 
   it("matches jewel sockets when searching for empty jewel slots", () => {

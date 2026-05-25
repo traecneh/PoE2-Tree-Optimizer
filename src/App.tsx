@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { findShortestAllocationPath, treeEdgeKey, type AllocationPath } from "./tree/pathAllocation";
+import {
+  findAllocationDistancesFrom,
+  findShortestAllocationPath,
+  treeEdgeKey,
+  type AllocationPath,
+} from "./tree/pathAllocation";
 import { searchPassiveTree } from "./tree/passiveSearch";
 import { sampleGraph } from "./tree/sampleGraph";
 import type { TreeGraph } from "./tree/types";
 import { DebugControls, type DebugOverlayState } from "./viewer/DebugControls";
 import { NodeInspector } from "./viewer/NodeInspector";
-import { PassiveSearchPanel } from "./viewer/PassiveSearchPanel";
+import { PassiveSearchPanel, type PassiveSearchPanelResult } from "./viewer/PassiveSearchPanel";
 import { TreeViewer } from "./viewer/TreeViewer";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
@@ -26,6 +31,7 @@ export default function App() {
   });
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(2);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>();
   const [debug, setDebug] = useState<DebugOverlayState>({
     showNodeIds: false,
     highlightMissingStats: false,
@@ -46,6 +52,17 @@ export default function App() {
   const allocatedNodeIds = useMemo(
     () => new Set(allocatedNodePath),
     [allocatedNodePath],
+  );
+  const allocationDistances = useMemo(
+    () => findAllocationDistancesFrom(graph, allocatedNodeIds),
+    [allocatedNodeIds, graph],
+  );
+  const searchResultsWithAllocationDistance = useMemo<PassiveSearchPanelResult[]>(
+    () => searchResults.map((result) => ({
+      ...result,
+      allocationDistance: allocationDistances.get(result.node.id),
+    })),
+    [allocationDistances, searchResults],
   );
   const allocatedEdgeKeys = useMemo(
     () => edgeKeysFromNodePath(allocatedNodePath),
@@ -89,6 +106,11 @@ export default function App() {
       committedNodePath: pathStartNodeId ? [pathStartNodeId] : [],
       previewNodePath: [],
     });
+  }
+
+  function updateSearchQuery(query: string) {
+    setSearchQuery(query);
+    setSearchFocusedNodeId(undefined);
   }
 
   function allocatePreviewPath() {
@@ -212,6 +234,7 @@ export default function App() {
           noAllocationPathNodeId={noAllocationPathNodeId}
           nodeVisualScale={nodeVisualScale}
           searchMatchNodeIds={searchMatchNodeIds}
+          searchFocusedNodeId={searchFocusedNodeId}
           allocatedNodeIds={allocatedNodeIds}
           allocatedEdgeKeys={allocatedEdgeKeys}
           allocationPathNodeIds={allocationPathNodeIds}
@@ -222,10 +245,11 @@ export default function App() {
         <div className="side-panel">
           <PassiveSearchPanel
             query={searchQuery}
-            results={searchResults}
+            results={searchResultsWithAllocationDistance}
             selectedNodeId={selectedNodeId}
-            onQueryChange={setSearchQuery}
+            onQueryChange={updateSearchQuery}
             onSelectNode={selectTreeNode}
+            onHoverNode={setSearchFocusedNodeId}
           />
           <NodeInspector
             node={selectedNode}
