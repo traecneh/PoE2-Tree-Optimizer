@@ -3,6 +3,7 @@ import type { TreeNode } from "../tree/types";
 
 export type PassiveSearchPanelResult = PassiveSearchResult & {
   allocationDistance?: number;
+  allocated?: boolean;
 };
 
 type PassiveSearchPanelProps = {
@@ -40,7 +41,7 @@ export function PassiveSearchPanel({
           <div className="search-summary">{formatMatchCount(results.length)}</div>
           {results.length > 0 ? (
             <ol className="search-results">
-              {results.map(({ node, matchedText, allocationDistance }) => (
+              {results.map(({ node, matchedText, allocationDistance, allocated = false }) => (
                 <li key={node.id}>
                   <button
                     className={`search-result${node.id === selectedNodeId ? " selected" : ""}`}
@@ -56,7 +57,7 @@ export function PassiveSearchPanel({
                     onBlur={() => onHoverNode?.(undefined)}
                   >
                     <span className="search-result-name">{node.name ?? node.id}</span>
-                    <span className="search-result-meta">{formatResultMeta(node, allocationDistance)}</span>
+                    <span className="search-result-meta">{formatResultMeta(node, allocationDistance, allocated)}</span>
                     <span className="search-result-match">{matchedText}</span>
                   </button>
                 </li>
@@ -78,13 +79,13 @@ function formatResultLabel(node: TreeNode): string {
   return statText ? `${node.name ?? node.id} ${statText}` : `${node.name ?? node.id} ${nodeTypeLabel(node)}`;
 }
 
-function formatResultMeta(node: TreeNode, allocationDistance: number | undefined): string {
-  return `${nodeTypeLabel(node)} · ${formatAllocationDistance(allocationDistance)}`;
+function formatResultMeta(node: TreeNode, allocationDistance: number | undefined, allocated: boolean): string {
+  return `${nodeTypeLabel(node)} · ${formatAllocationDistance(allocationDistance, allocated)}`;
 }
 
-function formatAllocationDistance(distance: number | undefined): string {
+function formatAllocationDistance(distance: number | undefined, allocated: boolean): string {
+  if (allocated) return "Allocated";
   if (distance === undefined) return "No allocated path";
-  if (distance === 0) return "Allocated";
   return `${distance} ${distance === 1 ? "point" : "points"} from allocation`;
 }
 

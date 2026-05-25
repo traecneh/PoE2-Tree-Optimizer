@@ -59,9 +59,13 @@ export default function App() {
     () => new Set(allocatedNodePath),
     [allocatedNodePath],
   );
+  const allocationDistanceNodeIds = useMemo(
+    () => new Set(allocationPlan.previewNodePath.length > 0 ? allocationPlan.previewNodePath : allocatedNodePath),
+    [allocatedNodePath, allocationPlan.previewNodePath],
+  );
   const allocationDistances = useMemo(
-    () => findAllocationDistancesFrom(graph, allocatedNodeIds),
-    [allocatedNodeIds, graph],
+    () => findAllocationDistancesFrom(graph, allocationDistanceNodeIds),
+    [allocationDistanceNodeIds, graph],
   );
   const searchResultsWithAllocationDistance = useMemo<PassiveSearchPanelResult[]>(
     () => searchResults
@@ -69,6 +73,7 @@ export default function App() {
         result: {
           ...result,
           allocationDistance: allocationDistances.get(result.node.id),
+          allocated: allocatedNodeIds.has(result.node.id),
         },
         searchIndex,
       }))
@@ -77,7 +82,7 @@ export default function App() {
         || left.searchIndex - right.searchIndex
       ))
       .map(({ result }) => result),
-    [allocationDistances, searchResults],
+    [allocatedNodeIds, allocationDistances, searchResults],
   );
   const allocatedEdgeKeys = useMemo(() => new Set(allocationPlan.committedEdgeKeys), [allocationPlan.committedEdgeKeys]);
   const currentPathEndpointNodeId = nodePathEndpoint(allocationPlan.previewNodePath)

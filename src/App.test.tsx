@@ -149,6 +149,23 @@ describe("App", () => {
     expect(screen.getByText("Notable · Allocated")).not.toBeNull();
   });
 
+  it("calculates passive search distance from the closest node in the current planned path", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+
+    expect(screen.getByText("Notable · 0 points from allocation")).not.toBeNull();
+    expect(screen.queryByText("Notable · Allocated")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
+
+    expect(screen.getByText("Jewel socket · 1 point from allocation")).not.toBeNull();
+    expect(screen.queryByText("Jewel socket · 3 points from allocation")).toBeNull();
+  });
+
   it("sorts passive search results by closest allocation distance", async () => {
     stubTreeFetchWithGraph(searchSortFixtureGraph());
 
