@@ -20,6 +20,29 @@ describe("App", () => {
     })));
   }
 
+  function endpointFixtureGraph(): TreeGraph {
+    return {
+      ...sampleGraph,
+      gameVersion: "endpoint-fixture",
+      nodes: {
+        ...sampleGraph.nodes,
+        near_start_branch: {
+          id: "near_start_branch",
+          groupId: "g1",
+          name: "Near Start Branch",
+          stats: ["10% increased Branch Damage"],
+          position: { x: -120, y: 0 },
+          flags: { small: true },
+        },
+      },
+      edges: [
+        ...sampleGraph.edges,
+        { from: "mercenary_start", to: "near_start_branch" },
+      ],
+      bounds: { ...sampleGraph.bounds, minX: -120 },
+    };
+  }
+
   it("lets the viewer node size be adjusted", () => {
     stubTreeFetch();
 
@@ -94,27 +117,7 @@ describe("App", () => {
   });
 
   it("previews new paths from the last allocated node instead of the nearest allocated node", async () => {
-    const endpointGraph: TreeGraph = {
-      ...sampleGraph,
-      gameVersion: "endpoint-fixture",
-      nodes: {
-        ...sampleGraph.nodes,
-        near_start_branch: {
-          id: "near_start_branch",
-          groupId: "g1",
-          name: "Near Start Branch",
-          stats: ["10% increased Branch Damage"],
-          position: { x: -120, y: 0 },
-          flags: { small: true },
-        },
-      },
-      edges: [
-        ...sampleGraph.edges,
-        { from: "mercenary_start", to: "near_start_branch" },
-      ],
-      bounds: { ...sampleGraph.bounds, minX: -120 },
-    };
-    stubTreeFetchWithGraph(endpointGraph);
+    stubTreeFetchWithGraph(endpointFixtureGraph());
 
     render(<App />);
 
@@ -126,6 +129,28 @@ describe("App", () => {
 
     expect(screen.getByText("4 points")).not.toBeNull();
     expect(screen.getByText("Jewel Socket -> Precise Shot -> Projectile Damage -> Mercenary -> Near Start Branch")).not.toBeNull();
+  });
+
+  it("chains uncommitted preview paths from the current preview endpoint", async () => {
+    stubTreeFetchWithGraph(endpointFixtureGraph());
+
+    render(<App />);
+
+    await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+
+    expect(screen.getByText("3 points")).not.toBeNull();
+    expect(screen.getByText("Mercenary -> Projectile Damage -> Precise Shot -> Jewel Socket")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
+
+    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(screen.getByText("7 points")).not.toBeNull();
+    expect(screen.getByText("Mercenary -> Projectile Damage -> Precise Shot -> Jewel Socket -> Precise Shot -> Projectile Damage -> Mercenary -> Near Start Branch")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("allocation-path")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(4);
   });
 
   it("clicking an allocated node prunes later allocated nodes", () => {

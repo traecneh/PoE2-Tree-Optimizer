@@ -46,7 +46,7 @@ type ViewportTransform = {
 
 const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
 const maxVisibleEdgeLength = 3000;
-const maxViewportScale = 12;
+const maxViewportScale = 18;
 const minViewportScale = 0.2;
 const viewportZoomStep = 1.1;
 const defaultNodeVisualScale = 2;
@@ -475,6 +475,7 @@ function ButtonNode({
   const iconPath = node.art?.icon
     ? passiveIconPublicPath(node.art.icon, node.art.assetKey)
     : undefined;
+  const iconClipPathId = iconPath ? nodeIconClipPathId(node.id) : undefined;
   const missingStats = debug.highlightMissingStats && node.stats.length === 0 && !node.flags.jewelSocket && !node.flags.classStart;
   const handleSelect = () => onSelectNode(node.id);
   const handleKeyDown = (event: KeyboardEvent<SVGGElement>) => {
@@ -500,6 +501,13 @@ function ButtonNode({
       onFocus={(event) => onShowTooltipAtElement(node, event.currentTarget)}
       onBlur={onHideTooltip}
     >
+      {iconClipPathId ? (
+        <defs>
+          <clipPath id={iconClipPathId} className="node-icon-clip" clipPathUnits="userSpaceOnUse">
+            <circle r={radius} />
+          </clipPath>
+        </defs>
+      ) : null}
       <circle className="node-hit-target" r={visual.frameRadius + 16 * nodeVisualScale} />
       {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14 * nodeVisualScale} /> : null}
       {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8 * nodeVisualScale} /> : null}
@@ -519,6 +527,7 @@ function ButtonNode({
           y={-visual.iconSize / 2}
           width={visual.iconSize}
           height={visual.iconSize}
+          clipPath={`url(#${iconClipPathId})`}
           preserveAspectRatio="xMidYMid meet"
           aria-hidden="true"
         />
@@ -599,7 +608,7 @@ function nodeVisual(node: TreeNode, typeClass: string, nodeVisualScale: number):
     haloRadius: nodeHaloRadius(typeClass, coreRadius, nodeVisualScale),
     glyph: nodeGlyph(typeClass),
     accentClass: nodeAccentClass(node),
-    iconSize: roundNodeVisualNumber(coreRadius * 1.6),
+    iconSize: roundNodeVisualNumber(coreRadius * 2.2),
   };
 }
 
@@ -726,4 +735,8 @@ function renderNodeGlyph(visual: NodeVisual) {
 
 function roundNodeVisualNumber(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+function nodeIconClipPathId(nodeId: string): string {
+  return `node-icon-clip-${nodeId.replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }

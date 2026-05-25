@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { findShortestAllocationPath, treeEdgeKey } from "./tree/pathAllocation";
+import { findShortestAllocationPath, treeEdgeKey, type AllocationPath } from "./tree/pathAllocation";
 import { searchPassiveTree } from "./tree/passiveSearch";
 import { sampleGraph } from "./tree/sampleGraph";
 import type { TreeGraph } from "./tree/types";
@@ -10,11 +10,20 @@ import { TreeViewer } from "./viewer/TreeViewer";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
 
+type AllocationPlan = {
+  committedNodePath: string[];
+  previewNodePath: string[];
+  noAllocationPathNodeId?: string;
+};
+
 export default function App() {
   const [graph, setGraph] = useState<TreeGraph>(sampleGraph);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
   const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();
-  const [allocatedNodePath, setAllocatedNodePath] = useState<string[]>([]);
+  const [allocationPlan, setAllocationPlan] = useState<AllocationPlan>({
+    committedNodePath: [],
+    previewNodePath: [],
+  });
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(2);
   const [searchQuery, setSearchQuery] = useState("");
   const [debug, setDebug] = useState<DebugOverlayState>({
@@ -33,6 +42,7 @@ export default function App() {
     () => Object.entries(graph.classStarts).filter(([, nodeId]) => Boolean(graph.nodes[nodeId])),
     [graph.classStarts, graph.nodes],
   );
+  const allocatedNodePath = allocationPlan.committedNodePath;
   const allocatedNodeIds = useMemo(
     () => new Set(allocatedNodePath),
     [allocatedNodePath],
@@ -41,30 +51,33 @@ export default function App() {
     () => edgeKeysFromNodePath(allocatedNodePath),
     [allocatedNodePath],
   );
-  const allocationStartNodeId = allocatedNodePath.length > 0
-    ? allocatedNodePath[allocatedNodePath.length - 1]
-    : pathStartNodeId;
+  const currentPathEndpointNodeId = nodePathEndpoint(allocationPlan.previewNodePath)
+    ?? nodePathEndpoint(allocatedNodePath)
+    ?? pathStartNodeId;
+  const previewRouteNodePath = useMemo(
+    () => allocationPlan.previewNodePath.slice(Math.max(0, allocatedNodePath.length - 1)),
+    [allocatedNodePath.length, allocationPlan.previewNodePath],
+  );
+  const previewRouteEndpointNodeId = nodePathEndpoint(previewRouteNodePath);
   const allocationPath = useMemo(
-    () => (selectedNodeId && allocationStartNodeId
-      ? findShortestAllocationPath(graph, allocationStartNodeId, selectedNodeId)
+    () => (selectedNodeId && selectedNodeId === previewRouteEndpointNodeId
+      ? allocationPathFromNodePath(previewRouteNodePath)
       : undefined),
-    [allocationStartNodeId, graph, selectedNodeId],
+    [previewRouteEndpointNodeId, previewRouteNodePath, selectedNodeId],
   );
   const searchMatchNodeIds = useMemo(
     () => new Set(searchResults.map(({ node }) => node.id)),
     [searchResults],
   );
   const allocationPathNodeIds = useMemo(
-    () => new Set(allocationPath?.nodeIds ?? []),
-    [allocationPath],
+    () => new Set(previewRouteNodePath),
+    [previewRouteNodePath],
   );
   const allocationPathEdgeKeys = useMemo(
-    () => new Set(allocationPath?.edgeKeys ?? []),
-    [allocationPath],
+    () => edgeKeysFromNodePath(previewRouteNodePath),
+    [previewRouteNodePath],
   );
-  const noAllocationPathNodeId = selectedNodeId && allocationStartNodeId && !allocationPath
-    ? selectedNodeId
-    : undefined;
+  const noAllocationPathNodeId = allocationPlan.noAllocationPathNodeId;
   const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);
   const allocationPathNodeNames = useMemo(
     () => allocationPath?.nodeIds.map((nodeId) => graph.nodes[nodeId]?.name ?? nodeId) ?? [],
@@ -72,19 +85,60 @@ export default function App() {
   );
 
   function resetAllocation() {
-    setAllocatedNodePath(pathStartNodeId ? [pathStartNodeId] : []);
+    setAllocationPlan({
+      committedNodePath: pathStartNodeId ? [pathStartNodeId] : [],
+      previewNodePath: [],
+    });
   }
 
   function allocatePreviewPath() {
     if (!allocationPath || allocationPath.pointCost === 0) return;
-    setAllocatedNodePath((current) => appendAllocationPath(current, allocationPath.nodeIds));
+    setAllocationPlan((current) => ({
+      committedNodePath: current.previewNodePath,
+      previewNodePath: [],
+    }));
   }
 
   function selectTreeNode(nodeId: string) {
     setSelectedNodeId(nodeId);
-    setAllocatedNodePath((current) => {
-      const nodeIndex = current.lastIndexOf(nodeId);
-      return nodeIndex === -1 ? current : current.slice(0, nodeIndex + 1);
+    setAllocationPlan((current) => {
+      const committedNodeIndex = current.committedNodePath.lastIndexOf(nodeId);
+      if (committedNodeIndex !== -1) {
+        return {
+          committedNodePath: current.committedNodePath.slice(0, committedNodeIndex + 1),
+          previewNodePath: [],
+        };
+      }
+
+      const previewNodeIndex = current.previewNodePath.lastIndexOf(nodeId);
+      if (previewNodeIndex !== -1) {
+        return {
+          ...current,
+          previewNodePath: current.previewNodePath.slice(0, previewNodeIndex + 1),
+          noAllocationPathNodeId: undefined,
+        };
+      }
+
+      const baseNodePath = current.previewNodePath.length > 0
+        ? current.previewNodePath
+        : current.committedNodePath;
+      const startNodeId = nodePathEndpoint(baseNodePath) ?? pathStartNodeId;
+      const nextPath = startNodeId
+        ? findShortestAllocationPath(graph, startNodeId, nodeId)
+        : undefined;
+
+      if (!nextPath) {
+        return {
+          ...current,
+          noAllocationPathNodeId: nodeId,
+        };
+      }
+
+      return {
+        ...current,
+        previewNodePath: appendAllocationPath(baseNodePath, nextPath.nodeIds),
+        noAllocationPathNodeId: undefined,
+      };
     });
   }
 
@@ -93,7 +147,10 @@ export default function App() {
   }, [classStartEntries, graph.nodes]);
 
   useEffect(() => {
-    setAllocatedNodePath(pathStartNodeId && graph.nodes[pathStartNodeId] ? [pathStartNodeId] : []);
+    setAllocationPlan({
+      committedNodePath: pathStartNodeId && graph.nodes[pathStartNodeId] ? [pathStartNodeId] : [],
+      previewNodePath: [],
+    });
   }, [graph.nodes, pathStartNodeId]);
 
   useEffect(() => {
@@ -175,8 +232,8 @@ export default function App() {
             edges={graph.edges}
             allocationPath={allocationPath}
             allocationPathNodeNames={allocationPathNodeNames}
-            pathStartName={allocationStartNodeId ? graph.nodes[allocationStartNodeId]?.name : undefined}
-            canAllocatePath={(allocationPath?.pointCost ?? 0) > 0}
+            pathStartName={currentPathEndpointNodeId ? graph.nodes[currentPathEndpointNodeId]?.name : undefined}
+            canAllocatePath={allocationPlan.previewNodePath.length > 0 && (allocationPath?.pointCost ?? 0) > 0}
             onAllocatePath={allocatePreviewPath}
           />
         </div>
@@ -187,6 +244,20 @@ export default function App() {
 
 function formatAllocatedPointCount(pointCount: number): string {
   return `Allocated ${pointCount} ${pointCount === 1 ? "point" : "points"}`;
+}
+
+function allocationPathFromNodePath(nodePath: string[]): AllocationPath | undefined {
+  const startNodeId = nodePath[0];
+  const targetNodeId = nodePath[nodePath.length - 1];
+  if (!startNodeId || !targetNodeId) return undefined;
+
+  return {
+    startNodeId,
+    targetNodeId,
+    nodeIds: nodePath,
+    edgeKeys: Array.from(edgeKeysFromNodePath(nodePath)),
+    pointCost: Math.max(0, nodePath.length - 1),
+  };
 }
 
 function appendAllocationPath(currentNodePath: string[], previewNodePath: string[]): string[] {
@@ -200,4 +271,8 @@ function appendAllocationPath(currentNodePath: string[], previewNodePath: string
 
 function edgeKeysFromNodePath(nodePath: string[]): Set<string> {
   return new Set(nodePath.slice(1).map((nodeId, index) => treeEdgeKey(nodePath[index], nodeId)));
+}
+
+function nodePathEndpoint(nodePath: string[]): string | undefined {
+  return nodePath[nodePath.length - 1];
 }

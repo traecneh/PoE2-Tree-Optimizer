@@ -101,7 +101,7 @@ describe("TreeViewer", () => {
       fireEvent.wheel(svg, { deltaY: -100 });
     }
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(12)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(18)");
   });
 
   it("zooms toward the wheel cursor position", () => {
@@ -515,12 +515,15 @@ describe("TreeViewer", () => {
     const frame = node.querySelector(".node-frame");
     const core = node.querySelector(".node-core");
     const icon = node.querySelector(".node-icon");
+    const iconClip = node.querySelector(".node-icon-clip circle");
 
     expect(frame?.getAttribute("r")).toBe("46");
     expect(core?.getAttribute("r")).toBe("36");
     expect(icon).not.toBeNull();
     expect(icon?.getAttribute("href")).toBe("/tree-assets/icons/art-2dart-skillicons-passives-criticalnotable.png");
-    expect(icon?.getAttribute("width")).toBe("57.6");
+    expect(icon?.getAttribute("clip-path")).toBe("url(#node-icon-clip-precise_shot)");
+    expect(icon?.getAttribute("width")).toBe("79.2");
+    expect(iconClip?.getAttribute("r")).toBe("36");
     expect(node.querySelector(".node-glyph.notable-glyph")).toBeNull();
   });
 
@@ -542,7 +545,7 @@ describe("TreeViewer", () => {
 
     expect(node.querySelector(".node-frame")?.getAttribute("r")).toBe("34.5");
     expect(node.querySelector(".node-core")?.getAttribute("r")).toBe("27");
-    expect(node.querySelector(".node-icon")?.getAttribute("width")).toBe("43.2");
+    expect(node.querySelector(".node-icon")?.getAttribute("width")).toBe("59.4");
   });
 
   it("marks nodes that match the active search", () => {
