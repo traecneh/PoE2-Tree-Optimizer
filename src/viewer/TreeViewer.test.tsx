@@ -95,7 +95,7 @@ describe("TreeViewer", () => {
     fireEvent.pointerMove(svg, { pointerId: 1, clientX: 144, clientY: 122 });
     fireEvent.pointerUp(svg, { pointerId: 1 });
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(68 34) scale(1.1)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(74.8 37.4) scale(1.1)");
   });
 
   it("does not draw class-start to ascendancy-start edges", () => {
@@ -333,7 +333,7 @@ describe("TreeViewer", () => {
     fireEvent.pointerMove(svg, { pointerId: 1, clientX: 144, clientY: 122 });
     fireEvent.pointerUp(svg, { pointerId: 1 });
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(68 34) scale(1.1)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(74.8 37.4) scale(1.1)");
     expect(updateCount).toBe(0);
   });
 

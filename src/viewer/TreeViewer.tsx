@@ -148,8 +148,8 @@ export function TreeViewer({
     const current = viewportTransform.current;
     setViewportTransform({
       ...current,
-      x: current.x + dx / current.scale,
-      y: current.y + dy / current.scale,
+      x: current.x + dx,
+      y: current.y + dy,
     });
   }
 
