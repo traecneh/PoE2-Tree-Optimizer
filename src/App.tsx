@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { findShortestAllocationPathFromAllocated } from "./tree/pathAllocation";
+import { findShortestAllocationPath, treeEdgeKey } from "./tree/pathAllocation";
 import { searchPassiveTree } from "./tree/passiveSearch";
 import { sampleGraph } from "./tree/sampleGraph";
 import type { TreeGraph } from "./tree/types";
@@ -14,8 +14,7 @@ export default function App() {
   const [graph, setGraph] = useState<TreeGraph>(sampleGraph);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
   const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();
-  const [allocatedNodeIds, setAllocatedNodeIds] = useState<Set<string>>(new Set());
-  const [allocatedEdgeKeys, setAllocatedEdgeKeys] = useState<Set<string>>(new Set());
+  const [allocatedNodePath, setAllocatedNodePath] = useState<string[]>([]);
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(2);
   const [searchQuery, setSearchQuery] = useState("");
   const [debug, setDebug] = useState<DebugOverlayState>({
@@ -34,15 +33,22 @@ export default function App() {
     () => Object.entries(graph.classStarts).filter(([, nodeId]) => Boolean(graph.nodes[nodeId])),
     [graph.classStarts, graph.nodes],
   );
-  const allocationStartNodeIds = useMemo(
-    () => (allocatedNodeIds.size > 0 ? allocatedNodeIds : new Set(pathStartNodeId ? [pathStartNodeId] : [])),
-    [allocatedNodeIds, pathStartNodeId],
+  const allocatedNodeIds = useMemo(
+    () => new Set(allocatedNodePath),
+    [allocatedNodePath],
   );
+  const allocatedEdgeKeys = useMemo(
+    () => edgeKeysFromNodePath(allocatedNodePath),
+    [allocatedNodePath],
+  );
+  const allocationStartNodeId = allocatedNodePath.length > 0
+    ? allocatedNodePath[allocatedNodePath.length - 1]
+    : pathStartNodeId;
   const allocationPath = useMemo(
-    () => (selectedNodeId
-      ? findShortestAllocationPathFromAllocated(graph, allocationStartNodeIds, selectedNodeId)
+    () => (selectedNodeId && allocationStartNodeId
+      ? findShortestAllocationPath(graph, allocationStartNodeId, selectedNodeId)
       : undefined),
-    [allocationStartNodeIds, graph, selectedNodeId],
+    [allocationStartNodeId, graph, selectedNodeId],
   );
   const searchMatchNodeIds = useMemo(
     () => new Set(searchResults.map(({ node }) => node.id)),
@@ -56,27 +62,30 @@ export default function App() {
     () => new Set(allocationPath?.edgeKeys ?? []),
     [allocationPath],
   );
-  const noAllocationPathNodeId = selectedNodeId && allocationStartNodeIds.size > 0 && !allocationPath
+  const noAllocationPathNodeId = selectedNodeId && allocationStartNodeId && !allocationPath
     ? selectedNodeId
     : undefined;
-  const allocatedPointCount = Math.max(
-    0,
-    allocatedNodeIds.size - (pathStartNodeId && allocatedNodeIds.has(pathStartNodeId) ? 1 : 0),
-  );
+  const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);
   const allocationPathNodeNames = useMemo(
     () => allocationPath?.nodeIds.map((nodeId) => graph.nodes[nodeId]?.name ?? nodeId) ?? [],
     [allocationPath, graph.nodes],
   );
 
   function resetAllocation() {
-    setAllocatedNodeIds(new Set(pathStartNodeId ? [pathStartNodeId] : []));
-    setAllocatedEdgeKeys(new Set());
+    setAllocatedNodePath(pathStartNodeId ? [pathStartNodeId] : []);
   }
 
   function allocatePreviewPath() {
     if (!allocationPath || allocationPath.pointCost === 0) return;
-    setAllocatedNodeIds((current) => new Set([...current, ...allocationPath.nodeIds]));
-    setAllocatedEdgeKeys((current) => new Set([...current, ...allocationPath.edgeKeys]));
+    setAllocatedNodePath((current) => appendAllocationPath(current, allocationPath.nodeIds));
+  }
+
+  function selectTreeNode(nodeId: string) {
+    setSelectedNodeId(nodeId);
+    setAllocatedNodePath((current) => {
+      const nodeIndex = current.lastIndexOf(nodeId);
+      return nodeIndex === -1 ? current : current.slice(0, nodeIndex + 1);
+    });
   }
 
   useEffect(() => {
@@ -84,8 +93,7 @@ export default function App() {
   }, [classStartEntries, graph.nodes]);
 
   useEffect(() => {
-    setAllocatedNodeIds(new Set(pathStartNodeId && graph.nodes[pathStartNodeId] ? [pathStartNodeId] : []));
-    setAllocatedEdgeKeys(new Set());
+    setAllocatedNodePath(pathStartNodeId && graph.nodes[pathStartNodeId] ? [pathStartNodeId] : []);
   }, [graph.nodes, pathStartNodeId]);
 
   useEffect(() => {
@@ -151,7 +159,7 @@ export default function App() {
           allocatedEdgeKeys={allocatedEdgeKeys}
           allocationPathNodeIds={allocationPathNodeIds}
           allocationPathEdgeKeys={allocationPathEdgeKeys}
-          onSelectNode={setSelectedNodeId}
+          onSelectNode={selectTreeNode}
           debug={debug}
         />
         <div className="side-panel">
@@ -160,14 +168,14 @@ export default function App() {
             results={searchResults}
             selectedNodeId={selectedNodeId}
             onQueryChange={setSearchQuery}
-            onSelectNode={setSelectedNodeId}
+            onSelectNode={selectTreeNode}
           />
           <NodeInspector
             node={selectedNode}
             edges={graph.edges}
             allocationPath={allocationPath}
             allocationPathNodeNames={allocationPathNodeNames}
-            pathStartName={pathStartNodeId ? graph.nodes[pathStartNodeId]?.name : undefined}
+            pathStartName={allocationStartNodeId ? graph.nodes[allocationStartNodeId]?.name : undefined}
             canAllocatePath={(allocationPath?.pointCost ?? 0) > 0}
             onAllocatePath={allocatePreviewPath}
           />
@@ -179,4 +187,17 @@ export default function App() {
 
 function formatAllocatedPointCount(pointCount: number): string {
   return `Allocated ${pointCount} ${pointCount === 1 ? "point" : "points"}`;
+}
+
+function appendAllocationPath(currentNodePath: string[], previewNodePath: string[]): string[] {
+  if (previewNodePath.length === 0) return currentNodePath;
+  const currentEndpoint = currentNodePath[currentNodePath.length - 1];
+  const extension = currentEndpoint && previewNodePath[0] === currentEndpoint
+    ? previewNodePath.slice(1)
+    : previewNodePath;
+  return [...currentNodePath, ...extension];
+}
+
+function edgeKeysFromNodePath(nodePath: string[]): Set<string> {
+  return new Set(nodePath.slice(1).map((nodeId, index) => treeEdgeKey(nodePath[index], nodeId)));
 }

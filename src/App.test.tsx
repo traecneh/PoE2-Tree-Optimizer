@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import { sampleGraph } from "./tree/sampleGraph";
+import type { TreeGraph } from "./tree/types";
 
 describe("App", () => {
   afterEach(() => {
@@ -9,6 +11,13 @@ describe("App", () => {
 
   function stubTreeFetch() {
     vi.stubGlobal("fetch", vi.fn(() => new Promise(() => undefined)));
+  }
+
+  function stubTreeFetchWithGraph(graph: TreeGraph) {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve(graph),
+    })));
   }
 
   it("lets the viewer node size be adjusted", () => {
@@ -82,5 +91,59 @@ describe("App", () => {
     expect(screen.getByText("1 point")).not.toBeNull();
     expect(screen.getByText("Precise Shot -> Jewel Socket")).not.toBeNull();
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(1);
+  });
+
+  it("previews new paths from the last allocated node instead of the nearest allocated node", async () => {
+    const endpointGraph: TreeGraph = {
+      ...sampleGraph,
+      gameVersion: "endpoint-fixture",
+      nodes: {
+        ...sampleGraph.nodes,
+        near_start_branch: {
+          id: "near_start_branch",
+          groupId: "g1",
+          name: "Near Start Branch",
+          stats: ["10% increased Branch Damage"],
+          position: { x: -120, y: 0 },
+          flags: { small: true },
+        },
+      },
+      edges: [
+        ...sampleGraph.edges,
+        { from: "mercenary_start", to: "near_start_branch" },
+      ],
+      bounds: { ...sampleGraph.bounds, minX: -120 },
+    };
+    stubTreeFetchWithGraph(endpointGraph);
+
+    render(<App />);
+
+    await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+    fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
+
+    expect(screen.getByText("4 points")).not.toBeNull();
+    expect(screen.getByText("Jewel Socket -> Precise Shot -> Projectile Damage -> Mercenary -> Near Start Branch")).not.toBeNull();
+  });
+
+  it("clicking an allocated node prunes later allocated nodes", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+
+    expect(screen.getByText("Allocated 3 points")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+
+    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
   });
 });
