@@ -286,6 +286,23 @@ button {
   vector-effect: non-scaling-stroke;
 }
 
+.tree-node .path-start-marker {
+  fill: rgba(112, 212, 255, 0.12);
+  pointer-events: none;
+  stroke: #70d4ff;
+  stroke-dasharray: 10 8;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.tree-node .no-path-marker {
+  fill: rgba(255, 126, 92, 0.12);
+  pointer-events: none;
+  stroke: #ff7e5c;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
 .tree-node .node-halo {
   fill: #263648;
   opacity: 0.34;
@@ -487,6 +504,26 @@ button {
 
 .tree-node.allocated .node-core {
   stroke: #d4fff4;
+  stroke-width: 3;
+}
+
+.tree-node.path-start .node-frame {
+  stroke: #70d4ff;
+  stroke-width: 8;
+}
+
+.tree-node.path-start .node-core {
+  stroke: #e8f8ff;
+  stroke-width: 3.5;
+}
+
+.tree-node.no-allocation-path .node-frame {
+  stroke: #ff7e5c;
+  stroke-width: 7;
+}
+
+.tree-node.no-allocation-path .node-core {
+  stroke: #ffd2c4;
   stroke-width: 3;
 }
 

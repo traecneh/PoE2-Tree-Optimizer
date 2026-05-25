@@ -545,6 +545,45 @@ describe("TreeViewer", () => {
     expect(document.querySelectorAll(".path-highlight-layer .allocation-path-edge")).toHaveLength(1);
   });
 
+  it("marks the selected path start independently from allocated nodes", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        pathStartNodeId="mercenary_start"
+        allocatedNodeIds={new Set(["mercenary_start"])}
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    const pathStart = screen.getByRole("button", { name: "Mercenary" });
+    const otherNode = screen.getByRole("button", { name: "Projectile Damage" });
+
+    expect(pathStart.classList.contains("path-start")).toBe(true);
+    expect(pathStart.querySelector(".path-start-marker")).not.toBeNull();
+    expect(otherNode.classList.contains("path-start")).toBe(false);
+    expect(otherNode.querySelector(".path-start-marker")).toBeNull();
+  });
+
+  it("marks selected targets that have no allocatable path", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        selectedNodeId="jewel_socket"
+        noAllocationPathNodeId="jewel_socket"
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    const selectedNode = screen.getByRole("button", { name: "Jewel Socket" });
+    const otherNode = screen.getByRole("button", { name: "Mercenary" });
+
+    expect(selectedNode.classList.contains("no-allocation-path")).toBe(true);
+    expect(selectedNode.querySelector(".no-path-marker")).not.toBeNull();
+    expect(otherNode.classList.contains("no-allocation-path")).toBe(false);
+  });
+
   it("marks the selected map node with a prominent target ring", () => {
     render(
       <TreeViewer

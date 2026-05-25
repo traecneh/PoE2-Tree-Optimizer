@@ -53,6 +53,8 @@ describe("App", () => {
     render(<App />);
 
     expect((screen.getByLabelText("Path start") as HTMLSelectElement).value).toBe("mercenary_start");
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("path-start")).toBe(true);
+    expect(screen.getByRole("button", { name: "Mercenary" }).querySelector(".path-start-marker")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
 

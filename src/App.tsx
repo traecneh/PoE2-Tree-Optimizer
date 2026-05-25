@@ -56,6 +56,9 @@ export default function App() {
     () => new Set(allocationPath?.edgeKeys ?? []),
     [allocationPath],
   );
+  const noAllocationPathNodeId = selectedNodeId && allocationStartNodeIds.size > 0 && !allocationPath
+    ? selectedNodeId
+    : undefined;
   const allocatedPointCount = Math.max(
     0,
     allocatedNodeIds.size - (pathStartNodeId && allocatedNodeIds.has(pathStartNodeId) ? 1 : 0),
@@ -140,6 +143,8 @@ export default function App() {
         <TreeViewer
           graph={graph}
           selectedNodeId={selectedNodeId}
+          pathStartNodeId={pathStartNodeId}
+          noAllocationPathNodeId={noAllocationPathNodeId}
           nodeVisualScale={nodeVisualScale}
           searchMatchNodeIds={searchMatchNodeIds}
           allocatedNodeIds={allocatedNodeIds}

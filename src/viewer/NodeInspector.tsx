@@ -50,6 +50,7 @@ export function NodeInspector({
         path={allocationPath}
         nodeNames={allocationPathNodeNames}
         pathStartName={pathStartName}
+        targetName={node.name ?? node.id}
         canAllocatePath={canAllocatePath}
         onAllocatePath={onAllocatePath}
       />
@@ -65,12 +66,14 @@ function AllocationPathDetails({
   path,
   nodeNames,
   pathStartName,
+  targetName,
   canAllocatePath,
   onAllocatePath,
 }: {
   path?: AllocationPath;
   nodeNames: string[];
   pathStartName?: string;
+  targetName: string;
   canAllocatePath: boolean;
   onAllocatePath?: () => void;
 }) {
@@ -78,7 +81,7 @@ function AllocationPathDetails({
     return pathStartName ? (
       <section className="allocation-path-summary">
         <h3>Allocation path</h3>
-        <p>No allocatable path from {pathStartName}.</p>
+        <p>No allocatable path from {pathStartName} to {targetName}.</p>
       </section>
     ) : null;
   }

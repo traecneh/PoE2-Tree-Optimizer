@@ -10,6 +10,8 @@ import { buildFitViewBox } from "./treeViewBox";
 type TreeViewerProps = {
   graph: TreeGraph;
   selectedNodeId?: string;
+  pathStartNodeId?: string;
+  noAllocationPathNodeId?: string;
   nodeVisualScale?: number;
   searchMatchNodeIds?: ReadonlySet<string>;
   allocatedNodeIds?: ReadonlySet<string>;
@@ -56,6 +58,8 @@ const defaultNodeVisualScale = 2;
 export function TreeViewer({
   graph,
   selectedNodeId,
+  pathStartNodeId,
+  noAllocationPathNodeId,
   nodeVisualScale = defaultNodeVisualScale,
   searchMatchNodeIds,
   allocatedNodeIds,
@@ -265,6 +269,8 @@ export function TreeViewer({
                 key={node.id}
                 node={node}
                 selected={node.id === selectedNodeId}
+                pathStart={node.id === pathStartNodeId}
+                noAllocationPath={node.id === noAllocationPathNodeId}
                 nodeVisualScale={nodeVisualScale}
                 searchMatched={searchMatchNodeIds?.has(node.id) ?? false}
                 allocated={allocatedNodeIds?.has(node.id) ?? false}
@@ -347,6 +353,8 @@ function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number):
 function ButtonNode({
   node,
   selected,
+  pathStart,
+  noAllocationPath,
   nodeVisualScale,
   searchMatched,
   allocated,
@@ -360,6 +368,8 @@ function ButtonNode({
 }: {
   node: TreeNode;
   selected: boolean;
+  pathStart: boolean;
+  noAllocationPath: boolean;
   nodeVisualScale: number;
   searchMatched: boolean;
   allocated: boolean;
@@ -389,7 +399,7 @@ function ButtonNode({
 
   return (
     <g
-      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${searchMatched ? " search-match" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
+      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${searchMatched ? " search-match" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}
@@ -406,6 +416,8 @@ function ButtonNode({
       {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14 * nodeVisualScale} /> : null}
       {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8 * nodeVisualScale} /> : null}
       {visual.haloRadius ? <circle className="node-halo" r={visual.haloRadius} /> : null}
+      {pathStart ? <circle className="path-start-marker" r={visual.frameRadius + 44 * nodeVisualScale} /> : null}
+      {noAllocationPath ? <circle className="no-path-marker" r={visual.frameRadius + 28 * nodeVisualScale} /> : null}
       {selected ? <circle className="target-marker" r={visual.frameRadius + 34 * nodeVisualScale} /> : null}
       <circle className="node-frame" r={visual.frameRadius} />
       <circle className="node-core" r={radius}>
