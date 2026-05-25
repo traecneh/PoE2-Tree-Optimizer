@@ -53,6 +53,7 @@ const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
 const maxVisibleEdgeLength = 3000;
 const maxViewportScale = 12;
 const minViewportScale = 0.2;
+const viewportZoomStep = 1.1;
 const defaultNodeVisualScale = 2;
 
 export function TreeViewer({
@@ -69,6 +70,7 @@ export function TreeViewer({
   onSelectNode,
   debug,
 }: TreeViewerProps) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const viewportRef = useRef<SVGGElement | null>(null);
   const viewportTransform = useRef<ViewportTransform>({ ...initialViewportTransform });
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
@@ -109,16 +111,28 @@ export function TreeViewer({
 
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
-    const current = viewportTransform.current;
     const pointer = clientPointToSvg(event.currentTarget, event.clientX, event.clientY);
-    const scale = Math.min(maxViewportScale, Math.max(minViewportScale, current.scale * (event.deltaY > 0 ? 0.9 : 1.1)));
+    zoomViewport(event.deltaY > 0 ? 1 / viewportZoomStep : viewportZoomStep, pointer);
+  }
+
+  function zoomViewport(scaleFactor: number, pivot: Point) {
+    const current = viewportTransform.current;
+    const scale = clampViewportScale(current.scale * scaleFactor);
     const scaleRatio = scale / current.scale;
 
     setViewportTransform({
-      x: pointer.x - (pointer.x - current.x) * scaleRatio,
-      y: pointer.y - (pointer.y - current.y) * scaleRatio,
+      x: pivot.x - (pivot.x - current.x) * scaleRatio,
+      y: pivot.y - (pivot.y - current.y) * scaleRatio,
       scale,
     });
+  }
+
+  function zoomViewportAtCenter(scaleFactor: number) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const center = clientPointToSvg(svg, rect.left + rect.width / 2, rect.top + rect.height / 2);
+    zoomViewport(scaleFactor, center);
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
@@ -220,11 +234,40 @@ export function TreeViewer({
 
   return (
     <div className="tree-viewer">
-      <button className="tool-button reset-view-button" type="button" onClick={resetViewportTransform}>
-        Reset View
-      </button>
+      <div className="viewport-toolbar" role="toolbar" aria-label="Tree viewport controls">
+        <button
+          className="tool-button viewport-button"
+          type="button"
+          aria-label="Zoom out"
+          title="Zoom out"
+          onClick={() => zoomViewportAtCenter(1 / viewportZoomStep)}
+        >
+          -
+        </button>
+        <button
+          className="tool-button viewport-button"
+          type="button"
+          aria-label="Zoom in"
+          title="Zoom in"
+          onClick={() => zoomViewportAtCenter(viewportZoomStep)}
+        >
+          +
+        </button>
+        <button
+          className="tool-button viewport-button"
+          type="button"
+          aria-label="Fit tree"
+          title="Fit tree"
+          onClick={resetViewportTransform}
+        >
+          <svg className="viewport-button-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M 8 4 H 4 V 8 M 16 4 H 20 V 8 M 20 16 V 20 H 16 M 8 20 H 4 V 16" />
+          </svg>
+        </button>
+      </div>
       {tooltip ? <NodeTooltip node={tooltip.node} position={tooltip.position} /> : null}
       <svg
+        ref={svgRef}
         className="tree-svg"
         viewBox={viewBox}
         role="img"
@@ -349,6 +392,10 @@ function applyViewportTransform(layer: SVGGElement | null, transform: ViewportTr
 
 function formatViewportTransform(transform: ViewportTransform): string {
   return `translate(${formatTransformNumber(transform.x)} ${formatTransformNumber(transform.y)}) scale(${formatTransformNumber(transform.scale)})`;
+}
+
+function clampViewportScale(scale: number): number {
+  return Math.min(maxViewportScale, Math.max(minViewportScale, scale));
 }
 
 function releasePointerCapture(svg: SVGSVGElement, pointerId: number) {

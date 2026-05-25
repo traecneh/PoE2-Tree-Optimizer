@@ -35,6 +35,20 @@ describe("TreeViewer", () => {
     });
   }
 
+  function mockSvgViewport(svg: SVGSVGElement, rect: Pick<DOMRect, "x" | "y" | "width" | "height">) {
+    Object.defineProperty(svg, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        ...rect,
+        top: rect.y,
+        right: rect.x + rect.width,
+        bottom: rect.y + rect.height,
+        left: rect.x,
+        toJSON: () => rect,
+      }),
+    });
+  }
+
   it("resets the view after zooming", () => {
     render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 
@@ -47,7 +61,32 @@ describe("TreeViewer", () => {
 
     expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(1.1)");
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset View" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fit tree" }));
+
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(1)");
+  });
+
+  it("zooms with viewport controls and fits the tree", () => {
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
+    const transformLayer = svg.querySelector("g");
+    mockSvgCoordinateConversion(svg);
+    mockSvgViewport(svg, { x: 0, y: 0, width: 400, height: 200 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(-34 -17) scale(1.1)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
+
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(1)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(-34 -17) scale(1.1)");
+
+    fireEvent.click(screen.getByRole("button", { name: "Fit tree" }));
 
     expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(1)");
   });
@@ -94,7 +133,7 @@ describe("TreeViewer", () => {
 
     expect(transformLayer?.getAttribute("transform")).toBe("translate(68 34) scale(1)");
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset View" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fit tree" }));
 
     expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(1)");
   });

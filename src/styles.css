@@ -116,11 +116,47 @@ button {
   background: radial-gradient(circle at center, #1a2230 0, #0d1118 68%);
 }
 
-.reset-view-button {
+.viewport-toolbar {
   position: absolute;
   z-index: 2;
   top: 12px;
   left: 12px;
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid rgba(96, 112, 135, 0.62);
+  border-radius: 8px;
+  background: rgba(13, 17, 24, 0.74);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+.viewport-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  color: #eef2f7;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.viewport-button:hover,
+.viewport-button:focus-visible {
+  border-color: #f1c75f;
+  outline: none;
+}
+
+.viewport-button-icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.4;
 }
 
 .node-tooltip {
