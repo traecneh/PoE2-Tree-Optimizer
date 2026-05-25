@@ -507,6 +507,42 @@ describe("TreeViewer", () => {
     expect(otherNode.classList.contains("search-match")).toBe(false);
   });
 
+  it("shows a passive tooltip while hovering a node", () => {
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Precise Shot" }), { clientX: 220, clientY: 140 });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toContain("Precise Shot");
+    expect(tooltip.textContent).toContain("25% increased Critical Hit Chance");
+    expect(tooltip.textContent).toContain("Unallocated");
+
+    fireEvent.mouseLeave(screen.getByRole("button", { name: "Precise Shot" }));
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("shows a passive tooltip while keyboard focusing a node", () => {
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    fireEvent.focus(screen.getByRole("button", { name: "Jewel Socket" }));
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toContain("Jewel Socket");
+    expect(tooltip.textContent).toContain("Jewel socket");
+  });
+
+  it("shows a passive tooltip when keyboard selecting a node", () => {
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Precise Shot" }), { key: "Enter" });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toContain("Precise Shot");
+  });
+
   it("marks nodes missing stats and orphan nodes when debug overlays are enabled", () => {
     const graph = {
       ...sampleGraph,

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
-import type { KeyboardEvent, PointerEvent, WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent, MouseEvent, PointerEvent, WheelEvent } from "react";
 import { passiveIconPublicPath } from "../tree/passiveIconAssets";
 import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
 import type { DebugOverlayState } from "./DebugControls";
@@ -37,6 +37,11 @@ type ViewportTransform = {
   scale: number;
 };
 
+type TooltipState = {
+  node: TreeNode;
+  position: Point;
+};
+
 const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
 const maxVisibleEdgeLength = 3000;
 const maxViewportScale = 12;
@@ -55,6 +60,7 @@ export function TreeViewer({
   const viewportTransform = useRef<ViewportTransform>({ ...initialViewportTransform });
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
   const suppressNextNodeClick = useRef(false);
+  const [tooltip, setTooltip] = useState<TooltipState | undefined>();
   const viewBox = buildFitViewBox(graph.bounds, 160);
   const connectedNodeIds = useMemo(() => new Set(graph.edges.flatMap((edge) => [edge.from, edge.to])), [graph.edges]);
   const renderedEdges = useMemo(
@@ -158,11 +164,24 @@ export function TreeViewer({
     onSelectNode(nodeId);
   }
 
+  function showTooltipAtPointer(node: TreeNode, event: MouseEvent<SVGGElement>) {
+    setTooltip({ node, position: tooltipPositionFromClientPoint(event.clientX, event.clientY) });
+  }
+
+  function showTooltipAtElement(node: TreeNode, element: SVGGElement) {
+    setTooltip({ node, position: tooltipPositionFromElement(element) });
+  }
+
+  function hideTooltip() {
+    setTooltip(undefined);
+  }
+
   return (
     <div className="tree-viewer">
       <button className="tool-button reset-view-button" type="button" onClick={resetViewportTransform}>
         Reset View
       </button>
+      {tooltip ? <NodeTooltip node={tooltip.node} position={tooltip.position} /> : null}
       <svg
         className="tree-svg"
         viewBox={viewBox}
@@ -211,6 +230,9 @@ export function TreeViewer({
                 searchMatched={searchMatchNodeIds?.has(node.id) ?? false}
                 debug={debug}
                 orphan={debug.highlightOrphans && !connectedNodeIds.has(node.id)}
+                onShowTooltipAtPointer={showTooltipAtPointer}
+                onShowTooltipAtElement={showTooltipAtElement}
+                onHideTooltip={hideTooltip}
                 onSelectNode={handleSelectNode}
               />
             ))}
@@ -288,6 +310,9 @@ function ButtonNode({
   searchMatched,
   debug,
   orphan,
+  onShowTooltipAtPointer,
+  onShowTooltipAtElement,
+  onHideTooltip,
   onSelectNode,
 }: {
   node: TreeNode;
@@ -296,6 +321,9 @@ function ButtonNode({
   searchMatched: boolean;
   debug: DebugOverlayState;
   orphan: boolean;
+  onShowTooltipAtPointer: (node: TreeNode, event: MouseEvent<SVGGElement>) => void;
+  onShowTooltipAtElement: (node: TreeNode, element: SVGGElement) => void;
+  onHideTooltip: () => void;
   onSelectNode: (nodeId: string) => void;
 }) {
   const typeClass = nodeClass(node);
@@ -310,6 +338,7 @@ function ButtonNode({
   const handleKeyDown = (event: KeyboardEvent<SVGGElement>) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     event.preventDefault();
+    onShowTooltipAtElement(node, event.currentTarget);
     handleSelect();
   };
 
@@ -323,6 +352,10 @@ function ButtonNode({
       aria-pressed={selected}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
+      onMouseEnter={(event) => onShowTooltipAtPointer(node, event)}
+      onMouseLeave={onHideTooltip}
+      onFocus={(event) => onShowTooltipAtElement(node, event.currentTarget)}
+      onBlur={onHideTooltip}
     >
       {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14 * nodeVisualScale} /> : null}
       {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8 * nodeVisualScale} /> : null}
@@ -346,6 +379,58 @@ function ButtonNode({
       {debug.showNodeIds ? <text className="node-id-label" y={-radius - 8}>{node.id}</text> : null}
     </g>
   );
+}
+
+function NodeTooltip({ node, position }: { node: TreeNode; position: Point }) {
+  const title = node.name ?? node.id;
+  const stats = node.stats.length > 0 ? node.stats : [nodeTypeLabel(node)];
+
+  return (
+    <div
+      className="node-tooltip"
+      role="tooltip"
+      style={{ left: position.x, top: position.y }}
+    >
+      <div className="node-tooltip-title">{title}</div>
+      <div className="node-tooltip-stats">
+        {stats.map((stat, index) => (
+          <div key={`${stat}-${index}`}>{stat}</div>
+        ))}
+      </div>
+      <div className="node-tooltip-state">Unallocated</div>
+    </div>
+  );
+}
+
+function tooltipPositionFromClientPoint(clientX: number, clientY: number): Point {
+  return clampTooltipPosition({
+    x: clientX + 18,
+    y: clientY + 18,
+  });
+}
+
+function tooltipPositionFromElement(element: SVGGElement): Point {
+  const elementRect = element.getBoundingClientRect();
+
+  return clampTooltipPosition({
+    x: elementRect.right + 18,
+    y: elementRect.top,
+  });
+}
+
+function clampTooltipPosition(point: Point): Point {
+  const viewportWidth = window.innerWidth || 1024;
+  const viewportHeight = window.innerHeight || 768;
+  const tooltipWidth = Math.min(520, viewportWidth - 24);
+  const tooltipHeight = 210;
+  const inset = 12;
+  const maxX = Math.max(inset, viewportWidth - tooltipWidth - inset);
+  const maxY = Math.max(inset, viewportHeight - tooltipHeight - inset);
+
+  return {
+    x: Math.min(Math.max(point.x, inset), maxX),
+    y: Math.min(Math.max(point.y, inset), maxY),
+  };
 }
 
 function nodeVisual(node: TreeNode, typeClass: string, nodeVisualScale: number): NodeVisual {
@@ -376,6 +461,15 @@ function nodeClass(node: TreeNode): string {
   if (node.flags.jewelSocket) return "jewel-socket";
   if (node.flags.attribute) return "attribute";
   return "small";
+}
+
+function nodeTypeLabel(node: TreeNode): string {
+  if (node.flags.classStart) return "Class start";
+  if (node.flags.keystone) return "Keystone";
+  if (node.flags.notable) return "Notable";
+  if (node.flags.jewelSocket) return "Jewel socket";
+  if (node.flags.attribute) return "Attribute";
+  return "Small passive";
 }
 
 function nodeHaloRadius(typeClass: string, coreRadius: number, nodeVisualScale: number): number | undefined {

@@ -115,6 +115,68 @@ button {
   left: 12px;
 }
 
+.node-tooltip {
+  position: fixed;
+  z-index: 5;
+  width: min(520px, calc(100vw - 24px));
+  min-height: 150px;
+  border: 1px solid #5a564a;
+  background:
+    linear-gradient(180deg, rgba(33, 31, 22, 0.96), rgba(5, 5, 4, 0.94)),
+    #050504;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(225, 214, 169, 0.14);
+  color: #e9dfbf;
+  pointer-events: none;
+}
+
+.node-tooltip::before,
+.node-tooltip::after {
+  position: absolute;
+  right: 10px;
+  left: 10px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(221, 207, 157, 0.58), transparent);
+  content: "";
+}
+
+.node-tooltip::before {
+  top: 8px;
+}
+
+.node-tooltip::after {
+  bottom: 8px;
+}
+
+.node-tooltip-title {
+  display: grid;
+  min-height: 58px;
+  padding: 10px 18px;
+  place-items: center;
+  border-bottom: 1px solid rgba(160, 145, 104, 0.45);
+  background: radial-gradient(circle at center, rgba(104, 93, 60, 0.28), transparent 68%);
+  color: #fbf2d8;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 26px;
+  font-weight: 700;
+  text-align: center;
+  text-shadow: 0 2px 4px #000;
+}
+
+.node-tooltip-stats {
+  display: grid;
+  gap: 2px;
+  padding: 18px 22px 10px;
+  color: #9c96ff;
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.node-tooltip-state {
+  padding: 12px 22px 18px;
+  color: #8f8f8f;
+  font-size: 19px;
+}
+
 .tree-edge {
   fill: none;
   stroke: #56657a;
