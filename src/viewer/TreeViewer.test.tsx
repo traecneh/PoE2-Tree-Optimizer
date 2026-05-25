@@ -65,6 +65,22 @@ describe("TreeViewer", () => {
     expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(12)");
   });
 
+  it("zooms toward the wheel cursor position", () => {
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
+    const transformLayer = svg.querySelector("g");
+    mockSvgCoordinateConversion(svg);
+
+    fireEvent.pointerDown(svg, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 140, clientY: 120 });
+    fireEvent.pointerUp(svg, { pointerId: 1 });
+
+    fireEvent.wheel(svg, { deltaY: -100, clientX: 300, clientY: 200 });
+
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(23.8 3.4) scale(1.1)");
+  });
+
   it("pans in viewBox units and resets the pan", () => {
     render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 

@@ -110,9 +110,14 @@ export function TreeViewer({
   function handleWheel(event: WheelEvent<SVGSVGElement>) {
     event.preventDefault();
     const current = viewportTransform.current;
+    const pointer = clientPointToSvg(event.currentTarget, event.clientX, event.clientY);
+    const scale = Math.min(maxViewportScale, Math.max(minViewportScale, current.scale * (event.deltaY > 0 ? 0.9 : 1.1)));
+    const scaleRatio = scale / current.scale;
+
     setViewportTransform({
-      ...current,
-      scale: Math.min(maxViewportScale, Math.max(minViewportScale, current.scale * (event.deltaY > 0 ? 0.9 : 1.1))),
+      x: pointer.x - (pointer.x - current.x) * scaleRatio,
+      y: pointer.y - (pointer.y - current.y) * scaleRatio,
+      scale,
     });
   }
 
