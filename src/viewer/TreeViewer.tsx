@@ -9,6 +9,7 @@ import { buildFitViewBox } from "./treeViewBox";
 type TreeViewerProps = {
   graph: TreeGraph;
   selectedNodeId?: string;
+  nodeVisualScale?: number;
   onSelectNode: (nodeId: string) => void;
   debug: DebugOverlayState;
 };
@@ -39,9 +40,15 @@ const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
 const maxVisibleEdgeLength = 3000;
 const maxViewportScale = 12;
 const minViewportScale = 0.2;
-const nodeVisualScale = 2;
+const defaultNodeVisualScale = 2;
 
-export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeViewerProps) {
+export function TreeViewer({
+  graph,
+  selectedNodeId,
+  nodeVisualScale = defaultNodeVisualScale,
+  onSelectNode,
+  debug,
+}: TreeViewerProps) {
   const viewportRef = useRef<SVGGElement | null>(null);
   const viewportTransform = useRef<ViewportTransform>({ ...initialViewportTransform });
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
@@ -198,6 +205,7 @@ export function TreeViewer({ graph, selectedNodeId, onSelectNode, debug }: TreeV
                 key={node.id}
                 node={node}
                 selected={node.id === selectedNodeId}
+                nodeVisualScale={nodeVisualScale}
                 debug={debug}
                 orphan={debug.highlightOrphans && !connectedNodeIds.has(node.id)}
                 onSelectNode={handleSelectNode}
@@ -273,18 +281,20 @@ function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number):
 function ButtonNode({
   node,
   selected,
+  nodeVisualScale,
   debug,
   orphan,
   onSelectNode,
 }: {
   node: TreeNode;
   selected: boolean;
+  nodeVisualScale: number;
   debug: DebugOverlayState;
   orphan: boolean;
   onSelectNode: (nodeId: string) => void;
 }) {
   const typeClass = nodeClass(node);
-  const visual = nodeVisual(node, typeClass);
+  const visual = nodeVisual(node, typeClass, nodeVisualScale);
   const radius = visual.coreRadius;
   const label = node.name ?? node.id;
   const iconPath = node.art?.icon
@@ -309,8 +319,8 @@ function ButtonNode({
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
     >
-      {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14} /> : null}
-      {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8} /> : null}
+      {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14 * nodeVisualScale} /> : null}
+      {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8 * nodeVisualScale} /> : null}
       {visual.haloRadius ? <circle className="node-halo" r={visual.haloRadius} /> : null}
       <circle className="node-frame" r={visual.frameRadius} />
       <circle className="node-core" r={radius}>
@@ -333,20 +343,20 @@ function ButtonNode({
   );
 }
 
-function nodeVisual(node: TreeNode, typeClass: string): NodeVisual {
-  const coreRadius = nodeRadius(node);
+function nodeVisual(node: TreeNode, typeClass: string, nodeVisualScale: number): NodeVisual {
+  const coreRadius = nodeRadius(node, nodeVisualScale);
   const frameInset = typeClass === "small" || typeClass === "attribute" ? 3 : 5;
   return {
     coreRadius,
     frameRadius: coreRadius + frameInset * nodeVisualScale,
-    haloRadius: nodeHaloRadius(typeClass, coreRadius),
+    haloRadius: nodeHaloRadius(typeClass, coreRadius, nodeVisualScale),
     glyph: nodeGlyph(typeClass),
     accentClass: nodeAccentClass(node),
     iconSize: roundNodeVisualNumber(coreRadius * 1.6),
   };
 }
 
-function nodeRadius(node: TreeNode): number {
+function nodeRadius(node: TreeNode, nodeVisualScale: number): number {
   if (node.flags.classStart) return 26 * nodeVisualScale;
   if (node.flags.keystone) return 24 * nodeVisualScale;
   if (node.flags.notable) return 18 * nodeVisualScale;
@@ -363,7 +373,7 @@ function nodeClass(node: TreeNode): string {
   return "small";
 }
 
-function nodeHaloRadius(typeClass: string, coreRadius: number): number | undefined {
+function nodeHaloRadius(typeClass: string, coreRadius: number, nodeVisualScale: number): number | undefined {
   if (typeClass === "class-start") return coreRadius + 12 * nodeVisualScale;
   if (typeClass === "keystone") return coreRadius + 10 * nodeVisualScale;
   if (typeClass === "notable" || typeClass === "jewel-socket") return coreRadius + 7 * nodeVisualScale;

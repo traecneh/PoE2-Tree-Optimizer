@@ -48,6 +48,30 @@ button {
   font-size: 13px;
 }
 
+.top-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px 18px;
+}
+
+.node-size-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c6d0df;
+  font-size: 13px;
+}
+
+.node-size-control select {
+  border: 1px solid #3a4658;
+  background: #202938;
+  color: #eef2f7;
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
 .debug-controls {
   display: flex;
   flex-wrap: wrap;

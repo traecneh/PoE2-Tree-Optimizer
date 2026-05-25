@@ -469,6 +469,27 @@ describe("TreeViewer", () => {
     expect(node.querySelector(".node-glyph.notable-glyph")).toBeNull();
   });
 
+  it("scales node visuals from the configured node scale", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        precise_shot: {
+          ...sampleGraph.nodes.precise_shot,
+          art: { icon: "Art/2DArt/SkillIcons/passives/CriticalNotable.dds" },
+        },
+      },
+    };
+
+    render(<TreeViewer graph={graph} nodeVisualScale={1.5} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const node = screen.getByRole("button", { name: "Precise Shot" });
+
+    expect(node.querySelector(".node-frame")?.getAttribute("r")).toBe("34.5");
+    expect(node.querySelector(".node-core")?.getAttribute("r")).toBe("27");
+    expect(node.querySelector(".node-icon")?.getAttribute("width")).toBe("43.2");
+  });
+
   it("marks nodes missing stats and orphan nodes when debug overlays are enabled", () => {
     const graph = {
       ...sampleGraph,

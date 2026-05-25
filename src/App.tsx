@@ -5,9 +5,12 @@ import { DebugControls, type DebugOverlayState } from "./viewer/DebugControls";
 import { NodeInspector } from "./viewer/NodeInspector";
 import { TreeViewer } from "./viewer/TreeViewer";
 
+const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
+
 export default function App() {
   const [graph, setGraph] = useState<TreeGraph>(sampleGraph);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
+  const [nodeVisualScale, setNodeVisualScale] = useState<number>(2);
   const [debug, setDebug] = useState<DebugOverlayState>({
     showNodeIds: false,
     highlightMissingStats: false,
@@ -34,10 +37,29 @@ export default function App() {
           <h1>PoE2 Passive Tree Viewer</h1>
           <p>{Object.keys(graph.nodes).length} nodes, {graph.edges.length} links, version {graph.gameVersion}</p>
         </div>
-        <DebugControls value={debug} onChange={setDebug} />
+        <div className="top-controls">
+          <label className="node-size-control">
+            Node size{" "}
+            <select
+              value={nodeVisualScale}
+              onChange={(event) => setNodeVisualScale(Number(event.currentTarget.value))}
+            >
+              {nodeVisualScaleOptions.map((scale) => (
+                <option key={scale} value={scale}>{scale}x</option>
+              ))}
+            </select>
+          </label>
+          <DebugControls value={debug} onChange={setDebug} />
+        </div>
       </header>
       <section className="workspace">
-        <TreeViewer graph={graph} selectedNodeId={selectedNodeId} onSelectNode={setSelectedNodeId} debug={debug} />
+        <TreeViewer
+          graph={graph}
+          selectedNodeId={selectedNodeId}
+          nodeVisualScale={nodeVisualScale}
+          onSelectNode={setSelectedNodeId}
+          debug={debug}
+        />
         <NodeInspector node={selectedNode} edges={graph.edges} />
       </section>
     </main>
