@@ -84,7 +84,7 @@ button {
 .workspace {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 380px;
   align-items: stretch;
 }
 
@@ -338,6 +338,21 @@ button {
   stroke-width: 6;
 }
 
+.tree-node.search-match .node-halo {
+  fill: #d4a64e;
+  opacity: 0.5;
+}
+
+.tree-node.search-match .node-frame {
+  stroke: #f1c75f;
+  stroke-width: 7;
+}
+
+.tree-node.search-match .node-core {
+  stroke: #fff0bd;
+  stroke-width: 3;
+}
+
 .tree-node.selected .node-core,
 .tree-node:focus-visible .node-core {
   stroke: #ffffff;
@@ -371,11 +386,101 @@ button {
   outline: none;
 }
 
+.side-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-left: 1px solid #283241;
+  background: #151b24;
+}
+
+.passive-search-panel {
+  padding: 14px 16px 16px;
+  border-bottom: 1px solid #283241;
+}
+
+.passive-search-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #eef2f7;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.passive-search-input {
+  width: 100%;
+  border: 1px solid #3a4658;
+  background: #0f141c;
+  color: #eef2f7;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.passive-search-input::placeholder {
+  color: #7f8da1;
+}
+
+.search-summary {
+  margin-top: 10px;
+  color: #aab4c4;
+  font-size: 12px;
+}
+
+.search-results {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.search-result {
+  width: 100%;
+  border: 1px solid #2e3949;
+  background: #1b2330;
+  color: #eef2f7;
+  border-radius: 6px;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.search-result:hover,
+.search-result:focus-visible,
+.search-result.selected {
+  border-color: #f1c75f;
+  outline: none;
+}
+
+.search-result-name,
+.search-result-meta,
+.search-result-match {
+  display: block;
+}
+
+.search-result-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.search-result-meta {
+  margin-top: 2px;
+  color: #8fa4bb;
+  font-size: 11px;
+}
+
+.search-result-match {
+  margin-top: 6px;
+  color: #c6d0df;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .inspector {
   min-height: 0;
   overflow: auto;
-  border-left: 1px solid #283241;
-  background: #151b24;
   padding: 16px;
 }
 

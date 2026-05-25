@@ -10,6 +10,7 @@ type TreeViewerProps = {
   graph: TreeGraph;
   selectedNodeId?: string;
   nodeVisualScale?: number;
+  searchMatchNodeIds?: ReadonlySet<string>;
   onSelectNode: (nodeId: string) => void;
   debug: DebugOverlayState;
 };
@@ -46,6 +47,7 @@ export function TreeViewer({
   graph,
   selectedNodeId,
   nodeVisualScale = defaultNodeVisualScale,
+  searchMatchNodeIds,
   onSelectNode,
   debug,
 }: TreeViewerProps) {
@@ -206,6 +208,7 @@ export function TreeViewer({
                 node={node}
                 selected={node.id === selectedNodeId}
                 nodeVisualScale={nodeVisualScale}
+                searchMatched={searchMatchNodeIds?.has(node.id) ?? false}
                 debug={debug}
                 orphan={debug.highlightOrphans && !connectedNodeIds.has(node.id)}
                 onSelectNode={handleSelectNode}
@@ -282,6 +285,7 @@ function ButtonNode({
   node,
   selected,
   nodeVisualScale,
+  searchMatched,
   debug,
   orphan,
   onSelectNode,
@@ -289,6 +293,7 @@ function ButtonNode({
   node: TreeNode;
   selected: boolean;
   nodeVisualScale: number;
+  searchMatched: boolean;
   debug: DebugOverlayState;
   orphan: boolean;
   onSelectNode: (nodeId: string) => void;
@@ -310,7 +315,7 @@ function ButtonNode({
 
   return (
     <g
-      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
+      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${searchMatched ? " search-match" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}

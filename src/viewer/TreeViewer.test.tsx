@@ -490,6 +490,23 @@ describe("TreeViewer", () => {
     expect(node.querySelector(".node-icon")?.getAttribute("width")).toBe("43.2");
   });
 
+  it("marks nodes that match the active search", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        searchMatchNodeIds={new Set(["precise_shot"])}
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    const matchingNode = screen.getByRole("button", { name: "Precise Shot" });
+    const otherNode = screen.getByRole("button", { name: "Projectile Damage" });
+
+    expect(matchingNode.classList.contains("search-match")).toBe(true);
+    expect(otherNode.classList.contains("search-match")).toBe(false);
+  });
+
   it("marks nodes missing stats and orphan nodes when debug overlays are enabled", () => {
     const graph = {
       ...sampleGraph,
