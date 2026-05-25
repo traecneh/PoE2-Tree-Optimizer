@@ -42,6 +42,24 @@ describe("extract CLI", () => {
     expect(result.stderr).toContain("Usage:");
   });
 
+  it("exits 2 when stat descriptions are provided without a stats table", () => {
+    const result = runCli([
+      "graph",
+      "--install",
+      join(tmpdir(), "missing-poe2-install"),
+      "--psg",
+      "tree.psg",
+      "--skills",
+      "PassiveSkills.json",
+      "--stat-descriptions",
+      "stat_descriptions.csd",
+    ]);
+
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("--stats and --stat-descriptions must be provided together");
+    expect(result.stderr).toContain("Usage:");
+  });
+
   it("exits 1 with concise output for malformed raw JSON", () => {
     const workspace = mkdtempSync(join(tmpdir(), "poe2-cli-"));
     const installPath = join(workspace, "fake-poe2");

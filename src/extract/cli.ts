@@ -6,12 +6,25 @@ import { inventoryGameData } from "./inventory";
 import { normalizePassiveTreePayload } from "./normalize";
 import { exportPassiveIconAssets, readTreeGraph } from "./passiveIconAssets";
 import { normalizePoe2PassiveTreeData, parsePassiveSkillGraph } from "./psg";
+import { createStatDescriptionFormatter, decodeStatDescriptionText } from "./statDescriptions";
 import { validateTreeGraph } from "../tree/validateTreeGraph";
 import type { TreeGraph } from "../tree/types";
 
 const usage =
-  "Usage: tsx src/extract/cli.ts <inventory|graph|validate|icons> [--install PATH] [--raw PATH] [--psg PATH] [--skills PATH] [--graph PATH] [--report PATH] [--assets PATH] [--workdir PATH] [--limit COUNT]";
-const knownFlags = new Set(["--install", "--raw", "--psg", "--skills", "--graph", "--report", "--assets", "--workdir", "--limit"]);
+  "Usage: tsx src/extract/cli.ts <inventory|graph|validate|icons> [--install PATH] [--raw PATH] [--psg PATH] [--skills PATH] [--stats PATH] [--stat-descriptions PATH] [--graph PATH] [--report PATH] [--assets PATH] [--workdir PATH] [--limit COUNT]";
+const knownFlags = new Set([
+  "--install",
+  "--raw",
+  "--psg",
+  "--skills",
+  "--stats",
+  "--stat-descriptions",
+  "--graph",
+  "--report",
+  "--assets",
+  "--workdir",
+  "--limit",
+]);
 const command = process.argv[2];
 
 class CliError extends Error {
@@ -47,6 +60,8 @@ try {
             gameVersion: install.gameVersion ?? "unknown",
             psgPath: args.psg,
             skillsPath: args.skills,
+            statsPath: args.stats,
+            statDescriptionPaths: args.statDescriptions,
           })
         : normalizeFromRawPayload({ gameVersion: install.gameVersion ?? "unknown", rawPath });
     writeJson(graphPath, graph);
@@ -94,6 +109,8 @@ type CliArgs = {
   raw?: string;
   psg?: string;
   skills?: string;
+  stats?: string;
+  statDescriptions?: string[];
   graph?: string;
   report?: string;
   assets?: string;
@@ -118,6 +135,11 @@ function readArgs(argv: string[]): CliArgs {
     else if (flag === "--raw") args.raw = value;
     else if (flag === "--psg") args.psg = value;
     else if (flag === "--skills") args.skills = value;
+    else if (flag === "--stats") args.stats = value;
+    else if (flag === "--stat-descriptions") {
+      args.statDescriptions ??= [];
+      args.statDescriptions.push(value);
+    }
     else if (flag === "--graph") args.graph = value;
     else if (flag === "--report") args.report = value;
     else if (flag === "--assets") args.assets = value;
@@ -141,6 +163,12 @@ function validateGraphArgs(args: CliArgs): void {
   if ((args.psg && !args.skills) || (!args.psg && args.skills)) {
     throw new CliError("--psg and --skills must be provided together", 2);
   }
+  if ((args.stats && !args.statDescriptions?.length) || (!args.stats && args.statDescriptions?.length)) {
+    throw new CliError("--stats and --stat-descriptions must be provided together", 2);
+  }
+  if ((args.stats || args.statDescriptions?.length) && (!args.psg || !args.skills)) {
+    throw new CliError("--stats and --stat-descriptions can only be used with --psg and --skills", 2);
+  }
 }
 
 function normalizeFromRawPayload(input: { gameVersion: string; rawPath: string }): TreeGraph {
@@ -152,7 +180,13 @@ function normalizeFromRawPayload(input: { gameVersion: string; rawPath: string }
   });
 }
 
-function normalizeFromPsg(input: { gameVersion: string; psgPath?: string; skillsPath?: string }): TreeGraph {
+function normalizeFromPsg(input: {
+  gameVersion: string;
+  psgPath?: string;
+  skillsPath?: string;
+  statsPath?: string;
+  statDescriptionPaths?: string[];
+}): TreeGraph {
   if (!input.psgPath || !input.skillsPath) {
     throw new CliError("--psg and --skills must be provided together", 2);
   }
@@ -162,12 +196,29 @@ function normalizeFromPsg(input: { gameVersion: string; psgPath?: string; skills
     throw new CliError(`Could not parse PassiveSkills table: ${input.skillsPath} must contain a JSON array`, 1);
   }
 
+  const statFormatter =
+    input.statsPath && input.statDescriptionPaths?.length
+      ? createStatDescriptionFormatter({
+          stats: readStatsTable(input.statsPath),
+          descriptions: input.statDescriptionPaths.map((path) => decodeStatDescriptionText(readBinary(path))),
+        })
+      : undefined;
+
   return normalizePoe2PassiveTreeData({
     gameVersion: input.gameVersion,
     sourcePath: input.psgPath,
     graph: parsePsgFile(input.psgPath),
     passiveSkills,
+    statFormatter,
   });
+}
+
+function readStatsTable(path: string): Parameters<typeof createStatDescriptionFormatter>[0]["stats"] {
+  const stats = readJson(path);
+  if (!Array.isArray(stats)) {
+    throw new CliError(`Could not parse Stats table: ${path} must contain a JSON array`, 1);
+  }
+  return stats as Parameters<typeof createStatDescriptionFormatter>[0]["stats"];
 }
 
 function parsePsgFile(path: string): ReturnType<typeof parsePassiveSkillGraph> {

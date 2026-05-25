@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizePoe2PassiveTreeData, parsePassiveSkillGraph } from "./psg";
+import { createStatDescriptionFormatter } from "./statDescriptions";
 
 describe("parsePassiveSkillGraph", () => {
   it("parses a version 3 PoE2 passive skill graph", () => {
@@ -111,6 +112,36 @@ describe("normalizePoe2PassiveTreeData", () => {
     });
 
     expect(graph.nodes["100"].stats).toEqual(["stat:2=10"]);
+  });
+
+  it("uses a stat formatter when one is provided", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+          Stats: [17989],
+          Stat1Value: 15,
+        },
+      ],
+      statFormatter: createStatDescriptionFormatter({
+        stats: [{ _index: 17989, Id: "shock_chance_+%" }],
+        descriptions: [
+          `
+description
+\t1 shock_chance_+%
+\t1
+\t\t# "{0}% increased chance to [Shock]"
+`,
+        ],
+      }),
+    });
+
+    expect(graph.nodes["100"].stats).toEqual(["15% increased chance to Shock"]);
   });
 
   it("does not create passive icon art for empty icon fields", () => {

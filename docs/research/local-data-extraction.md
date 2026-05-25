@@ -23,9 +23,11 @@ missing coordinates: 0
 dangling edges: 0
 orphan nodes: 0
 statless nodes: 648
+raw stat fallback lines: 25
 ```
 
 The statless nodes are currently treated as warnings because the local game data includes mastery placeholders, unused rows, and class/ascendancy support nodes with no direct stat rows. Structural graph errors remain fatal.
+The remaining raw stat fallback lines are mostly no-display armour grants and ascendancy/system flags that do not have user-facing stat description entries.
 
 ## Source Files
 
@@ -34,6 +36,9 @@ The extracted graph uses:
 ```text
 metadata/passiveskillgraph.psg
 data/balance/passiveskills.datc64
+data/balance/stats.datc64
+Data/StatDescriptions/stat_descriptions.csd
+Data/StatDescriptions/passive_skill_stat_descriptions.csd
 ```
 
 `PassiveSkillTrees.datc64` identifies the default tree graph path as `Metadata/PassiveSkillGraph`. The bundle index path listing shows the concrete asset as `metadata/passiveskillgraph.psg`.
@@ -49,6 +54,10 @@ Use `pathofexile-dat` from the ignored working directory `var/pathofexile-dat`. 
     {
       "name": "PassiveSkillTrees",
       "columns": ["Id", "Name", "UIArt", "PassiveSkillGraph"]
+    },
+    {
+      "name": "Stats",
+      "columns": ["Id"]
     },
     {
       "name": "PassiveSkills",
@@ -76,7 +85,9 @@ Use `pathofexile-dat` from the ignored working directory `var/pathofexile-dat`. 
   "translations": ["English"],
   "files": [
     "metadata/passiveskillgraph.psg",
-    "metadata/passiveskillgraphguidesettings.json"
+    "metadata/passiveskillgraphguidesettings.json",
+    "Data/StatDescriptions/stat_descriptions.csd",
+    "Data/StatDescriptions/passive_skill_stat_descriptions.csd"
   ]
 }
 ```
@@ -87,7 +98,7 @@ Then run:
 Set-Location var/pathofexile-dat
 npx --yes pathofexile-dat
 Set-Location ..\..
-npm run extract:graph -- --psg "var/pathofexile-dat/files/metadata@passiveskillgraph.psg" --skills "var/pathofexile-dat/tables/English/PassiveSkills.json"
+npm run extract:graph -- --psg "var/pathofexile-dat/files/metadata@passiveskillgraph.psg" --skills "var/pathofexile-dat/tables/English/PassiveSkills.json" --stats "var/pathofexile-dat/tables/English/Stats.json" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@stat_descriptions.csd" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@passive_skill_stat_descriptions.csd"
 npm run validate:graph
 ```
 

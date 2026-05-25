@@ -1,6 +1,7 @@
 import type { TreeEdge, TreeGraph, TreeGroup, TreeNode } from "../tree/types";
 import { POE2_ORBIT_RADII } from "../tree/orbits";
 import { passiveIconAssetKey } from "../tree/passiveIconAssets";
+import type { StatDescriptionFormatter } from "./statDescriptions";
 
 export type ParsedPassiveSkillGraph = {
   version: 3;
@@ -81,6 +82,7 @@ export function normalizePoe2PassiveTreeData(input: {
   sourcePath: string;
   graph: ParsedPassiveSkillGraph;
   passiveSkills: Poe2PassiveSkillRow[];
+  statFormatter?: StatDescriptionFormatter;
 }): TreeGraph {
   const skillsByGraphId = new Map<string, Poe2PassiveSkillRow>();
   for (const row of input.passiveSkills) {
@@ -104,7 +106,7 @@ export function normalizePoe2PassiveTreeData(input: {
 
     for (const nodeRef of group.nodes) {
       const skill = skillsByGraphId.get(String(nodeRef.id));
-      const node = normalizeNodeRef(nodeRef, group, input.graph.orbits, rootNodeIds, skill);
+      const node = normalizeNodeRef(nodeRef, group, input.graph.orbits, rootNodeIds, skill, input.statFormatter);
       nodes[node.id] = node;
       for (const connection of nodeRef.connections) {
         edges.push({ from: node.id, to: String(connection.nodeId), connectionOrbit: connection.orbit });
@@ -162,6 +164,7 @@ function normalizeNodeRef(
   orbits: number[],
   rootNodeIds: Set<string>,
   skill: Poe2PassiveSkillRow | undefined,
+  statFormatter: StatDescriptionFormatter | undefined,
 ): TreeNode {
   const id = String(nodeRef.id);
   const classStart = rootNodeIds.has(id) || Boolean(skill?.IsAscendancyStartingNode);
@@ -172,7 +175,7 @@ function normalizeNodeRef(
     id,
     groupId: group.id,
     name: skill?.Name,
-    stats: formatStats(skill),
+    stats: formatStats(skill, statFormatter),
     layout: {
       orbit: nodeRef.orbit,
       orbitIndex: nodeRef.orbitIndex,
@@ -209,13 +212,14 @@ function resolveNodePosition(
   };
 }
 
-function formatStats(skill: Poe2PassiveSkillRow | undefined): string[] {
+function formatStats(skill: Poe2PassiveSkillRow | undefined, statFormatter: StatDescriptionFormatter | undefined): string[] {
   if (!skill || !Array.isArray(skill.Stats)) return [];
   const values = [skill.Stat1Value, skill.Stat2Value, skill.Stat3Value, skill.Stat4Value, skill.Stat5Value];
   return skill.Stats.flatMap((statId, index) => {
     if (statId === null || statId === undefined) return [];
     const value = values[index];
-    return [typeof value === "number" ? `stat:${String(statId)}=${value}` : `stat:${String(statId)}`];
+    const fallback = typeof value === "number" ? `stat:${String(statId)}=${value}` : `stat:${String(statId)}`;
+    return [statFormatter?.(statId, value) ?? fallback];
   });
 }
 
