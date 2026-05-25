@@ -698,6 +698,27 @@ describe("TreeViewer", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
+  it("shows and hides hover tooltips without a React commit", () => {
+    let updateCount = 0;
+
+    render(
+      <Profiler id="tree-viewer" onRender={(_id, phase) => {
+        if (phase === "update") updateCount += 1;
+      }}>
+        <TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />
+      </Profiler>,
+    );
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Precise Shot" }), { clientX: 220, clientY: 140 });
+
+    expect(screen.getByRole("tooltip").textContent).toContain("Precise Shot");
+
+    fireEvent.mouseLeave(screen.getByRole("button", { name: "Precise Shot" }));
+
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(updateCount).toBe(0);
+  });
+
   it("shows a passive tooltip while keyboard focusing a node", () => {
     render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 

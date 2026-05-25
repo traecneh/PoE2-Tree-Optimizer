@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent, MouseEvent, PointerEvent, WheelEvent } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import type { KeyboardEvent, MouseEvent, PointerEvent, RefObject, WheelEvent } from "react";
 import { passiveIconPublicPath } from "../tree/passiveIconAssets";
 import { treeEdgeKey } from "../tree/pathAllocation";
 import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
@@ -44,11 +44,6 @@ type ViewportTransform = {
   scale: number;
 };
 
-type TooltipState = {
-  node: TreeNode;
-  position: Point;
-};
-
 const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
 const maxVisibleEdgeLength = 3000;
 const maxViewportScale = 12;
@@ -76,7 +71,9 @@ export function TreeViewer({
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
   const pendingNodePress = useRef<string | null>(null);
   const suppressNextNodeClick = useRef(false);
-  const [tooltip, setTooltip] = useState<TooltipState | undefined>();
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const tooltipTitleRef = useRef<HTMLDivElement | null>(null);
+  const tooltipStatsRef = useRef<HTMLDivElement | null>(null);
   const viewBox = buildFitViewBox(graph.bounds, 160);
   const connectedNodeIds = useMemo(() => new Set(graph.edges.flatMap((edge) => [edge.from, edge.to])), [graph.edges]);
   const renderedEdges = useMemo(
@@ -221,15 +218,30 @@ export function TreeViewer({
   }
 
   function showTooltipAtPointer(node: TreeNode, event: MouseEvent<SVGGElement>) {
-    setTooltip({ node, position: tooltipPositionFromClientPoint(event.clientX, event.clientY) });
+    showTooltip(node, tooltipPositionFromClientPoint(event.clientX, event.clientY));
   }
 
   function showTooltipAtElement(node: TreeNode, element: SVGGElement) {
-    setTooltip({ node, position: tooltipPositionFromElement(element) });
+    showTooltip(node, tooltipPositionFromElement(element));
+  }
+
+  function showTooltip(node: TreeNode, position: Point) {
+    const tooltip = tooltipRef.current;
+    const titleElement = tooltipTitleRef.current;
+    const statsElement = tooltipStatsRef.current;
+    if (!tooltip || !titleElement || !statsElement) return;
+
+    titleElement.textContent = node.name ?? node.id;
+    statsElement.replaceChildren(...tooltipStatElements(node.stats.length > 0 ? node.stats : [nodeTypeLabel(node)]));
+    tooltip.style.left = `${position.x}px`;
+    tooltip.style.top = `${position.y}px`;
+    tooltip.hidden = false;
   }
 
   function hideTooltip() {
-    setTooltip(undefined);
+    if (tooltipRef.current) {
+      tooltipRef.current.hidden = true;
+    }
   }
 
   return (
@@ -265,7 +277,11 @@ export function TreeViewer({
           </svg>
         </button>
       </div>
-      {tooltip ? <NodeTooltip node={tooltip.node} position={tooltip.position} /> : null}
+      <NodeTooltipShell
+        tooltipRef={tooltipRef}
+        titleRef={tooltipTitleRef}
+        statsRef={tooltipStatsRef}
+      />
       <svg
         ref={svgRef}
         className="tree-svg"
@@ -512,25 +528,35 @@ function ButtonNode({
   );
 }
 
-function NodeTooltip({ node, position }: { node: TreeNode; position: Point }) {
-  const title = node.name ?? node.id;
-  const stats = node.stats.length > 0 ? node.stats : [nodeTypeLabel(node)];
-
+function NodeTooltipShell({
+  tooltipRef,
+  titleRef,
+  statsRef,
+}: {
+  tooltipRef: RefObject<HTMLDivElement | null>;
+  titleRef: RefObject<HTMLDivElement | null>;
+  statsRef: RefObject<HTMLDivElement | null>;
+}) {
   return (
     <div
+      ref={tooltipRef}
       className="node-tooltip"
       role="tooltip"
-      style={{ left: position.x, top: position.y }}
+      hidden
     >
-      <div className="node-tooltip-title">{title}</div>
-      <div className="node-tooltip-stats">
-        {stats.map((stat, index) => (
-          <div key={`${stat}-${index}`}>{stat}</div>
-        ))}
-      </div>
+      <div ref={titleRef} className="node-tooltip-title" />
+      <div ref={statsRef} className="node-tooltip-stats" />
       <div className="node-tooltip-state">Unallocated</div>
     </div>
   );
+}
+
+function tooltipStatElements(stats: readonly string[]): HTMLDivElement[] {
+  return stats.map((stat) => {
+    const element = document.createElement("div");
+    element.textContent = stat;
+    return element;
+  });
 }
 
 function tooltipPositionFromClientPoint(clientX: number, clientY: number): Point {
