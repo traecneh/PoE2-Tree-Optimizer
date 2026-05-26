@@ -15,10 +15,25 @@ export type BuildGoalsPanelStatus =
   | { kind: "unreachable"; unreachableGoals: TreeNode[] }
   | { kind: "error"; message: string };
 
+export type PobBuildImportStatus =
+  | { kind: "idle" }
+  | {
+    kind: "success";
+    importedGoalCount: number;
+    allocatedNodeCount: number;
+    alreadySelectedGoalCount: number;
+    missingNodeCount: number;
+  }
+  | { kind: "error"; message: string };
+
 type BuildGoalsPanelProps = {
   goals: BuildGoalsPanelGoal[];
   status: BuildGoalsPanelStatus;
+  pobImportCode: string;
+  pobImportStatus: PobBuildImportStatus;
   canApplyOptimizedRoute: boolean;
+  onPobImportCodeChange: (code: string) => void;
+  onImportPobBuildGoals: () => void;
   onRemoveGoal: (nodeId: string) => void;
   onClearGoals: () => void;
   onOptimize: () => void;
@@ -29,7 +44,11 @@ type BuildGoalsPanelProps = {
 export function BuildGoalsPanel({
   goals,
   status,
+  pobImportCode,
+  pobImportStatus,
   canApplyOptimizedRoute,
+  onPobImportCodeChange,
+  onImportPobBuildGoals,
   onRemoveGoal,
   onClearGoals,
   onOptimize,
@@ -50,6 +69,25 @@ export function BuildGoalsPanel({
         >
           Clear goals
         </button>
+      </div>
+      <div className="pob-import-control">
+        <label className="pob-import-label" htmlFor="pob-build-code-input">PoB build code</label>
+        <textarea
+          id="pob-build-code-input"
+          className="pob-import-input"
+          value={pobImportCode}
+          onChange={(event) => onPobImportCodeChange(event.currentTarget.value)}
+          rows={3}
+        />
+        <button
+          className="tool-button pob-import-action"
+          type="button"
+          onClick={onImportPobBuildGoals}
+          disabled={pobImportCode.trim().length === 0 || running}
+        >
+          Import PoB goals
+        </button>
+        <PobImportStatusMessage status={pobImportStatus} />
       </div>
       {goals.length > 0 ? (
         <ol className="build-goal-list">
@@ -105,6 +143,25 @@ export function BuildGoalsPanel({
   );
 }
 
+function PobImportStatusMessage({ status }: { status: PobBuildImportStatus }) {
+  if (status.kind === "idle") return null;
+  if (status.kind === "error") {
+    return <p className="pob-import-status error" role="status">{status.message}</p>;
+  }
+
+  return (
+    <p className="pob-import-status success" role="status">
+      <span>{`Imported ${formatGoalCount(status.importedGoalCount)} from ${formatPassiveCount(status.allocatedNodeCount)}.`}</span>
+      {status.alreadySelectedGoalCount > 0 ? (
+        <span>{` ${formatGoalCount(status.alreadySelectedGoalCount)} already selected.`}</span>
+      ) : null}
+      {status.missingNodeCount > 0 ? (
+        <span>{` ${formatPassiveCount(status.missingNodeCount)} not found in this tree.`}</span>
+      ) : null}
+    </p>
+  );
+}
+
 function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {
   const message = formatStatusMessage(status);
   if (!message) return null;
@@ -136,6 +193,14 @@ function formatGoalMeta(node: TreeNode, allocationDistance: number | undefined, 
 
 function formatPointCost(pointCost: number): string {
   return `${pointCost} ${pointCost === 1 ? "point" : "points"}`;
+}
+
+function formatGoalCount(goalCount: number): string {
+  return `${goalCount} build ${goalCount === 1 ? "goal" : "goals"}`;
+}
+
+function formatPassiveCount(passiveCount: number): string {
+  return `${passiveCount} allocated ${passiveCount === 1 ? "passive" : "passives"}`;
 }
 
 function nodeTypeLabel(node: TreeNode): string {

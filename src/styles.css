@@ -850,6 +850,52 @@ button {
   font-size: 12px;
 }
 
+.pob-import-control {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.pob-import-label {
+  color: #eef2f7;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pob-import-input {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  border: 1px solid #3a4658;
+  background: #0f141c;
+  color: #eef2f7;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pob-import-action {
+  justify-self: start;
+  font-size: 12px;
+}
+
+.pob-import-status {
+  margin: 0;
+  color: #c6d0df;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pob-import-status.success {
+  color: #9edecb;
+}
+
+.pob-import-status.error {
+  color: #ffb49f;
+}
+
 .build-goal-list {
   display: grid;
   gap: 8px;

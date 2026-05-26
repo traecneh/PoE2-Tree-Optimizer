@@ -8,9 +8,15 @@ import {
   type AllocationPath,
 } from "./tree/pathAllocation";
 import { searchPassiveTree } from "./tree/passiveSearch";
+import { importBuildGoalsFromPobCode } from "./tree/pobBuildImport";
 import { sampleGraph } from "./tree/sampleGraph";
 import type { TreeGraph, TreeNode } from "./tree/types";
-import { BuildGoalsPanel, type BuildGoalsPanelGoal, type BuildGoalsPanelStatus } from "./viewer/BuildGoalsPanel";
+import {
+  BuildGoalsPanel,
+  type BuildGoalsPanelGoal,
+  type BuildGoalsPanelStatus,
+  type PobBuildImportStatus,
+} from "./viewer/BuildGoalsPanel";
 import { DebugControls, type DebugOverlayState } from "./viewer/DebugControls";
 import { NodeInspector } from "./viewer/NodeInspector";
 import { PassiveSearchPanel, type PassiveSearchPanelResult } from "./viewer/PassiveSearchPanel";
@@ -46,6 +52,8 @@ export default function App() {
   const [hoverPreviewTargetNodeId, setHoverPreviewTargetNodeId] = useState<string | undefined>();
   const [buildGoalNodeIds, setBuildGoalNodeIds] = useState<string[]>([]);
   const [buildGoalStatus, setBuildGoalStatus] = useState<BuildGoalsPanelStatus>({ kind: "idle" });
+  const [pobImportCode, setPobImportCode] = useState("");
+  const [pobImportStatus, setPobImportStatus] = useState<PobBuildImportStatus>({ kind: "idle" });
   const [optimizedPreview, setOptimizedPreview] = useState<BuildGoalsOptimizeResult | undefined>();
   const optimizerRun = useRef<BuildGoalsOptimizationRun | undefined>(undefined);
   const [debug, setDebug] = useState<DebugOverlayState>({
@@ -209,17 +217,46 @@ export default function App() {
     const node = graph.nodes[nodeId];
     if (!node || !isBuildGoalableNode(node)) return;
     clearOptimizedRouteState();
+    setPobImportStatus({ kind: "idle" });
     setBuildGoalNodeIds((current) => (current.includes(nodeId) ? current : [...current, nodeId]));
   }
 
   function removeBuildGoal(nodeId: string) {
     clearOptimizedRouteState();
+    setPobImportStatus({ kind: "idle" });
     setBuildGoalNodeIds((current) => current.filter((currentNodeId) => currentNodeId !== nodeId));
   }
 
   function clearBuildGoals() {
     clearOptimizedRouteState();
+    setPobImportStatus({ kind: "idle" });
     setBuildGoalNodeIds([]);
+  }
+
+  function importPobBuildGoals() {
+    if (pobImportCode.trim().length === 0) return;
+
+    try {
+      const result = importBuildGoalsFromPobCode(pobImportCode, graph);
+      const currentGoalNodeIds = new Set(buildGoalNodeIds);
+      const importedGoalNodeIds = result.goalNodeIds.filter((nodeId) => !currentGoalNodeIds.has(nodeId));
+
+      clearOptimizedRouteState();
+      setBuildGoalNodeIds((current) => mergeNodeIds(current, importedGoalNodeIds));
+      setPobImportStatus({
+        kind: "success",
+        importedGoalCount: importedGoalNodeIds.length,
+        allocatedNodeCount: result.allocatedNodeIds.length,
+        alreadySelectedGoalCount: result.goalNodeIds.length - importedGoalNodeIds.length,
+        missingNodeCount: result.missingNodeIds.length,
+      });
+    } catch (error) {
+      clearOptimizedRouteState();
+      setPobImportStatus({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Could not import PoB build code.",
+      });
+    }
   }
 
   function optimizeBuildGoalsRoute() {
@@ -494,7 +531,11 @@ export default function App() {
           <BuildGoalsPanel
             goals={buildGoalPanelGoals}
             status={buildGoalStatus}
+            pobImportCode={pobImportCode}
+            pobImportStatus={pobImportStatus}
             canApplyOptimizedRoute={Boolean(optimizedPreview && optimizedPreview.pointCost > 0)}
+            onPobImportCodeChange={setPobImportCode}
+            onImportPobBuildGoals={importPobBuildGoals}
             onRemoveGoal={removeBuildGoal}
             onClearGoals={clearBuildGoals}
             onOptimize={optimizeBuildGoalsRoute}
@@ -564,6 +605,10 @@ function edgeKeysFromNodePath(nodePath: string[]): Set<string> {
 
 function mergeEdgeKeys(...edgeKeyGroups: string[][]): string[] {
   return Array.from(new Set(edgeKeyGroups.flat()));
+}
+
+function mergeNodeIds(...nodeIdGroups: string[][]): string[] {
+  return Array.from(new Set(nodeIdGroups.flat()));
 }
 
 function pendingAllocationNodeIds(

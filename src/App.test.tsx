@@ -1,3 +1,4 @@
+import { deflateSync } from "node:zlib";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -70,6 +71,61 @@ describe("App", () => {
         { from: "mercenary_start", to: "close_critical" },
       ],
       bounds: { ...sampleGraph.bounds, maxY: 90 },
+    };
+  }
+
+  function pobImportFixtureGraph(): TreeGraph {
+    return {
+      schemaVersion: 1,
+      gameVersion: "pob-import-fixture",
+      extractedAt: "2026-05-26T00:00:00.000Z",
+      source: { kind: "fixture", path: "src/App.test.tsx" },
+      nodes: {
+        "100": {
+          id: "100",
+          name: "Start",
+          stats: ["Starting point"],
+          position: { x: 0, y: 0 },
+          flags: { classStart: true },
+        },
+        "101": {
+          id: "101",
+          name: "Required Notable",
+          stats: ["20% increased Damage"],
+          position: { x: 200, y: 0 },
+          flags: { notable: true },
+        },
+        "102": {
+          id: "102",
+          name: "Pathing",
+          stats: ["5% increased Damage"],
+          position: { x: 100, y: 0 },
+          flags: { small: true },
+        },
+        "103": {
+          id: "103",
+          name: "Imported Jewel",
+          stats: [],
+          position: { x: 300, y: 0 },
+          flags: { jewelSocket: true },
+        },
+        "104": {
+          id: "104",
+          name: "Unused Keystone",
+          stats: ["A defining rule"],
+          position: { x: 400, y: 0 },
+          flags: { keystone: true },
+        },
+      },
+      groups: {},
+      edges: [
+        { from: "100", to: "102" },
+        { from: "102", to: "101" },
+        { from: "101", to: "103" },
+        { from: "103", to: "104" },
+      ],
+      classStarts: { Test: "100" },
+      bounds: { minX: 0, maxX: 400, minY: 0, maxY: 0 },
     };
   }
 
@@ -250,6 +306,31 @@ describe("App", () => {
     const node = screen.getByRole("button", { name: "Precise Shot" });
     expect(node.classList.contains("build-goal")).toBe(true);
     expect(node.querySelector(".build-goal-marker")).not.toBeNull();
+  });
+
+  it("imports eligible build goals from a pasted PoB build code", async () => {
+    stubTreeFetchWithGraph(pobImportFixtureGraph());
+    const code = encodePobXml(`
+      <PathOfBuilding2>
+        <Tree activeSpec="1">
+          <Spec title="Imported Tree" nodes="100,101,102,103,999" />
+        </Tree>
+      </PathOfBuilding2>
+    `);
+
+    render(<App />);
+
+    await screen.findByText("5 nodes, 4 links, version pob-import-fixture");
+
+    fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
+    fireEvent.click(screen.getByRole("button", { name: "Import PoB goals" }));
+
+    expect(await screen.findByText("Imported 2 build goals from 5 allocated passives.")).not.toBeNull();
+    const goalsPanel = screen.getByRole("region", { name: "Build goals" });
+    expect(within(goalsPanel).getByText("Required Notable")).not.toBeNull();
+    expect(within(goalsPanel).getByText("Imported Jewel")).not.toBeNull();
+    expect(within(goalsPanel).queryByText("Pathing")).toBeNull();
+    expect(within(goalsPanel).queryByText("Unused Keystone")).toBeNull();
   });
 
   it("optimizes build goals into a preview without applying the route", async () => {
@@ -490,3 +571,7 @@ describe("App", () => {
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
   });
 });
+
+function encodePobXml(xml: string): string {
+  return deflateSync(xml).toString("base64").replaceAll("+", "-").replaceAll("/", "_");
+}
