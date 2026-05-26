@@ -46,7 +46,26 @@ type HeapEntry = {
   nodeIndex: number;
 };
 
+type RouteSearch = {
+  costs: Float64Array;
+  previousNodeIndexes: Int32Array;
+};
+
+type Terminal = {
+  label: string;
+  nodeIndex?: number;
+  search: RouteSearch;
+};
+
+type MetricEdge = {
+  fromTerminalIndex: number;
+  toTerminalIndex: number;
+  cost: number;
+};
+
 const infinity = Number.POSITIVE_INFINITY;
+const maxExactGoalCount = 10;
+const maxExactStateCount = 6_000_000;
 
 export function optimizeBuildGoals(request: BuildGoalsOptimizeRequest): BuildGoalsOptimizeResult {
   if (request.mode !== "shortest") {
@@ -93,13 +112,20 @@ export function optimizeBuildGoals(request: BuildGoalsOptimizeRequest): BuildGoa
   }
 
   try {
-    return solveExactShortestTree(request.graph, adjacency, baseNodeIds, baseEdgeKeys, goalNodeIds);
+    return shouldUseExactShortestTree(request.graph, goalNodeIds.length)
+      ? solveExactShortestTree(request.graph, adjacency, baseNodeIds, baseEdgeKeys, goalNodeIds)
+      : solveBoundedShortestRoute(request.graph, adjacency, baseNodeIds, baseEdgeKeys, goalNodeIds);
   } catch (error) {
     return emptyResult(
       "error",
       error instanceof Error ? error.message : "Build goal optimization failed.",
     );
   }
+}
+
+function shouldUseExactShortestTree(graph: TreeGraph, goalCount: number): boolean {
+  return goalCount <= maxExactGoalCount
+    && (2 ** goalCount) * Object.keys(graph.nodes).length <= maxExactStateCount;
 }
 
 function solveExactShortestTree(
@@ -178,6 +204,177 @@ function solveExactShortestTree(
     pointCost: addedNodeIds.length,
     unreachableGoalNodeIds: [],
   };
+}
+
+function solveBoundedShortestRoute(
+  graph: TreeGraph,
+  adjacencyById: Map<NodeId, NodeId[]>,
+  baseNodeIds: NodeId[],
+  baseEdgeKeys: string[],
+  goalNodeIds: NodeId[],
+): BuildGoalsOptimizeResult {
+  const indexedGraph = buildIndexedGraph(graph, adjacencyById, baseNodeIds);
+  const { nodeIds, nodeIndexById, adjacency, nodeCosts, baseNodeSet } = indexedGraph;
+  const baseNodeIndexes = baseNodeIds
+    .map((nodeId) => nodeIndexById.get(nodeId))
+    .filter((nodeIndex): nodeIndex is number => nodeIndex !== undefined);
+  const terminals: Terminal[] = [{
+    label: "base",
+    search: findShortestNodeCostRoutes(baseNodeIndexes, adjacency, nodeCosts),
+  }];
+
+  for (const goalNodeId of goalNodeIds) {
+    const goalNodeIndex = nodeIndexById.get(goalNodeId);
+    if (goalNodeIndex === undefined) continue;
+    terminals.push({
+      label: goalNodeId,
+      nodeIndex: goalNodeIndex,
+      search: findShortestNodeCostRoutes([goalNodeIndex], adjacency, nodeCosts),
+    });
+  }
+
+  const metricEdges = buildTerminalMetricEdges(terminals);
+  const selectedMetricEdges = minimumSpanningMetricEdges(metricEdges, terminals.length);
+  if (selectedMetricEdges.length !== terminals.length - 1) {
+    return {
+      status: "unreachable",
+      addedNodeIds: [],
+      addedEdgeKeys: [],
+      totalNodeIds: baseNodeIds,
+      totalEdgeKeys: baseEdgeKeys,
+      orderedNodeIds: baseNodeIds,
+      pointCost: 0,
+      unreachableGoalNodeIds: goalNodeIds,
+      message: "No bounded-memory route could connect all build goals.",
+    };
+  }
+
+  const solutionNodeIndexes = new Set<number>(baseNodeIndexes);
+  const solutionEdgeKeys = new Set<string>();
+  for (const selectedEdge of selectedMetricEdges) {
+    const toTerminal = terminals[selectedEdge.toTerminalIndex];
+    if (toTerminal.nodeIndex === undefined) continue;
+    const routeNodeIndexes = routeNodeIndexesFromSearch(
+      terminals[selectedEdge.fromTerminalIndex].search,
+      toTerminal.nodeIndex,
+    );
+
+    routeNodeIndexes.forEach((nodeIndex) => solutionNodeIndexes.add(nodeIndex));
+    for (let index = 1; index < routeNodeIndexes.length; index += 1) {
+      solutionEdgeKeys.add(treeEdgeKey(nodeIds[routeNodeIndexes[index - 1]], nodeIds[routeNodeIndexes[index]]));
+    }
+  }
+
+  const baseEdgeKeySet = new Set(baseEdgeKeys);
+  const addedEdgeKeys = Array.from(solutionEdgeKeys).filter((edgeKey) => !baseEdgeKeySet.has(edgeKey));
+  const totalEdgeKeys = mergeOrdered(baseEdgeKeys, addedEdgeKeys);
+  const orderedNodeIds = orderConnectedSolutionNodeIds(
+    baseNodeIds,
+    nodeIdsFromIndexes(nodeIds, solutionNodeIndexes),
+    totalEdgeKeys,
+  );
+  const addedNodeIds = orderedNodeIds.filter((nodeId) => !baseNodeSet.has(nodeId));
+
+  return {
+    status: "success",
+    addedNodeIds,
+    addedEdgeKeys: orderEdgeKeysByNodeOrder(addedEdgeKeys, orderedNodeIds),
+    totalNodeIds: orderedNodeIds,
+    totalEdgeKeys: orderEdgeKeysByNodeOrder(totalEdgeKeys, orderedNodeIds),
+    orderedNodeIds,
+    pointCost: addedNodeIds.length,
+    unreachableGoalNodeIds: [],
+    message: "Used bounded-memory route search for this large build goal set.",
+  };
+}
+
+function findShortestNodeCostRoutes(
+  startNodeIndexes: number[],
+  adjacency: number[][],
+  nodeCosts: number[],
+): RouteSearch {
+  const costs = new Float64Array(adjacency.length);
+  costs.fill(infinity);
+  const previousNodeIndexes = new Int32Array(adjacency.length);
+  previousNodeIndexes.fill(-1);
+  const heap: HeapEntry[] = [];
+
+  for (const startNodeIndex of startNodeIndexes) {
+    costs[startNodeIndex] = 0;
+    heapPush(heap, { cost: 0, nodeIndex: startNodeIndex });
+  }
+
+  while (heap.length > 0) {
+    const entry = heapPop(heap);
+    if (!entry || entry.cost !== costs[entry.nodeIndex]) continue;
+
+    for (const nextNodeIndex of adjacency[entry.nodeIndex]) {
+      const candidate = entry.cost + nodeCosts[nextNodeIndex];
+      if (candidate >= costs[nextNodeIndex]) continue;
+      costs[nextNodeIndex] = candidate;
+      previousNodeIndexes[nextNodeIndex] = entry.nodeIndex;
+      heapPush(heap, { cost: candidate, nodeIndex: nextNodeIndex });
+    }
+  }
+
+  return { costs, previousNodeIndexes };
+}
+
+function buildTerminalMetricEdges(terminals: Terminal[]): MetricEdge[] {
+  const edges: MetricEdge[] = [];
+  for (let fromTerminalIndex = 0; fromTerminalIndex < terminals.length; fromTerminalIndex += 1) {
+    for (let toTerminalIndex = fromTerminalIndex + 1; toTerminalIndex < terminals.length; toTerminalIndex += 1) {
+      const toNodeIndex = terminals[toTerminalIndex].nodeIndex;
+      if (toNodeIndex === undefined) continue;
+      const cost = terminals[fromTerminalIndex].search.costs[toNodeIndex];
+      if (!Number.isFinite(cost)) continue;
+      edges.push({ fromTerminalIndex, toTerminalIndex, cost });
+    }
+  }
+
+  return edges.sort((left, right) => (
+    left.cost - right.cost
+    || terminals[left.fromTerminalIndex].label.localeCompare(terminals[right.fromTerminalIndex].label)
+    || terminals[left.toTerminalIndex].label.localeCompare(terminals[right.toTerminalIndex].label)
+  ));
+}
+
+function minimumSpanningMetricEdges(metricEdges: MetricEdge[], terminalCount: number): MetricEdge[] {
+  const parents = Array.from({ length: terminalCount }, (_value, index) => index);
+  const selectedEdges: MetricEdge[] = [];
+
+  for (const edge of metricEdges) {
+    const leftRoot = findTerminalRoot(parents, edge.fromTerminalIndex);
+    const rightRoot = findTerminalRoot(parents, edge.toTerminalIndex);
+    if (leftRoot === rightRoot) continue;
+    parents[rightRoot] = leftRoot;
+    selectedEdges.push(edge);
+    if (selectedEdges.length === terminalCount - 1) break;
+  }
+
+  return selectedEdges;
+}
+
+function findTerminalRoot(parents: number[], terminalIndex: number): number {
+  let current = terminalIndex;
+  while (parents[current] !== current) {
+    parents[current] = parents[parents[current]];
+    current = parents[current];
+  }
+  return current;
+}
+
+function routeNodeIndexesFromSearch(search: RouteSearch, targetNodeIndex: number): number[] {
+  const routeNodeIndexes: number[] = [];
+  let current = targetNodeIndex;
+
+  while (current !== -1) {
+    routeNodeIndexes.push(current);
+    current = search.previousNodeIndexes[current];
+  }
+
+  routeNodeIndexes.reverse();
+  return routeNodeIndexes;
 }
 
 function mergeSubsetsAtEachNode(

@@ -164,6 +164,31 @@ describe("optimizeBuildGoals", () => {
     expect(result.addedEdgeKeys).toEqual([]);
     expect(result.unreachableGoalNodeIds).toEqual(["unreachable_goal"]);
   });
+
+  it("uses bounded memory routing for large goal sets", () => {
+    const largeGoalEdges: Array<[string, string]> = [["start", "hub"]];
+    for (let index = 1; index <= 31; index += 1) {
+      largeGoalEdges.push(["hub", `goal_${index}`]);
+    }
+    const graph = fixtureGraph(largeGoalEdges);
+    Object.values(graph.nodes).forEach((node, index) => {
+      node.position = { x: index * 10, y: 0 };
+    });
+    const goalNodeIds = Array.from({ length: 31 }, (_value, index) => `goal_${index + 1}`);
+
+    const result = optimizeBuildGoals({
+      graph,
+      baseNodeIds: ["start"],
+      baseEdgeKeys: [],
+      goalNodeIds,
+      mode: "shortest",
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.pointCost).toBe(32);
+    expect(new Set(result.addedNodeIds)).toEqual(new Set(["hub", ...goalNodeIds]));
+    expect(result.unreachableGoalNodeIds).toEqual([]);
+  });
 });
 
 function fixtureGraph(edgePairs: Array<[string, string]>): TreeGraph {
