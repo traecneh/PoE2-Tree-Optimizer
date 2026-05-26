@@ -28,6 +28,19 @@ describe("PoB build import", () => {
     expect(result.missingNodeIds).toEqual(["999"]);
   });
 
+  it("ignores ascendancy and disconnected goalable nodes", () => {
+    const result = importBuildGoalsFromPobXml(`
+      <PathOfBuilding2>
+        <Tree activeSpec="1">
+          <Spec title="Active" nodes="101,105,201" />
+        </Tree>
+      </PathOfBuilding2>
+    `, fixtureGraph());
+
+    expect(result.goalNodeIds).toEqual(["101"]);
+    expect(result.ignoredNodeIds).toEqual(["105", "201"]);
+  });
+
   it("falls back to the first spec when the saved active spec is not usable", () => {
     const result = importBuildGoalsFromPobXml(`
       <PathOfBuilding2>
@@ -108,9 +121,37 @@ function fixtureGraph(): TreeGraph {
         position: { x: 400, y: 0 },
         flags: { keystone: true },
       },
+      "105": {
+        id: "105",
+        name: "Disconnected Notable",
+        stats: ["20% increased Nothing"],
+        position: { x: 500, y: 0 },
+        flags: { notable: true },
+      },
+      "200": {
+        id: "200",
+        name: "Ascendancy Start",
+        stats: [],
+        position: { x: 10_000, y: 0 },
+        flags: { classStart: true },
+      },
+      "201": {
+        id: "201",
+        name: "Ascendancy Notable",
+        stats: ["20% increased Ascendancy Power"],
+        position: { x: 10_100, y: 0 },
+        flags: { notable: true },
+      },
     },
     groups: {},
-    edges: [],
+    edges: [
+      { from: "100", to: "101" },
+      { from: "101", to: "102" },
+      { from: "102", to: "103" },
+      { from: "103", to: "104" },
+      { from: "100", to: "200" },
+      { from: "200", to: "201" },
+    ],
     classStarts: { Test: "100" },
     bounds: { minX: 0, maxX: 400, minY: 0, maxY: 0 },
   };

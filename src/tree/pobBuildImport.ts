@@ -1,4 +1,5 @@
 import { decompressSync, strFromU8 } from "fflate";
+import { isAllocatableTreeEdge } from "./pathAllocation";
 import type { NodeId, TreeGraph, TreeNode } from "./types";
 
 export type PobBuildGoalImportResult = {
@@ -31,12 +32,13 @@ export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): P
   const goalNodeIds: NodeId[] = [];
   const ignoredNodeIds: NodeId[] = [];
   const missingNodeIds: NodeId[] = [];
+  const mainTreeNodeIds = findMainTreeConnectedNodeIds(graph);
 
   for (const nodeId of allocatedNodeIds) {
     const node = graph.nodes[nodeId];
     if (!node) {
       missingNodeIds.push(nodeId);
-    } else if (isBuildGoalableNode(node)) {
+    } else if (isBuildGoalableNode(node) && mainTreeNodeIds.has(nodeId)) {
       goalNodeIds.push(nodeId);
     } else {
       ignoredNodeIds.push(nodeId);
@@ -119,6 +121,38 @@ function uniqueNodeIds(nodeText: string): NodeId[] {
 
 function isBuildGoalableNode(node: TreeNode): boolean {
   return Boolean(node.flags.notable || node.flags.keystone || node.flags.jewelSocket);
+}
+
+function findMainTreeConnectedNodeIds(graph: TreeGraph): Set<NodeId> {
+  const adjacency = new Map<NodeId, NodeId[]>();
+  for (const edge of graph.edges) {
+    if (!isAllocatableTreeEdge(graph, edge)) continue;
+    appendNeighbor(adjacency, edge.from, edge.to);
+    appendNeighbor(adjacency, edge.to, edge.from);
+  }
+
+  const connectedNodeIds = new Set<NodeId>();
+  const queue = Object.values(graph.classStarts).filter((nodeId) => graph.nodes[nodeId]);
+  for (const nodeId of queue) {
+    connectedNodeIds.add(nodeId);
+  }
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    for (const next of adjacency.get(current) ?? []) {
+      if (connectedNodeIds.has(next)) continue;
+      connectedNodeIds.add(next);
+      queue.push(next);
+    }
+  }
+
+  return connectedNodeIds;
+}
+
+function appendNeighbor(adjacency: Map<NodeId, NodeId[]>, from: NodeId, to: NodeId) {
+  const neighbors = adjacency.get(from);
+  if (neighbors) neighbors.push(to);
+  else adjacency.set(from, [to]);
 }
 
 function decodeBase64UrlBytes(input: string): Uint8Array {
