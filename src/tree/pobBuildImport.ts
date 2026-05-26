@@ -33,12 +33,13 @@ export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): P
   const ignoredNodeIds: NodeId[] = [];
   const missingNodeIds: NodeId[] = [];
   const mainTreeNodeIds = findMainTreeConnectedNodeIds(graph);
+  const importedConnectedNodeIds = findImportedAllocatedConnectedNodeIds(graph, allocatedNodeIds);
 
   for (const nodeId of allocatedNodeIds) {
     const node = graph.nodes[nodeId];
     if (!node) {
       missingNodeIds.push(nodeId);
-    } else if (isBuildGoalableNode(node) && mainTreeNodeIds.has(nodeId)) {
+    } else if (isBuildGoalableNode(node) && mainTreeNodeIds.has(nodeId) && importedConnectedNodeIds.has(nodeId)) {
       goalNodeIds.push(nodeId);
     } else {
       ignoredNodeIds.push(nodeId);
@@ -124,15 +125,41 @@ function isBuildGoalableNode(node: TreeNode): boolean {
 }
 
 function findMainTreeConnectedNodeIds(graph: TreeGraph): Set<NodeId> {
+  return findReachableNodeIds(
+    buildAllocatableAdjacency(graph),
+    Object.values(graph.classStarts).filter((nodeId) => graph.nodes[nodeId]),
+  );
+}
+
+function findImportedAllocatedConnectedNodeIds(graph: TreeGraph, allocatedNodeIds: NodeId[]): Set<NodeId> {
+  const allowedNodeIds = new Set<NodeId>(allocatedNodeIds.filter((nodeId) => graph.nodes[nodeId]));
+  for (const nodeId of Object.values(graph.classStarts)) {
+    if (graph.nodes[nodeId]) {
+      allowedNodeIds.add(nodeId);
+    }
+  }
+
+  return findReachableNodeIds(
+    buildAllocatableAdjacency(graph, allowedNodeIds),
+    Object.values(graph.classStarts).filter((nodeId) => graph.nodes[nodeId]),
+  );
+}
+
+function buildAllocatableAdjacency(graph: TreeGraph, allowedNodeIds?: ReadonlySet<NodeId>): Map<NodeId, NodeId[]> {
   const adjacency = new Map<NodeId, NodeId[]>();
   for (const edge of graph.edges) {
     if (!isAllocatableTreeEdge(graph, edge)) continue;
+    if (allowedNodeIds && (!allowedNodeIds.has(edge.from) || !allowedNodeIds.has(edge.to))) continue;
     appendNeighbor(adjacency, edge.from, edge.to);
     appendNeighbor(adjacency, edge.to, edge.from);
   }
 
+  return adjacency;
+}
+
+function findReachableNodeIds(adjacency: Map<NodeId, NodeId[]>, startNodeIds: NodeId[]): Set<NodeId> {
   const connectedNodeIds = new Set<NodeId>();
-  const queue = Object.values(graph.classStarts).filter((nodeId) => graph.nodes[nodeId]);
+  const queue = [...startNodeIds];
   for (const nodeId of queue) {
     connectedNodeIds.add(nodeId);
   }

@@ -41,17 +41,30 @@ describe("PoB build import", () => {
     expect(result.ignoredNodeIds).toEqual(["105", "201"]);
   });
 
+  it("ignores goalable nodes outside the imported allocated component", () => {
+    const result = importBuildGoalsFromPobXml(`
+      <PathOfBuilding2>
+        <Tree activeSpec="1">
+          <Spec title="Active" nodes="100,101,106" />
+        </Tree>
+      </PathOfBuilding2>
+    `, fixtureGraph());
+
+    expect(result.goalNodeIds).toEqual(["101"]);
+    expect(result.ignoredNodeIds).toEqual(["100", "106"]);
+  });
+
   it("falls back to the first spec when the saved active spec is not usable", () => {
     const result = importBuildGoalsFromPobXml(`
       <PathOfBuilding2>
         <Tree activeSpec="99">
-          <Spec title="Fallback" nodes="101,104" />
+          <Spec title="Fallback" nodes="100,101,102,103,104" />
         </Tree>
       </PathOfBuilding2>
     `, fixtureGraph());
 
     expect(result.activeSpecTitle).toBe("Fallback");
-    expect(result.goalNodeIds).toEqual(["101", "104"]);
+    expect(result.goalNodeIds).toEqual(["101", "103", "104"]);
   });
 
   it("extracts specs when DOMParser is not available", () => {
@@ -61,13 +74,13 @@ describe("PoB build import", () => {
       <PathOfBuilding2>
         <Tree activeSpec="2">
           <Spec title="Ignored" nodes="101" />
-          <Spec title="Fallback Parser" nodes="103,104" />
+          <Spec title="Fallback Parser" nodes="100,101,102,103,104" />
         </Tree>
       </PathOfBuilding2>
     `, fixtureGraph());
 
     expect(result.activeSpecTitle).toBe("Fallback Parser");
-    expect(result.goalNodeIds).toEqual(["103", "104"]);
+    expect(result.goalNodeIds).toEqual(["101", "103", "104"]);
   });
 
   it("rejects invalid build codes with a useful error", () => {
@@ -128,6 +141,20 @@ function fixtureGraph(): TreeGraph {
         position: { x: 500, y: 0 },
         flags: { notable: true },
       },
+      "106": {
+        id: "106",
+        name: "Allocated But Unlinked Notable",
+        stats: ["20% increased Imported Noise"],
+        position: { x: 600, y: 0 },
+        flags: { notable: true },
+      },
+      "107": {
+        id: "107",
+        name: "Unallocated Connector",
+        stats: ["5% increased Imported Noise"],
+        position: { x: 500, y: 0 },
+        flags: { small: true },
+      },
       "200": {
         id: "200",
         name: "Ascendancy Start",
@@ -149,6 +176,8 @@ function fixtureGraph(): TreeGraph {
       { from: "101", to: "102" },
       { from: "102", to: "103" },
       { from: "103", to: "104" },
+      { from: "104", to: "107" },
+      { from: "107", to: "106" },
       { from: "100", to: "200" },
       { from: "200", to: "201" },
     ],
