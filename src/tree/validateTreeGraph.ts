@@ -67,7 +67,7 @@ export function validateTreeGraph(graph: TreeGraph): ValidationReport {
       });
     }
 
-    if (!node.flags.classStart && !node.flags.jewelSocket && node.stats.length === 0) {
+    if (!isStatlessNodeAllowed(node) && node.stats.length === 0) {
       missingStatCount += 1;
       issues.push({
         code: "missing-stats",
@@ -118,4 +118,14 @@ export function validateTreeGraph(graph: TreeGraph): ValidationReport {
     },
     issues,
   };
+}
+
+function isStatlessNodeAllowed(node: TreeGraph["nodes"][NodeId]): boolean {
+  return Boolean(
+    node.flags.classStart
+    || node.flags.jewelSocket
+    || node.flags.mastery
+    || node.flags.ascendancy
+    || node.masteryEffects?.length,
+  );
 }

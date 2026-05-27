@@ -13,11 +13,18 @@ export type BuildGoalsOptimizationRun = {
   cancel: () => void;
 };
 
+export type BuildGoalsOptimizationCallbacks = {
+  onProgress?: (result: BuildGoalsOptimizeResult) => void;
+};
+
 let nextWorkerRequestId = 1;
 
-export function runBuildGoalsOptimization(request: BuildGoalsOptimizeRequest): BuildGoalsOptimizationRun {
+export function runBuildGoalsOptimization(
+  request: BuildGoalsOptimizeRequest,
+  callbacks: BuildGoalsOptimizationCallbacks = {},
+): BuildGoalsOptimizationRun {
   if (typeof Worker === "undefined") {
-    return runInCurrentThread(request);
+    return runInCurrentThread(request, callbacks);
   }
 
   const worker = new Worker(new URL("./buildGoalsOptimizer.worker.ts", import.meta.url), { type: "module" });
@@ -28,6 +35,10 @@ export function runBuildGoalsOptimization(request: BuildGoalsOptimizeRequest): B
   const promise = new Promise<BuildGoalsOptimizeResult>((resolve) => {
     worker.onmessage = (event: MessageEvent<BuildGoalsOptimizerWorkerResponse>) => {
       if (event.data.id !== id) return;
+      if (event.data.type === "progress") {
+        callbacks.onProgress?.(event.data.result);
+        return;
+      }
       settled = true;
       worker.terminate();
       resolve(event.data.result);
@@ -60,13 +71,16 @@ export function runBuildGoalsOptimization(request: BuildGoalsOptimizeRequest): B
   };
 }
 
-function runInCurrentThread(request: BuildGoalsOptimizeRequest): BuildGoalsOptimizationRun {
+function runInCurrentThread(
+  request: BuildGoalsOptimizeRequest,
+  callbacks: BuildGoalsOptimizationCallbacks,
+): BuildGoalsOptimizationRun {
   let cancelled = false;
 
   return {
-    promise: Promise.resolve().then(() => (
-      cancelled
-        ? {
+    promise: Promise.resolve().then(() => {
+      if (cancelled) {
+        return {
           status: "cancelled",
           addedNodeIds: [],
           addedEdgeKeys: [],
@@ -76,9 +90,13 @@ function runInCurrentThread(request: BuildGoalsOptimizeRequest): BuildGoalsOptim
           pointCost: 0,
           unreachableGoalNodeIds: [],
           message: "Build goal optimization was cancelled.",
-        }
-        : optimizeBuildGoals(request)
-    )),
+        };
+      }
+
+      const result = optimizeBuildGoals(request);
+      callbacks.onProgress?.(result);
+      return result;
+    }),
     cancel: () => {
       cancelled = true;
     },

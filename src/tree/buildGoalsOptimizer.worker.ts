@@ -1,4 +1,4 @@
-import { optimizeBuildGoals, type BuildGoalsOptimizeRequest, type BuildGoalsOptimizeResult } from "./buildGoalsOptimizer";
+import { optimizeBuildGoalsAnytime, type BuildGoalsOptimizeRequest, type BuildGoalsOptimizeResult } from "./buildGoalsOptimizer";
 
 export type BuildGoalsOptimizerWorkerRequest = {
   id: number;
@@ -7,11 +7,14 @@ export type BuildGoalsOptimizerWorkerRequest = {
 
 export type BuildGoalsOptimizerWorkerResponse = {
   id: number;
+  type: "progress" | "complete";
   result: BuildGoalsOptimizeResult;
 };
 
 self.onmessage = (event: MessageEvent<BuildGoalsOptimizerWorkerRequest>) => {
   const { id, request } = event.data;
-  const result = optimizeBuildGoals(request);
-  self.postMessage({ id, result } satisfies BuildGoalsOptimizerWorkerResponse);
+  const result = optimizeBuildGoalsAnytime(request, (progress) => {
+    self.postMessage({ id, type: "progress", result: progress } satisfies BuildGoalsOptimizerWorkerResponse);
+  });
+  self.postMessage({ id, type: "complete", result } satisfies BuildGoalsOptimizerWorkerResponse);
 };

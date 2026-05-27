@@ -4,6 +4,9 @@ node_modules/
 dist/
 coverage/
 .env
+vite-dev.log
+vite-preview*.log
+pages-smoke*.log
 var/
 public/tree-graph.json
 public/tree-assets/

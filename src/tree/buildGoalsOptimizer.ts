@@ -21,6 +21,29 @@ export type BuildGoalsOptimizeResult = {
   pointCost: number;
   unreachableGoalNodeIds: NodeId[];
   message?: string;
+  searchType?: "exact" | "bounded" | "anytime";
+  completeReason?: "exact" | "bounded" | "no-improvement" | "iteration-limit" | "cancelled";
+  routeCandidates?: BuildGoalsRouteCandidate[];
+  improvementHistory?: number[];
+};
+
+export type BuildGoalsRouteCandidate = {
+  addedNodeIds: NodeId[];
+  addedEdgeKeys: string[];
+  totalNodeIds: NodeId[];
+  totalEdgeKeys: string[];
+  orderedNodeIds: NodeId[];
+  pointCost: number;
+  label?: string;
+};
+
+export type BuildGoalsAnytimeOptions = {
+  noImprovementMs?: number;
+  maxIterations?: number;
+  candidateLimit?: number;
+  randomSeedStart?: number;
+  now?: () => number;
+  shouldCancel?: () => boolean;
 };
 
 type DpParent =
@@ -66,6 +89,8 @@ type MetricEdge = {
 const infinity = Number.POSITIVE_INFINITY;
 const maxExactGoalCount = 10;
 const maxExactStateCount = 6_000_000;
+const defaultNoImprovementMs = 60_000;
+const defaultRouteCandidateLimit = 5;
 
 export function optimizeBuildGoals(request: BuildGoalsOptimizeRequest): BuildGoalsOptimizeResult {
   if (request.mode !== "shortest") {
@@ -123,9 +148,409 @@ export function optimizeBuildGoals(request: BuildGoalsOptimizeRequest): BuildGoa
   }
 }
 
+export function optimizeBuildGoalsAnytime(
+  request: BuildGoalsOptimizeRequest,
+  onProgress: (result: BuildGoalsOptimizeResult) => void = () => undefined,
+  options: BuildGoalsAnytimeOptions = {},
+): BuildGoalsOptimizeResult {
+  if (request.mode !== "shortest") {
+    const result = emptyResult("error", "Unsupported build goal optimization mode.");
+    onProgress(result);
+    return result;
+  }
+
+  const baseNodeIds = uniqueValidNodeIds(request.baseNodeIds, request.graph);
+  const requestedGoalNodeIds = uniqueValidNodeIds(request.goalNodeIds, request.graph);
+  const baseNodeSet = new Set(baseNodeIds);
+  const goalNodeIds = requestedGoalNodeIds.filter((nodeId) => !baseNodeSet.has(nodeId));
+  const baseEdgeKeys = uniqueEdgeKeys(request.baseEdgeKeys);
+
+  if (baseNodeIds.length === 0 || shouldUseExactShortestTree(request.graph, goalNodeIds.length)) {
+    const result = annotateCompletedResult(optimizeBuildGoals(request), shouldUseExactShortestTree(request.graph, goalNodeIds.length) ? "exact" : undefined);
+    onProgress(result);
+    return result;
+  }
+
+  const adjacency = buildAdjacency(request.graph);
+  const unreachableGoalNodeIds = unreachableGoals(adjacency, baseNodeSet, goalNodeIds);
+  if (unreachableGoalNodeIds.length > 0 || goalNodeIds.length === 0) {
+    const result = annotateCompletedResult(optimizeBuildGoals(request), "bounded");
+    onProgress(result);
+    return result;
+  }
+
+  const indexedGraph = buildIndexedGraph(request.graph, adjacency, baseNodeIds);
+  const terminals = buildRouteTerminals(goalNodeIds, indexedGraph);
+  const metricEdges = buildTerminalMetricEdges(terminals);
+  const candidateLimit = options.candidateLimit ?? defaultRouteCandidateLimit;
+  const noImprovementMs = options.noImprovementMs ?? defaultNoImprovementMs;
+  const now = options.now ?? (() => Date.now());
+  const routeCandidates: BuildGoalsRouteCandidate[] = [];
+  const candidateSignatures = new Set<string>();
+  const improvementHistory: number[] = [];
+  let bestResult: BuildGoalsOptimizeResult | undefined;
+  let lastImprovementAt = now();
+
+  function considerCandidate(candidate: BuildGoalsRouteCandidate): boolean {
+    if (!Number.isFinite(candidate.pointCost)) return false;
+    const signature = routeCandidateSignature(candidate);
+    if (!candidateSignatures.has(signature)) {
+      candidateSignatures.add(signature);
+      routeCandidates.push(candidate);
+      routeCandidates.sort(compareRouteCandidates);
+      routeCandidates.splice(candidateLimit);
+    }
+
+    if (bestResult && candidate.pointCost >= bestResult.pointCost) return false;
+
+    improvementHistory.push(candidate.pointCost);
+    bestResult = resultFromRouteCandidate(candidate, {
+      routeCandidates,
+      improvementHistory,
+      searchType: "anytime",
+    });
+    lastImprovementAt = now();
+    onProgress(bestResult);
+    return true;
+  }
+
+  considerCandidate(routeCandidateFromSolution(
+    "current bounded route",
+    materializeMetricEdges(minimumSpanningMetricEdges(metricEdges, terminals.length), terminals, indexedGraph),
+    baseNodeIds,
+    baseEdgeKeys,
+    indexedGraph,
+  ));
+  considerCandidate(routeCandidateFromSolution(
+    "marginal greedy route",
+    buildMarginalGreedySolution(terminals, metricEdges, indexedGraph),
+    baseNodeIds,
+    baseEdgeKeys,
+    indexedGraph,
+  ));
+
+  const maxIterations = options.maxIterations;
+  let iteration = 0;
+  let seed = options.randomSeedStart ?? 1;
+
+  while (!options.shouldCancel?.()) {
+    if (maxIterations === undefined) {
+      if (now() - lastImprovementAt >= noImprovementMs) break;
+    } else if (iteration >= maxIterations) {
+      break;
+    }
+
+    const rng = mulberry32(seed);
+    considerCandidate(routeCandidateFromSolution(
+      `random marginal route ${seed}`,
+      buildMarginalGreedySolution(terminals, metricEdges, indexedGraph, rng),
+      baseNodeIds,
+      baseEdgeKeys,
+      indexedGraph,
+    ));
+    considerCandidate(routeCandidateFromSolution(
+      `randomized route ${seed}`,
+      materializeMetricEdges(randomizedMetricEdges(metricEdges, terminals.length, rng), terminals, indexedGraph),
+      baseNodeIds,
+      baseEdgeKeys,
+      indexedGraph,
+    ));
+
+    iteration += 1;
+    seed += 1;
+  }
+
+  if (!bestResult) {
+    return emptyResult("unreachable", "No bounded-memory route could connect all build goals.", goalNodeIds);
+  }
+
+  if (options.shouldCancel?.()) {
+    return {
+      ...bestResult,
+      status: "cancelled",
+      completeReason: "cancelled",
+      message: "Build goal optimization was cancelled.",
+    };
+  }
+
+  return {
+    ...bestResult,
+    routeCandidates: [...routeCandidates],
+    improvementHistory: [...improvementHistory],
+    completeReason: maxIterations !== undefined && iteration >= maxIterations ? "iteration-limit" : "no-improvement",
+    message: maxIterations !== undefined && iteration >= maxIterations
+      ? "Stopped after the configured iteration limit."
+      : "Stopped after 60 seconds without finding a better route.",
+  };
+}
+
 function shouldUseExactShortestTree(graph: TreeGraph, goalCount: number): boolean {
   return goalCount <= maxExactGoalCount
     && (2 ** goalCount) * Object.keys(graph.nodes).length <= maxExactStateCount;
+}
+
+function buildRouteTerminals(goalNodeIds: NodeId[], indexedGraph: IndexedGraph): Terminal[] {
+  const { nodeIndexById, adjacency, nodeCosts } = indexedGraph;
+  const baseNodeIndexes = Array.from(indexedGraph.baseNodeSet)
+    .map((nodeId) => nodeIndexById.get(nodeId))
+    .filter((nodeIndex): nodeIndex is number => nodeIndex !== undefined);
+  const terminals: Terminal[] = [{
+    label: "base",
+    search: findShortestNodeCostRoutes(baseNodeIndexes, adjacency, nodeCosts),
+  }];
+
+  for (const goalNodeId of goalNodeIds) {
+    const nodeIndex = nodeIndexById.get(goalNodeId);
+    if (nodeIndex === undefined) continue;
+    terminals.push({
+      label: goalNodeId,
+      nodeIndex,
+      search: findShortestNodeCostRoutes([nodeIndex], adjacency, nodeCosts),
+    });
+  }
+
+  return terminals;
+}
+
+function buildMarginalGreedySolution(
+  terminals: Terminal[],
+  metricEdges: MetricEdge[],
+  indexedGraph: IndexedGraph,
+  rng?: () => number,
+): SolutionSets {
+  const connectedTerminalIndexes = new Set<number>([0]);
+  const solution: SolutionSets = {
+    nodeIndexes: new Set(Array.from(indexedGraph.baseNodeSet)
+      .map((nodeId) => indexedGraph.nodeIndexById.get(nodeId))
+      .filter((nodeIndex): nodeIndex is number => nodeIndex !== undefined)),
+    edgeKeys: new Set<string>(),
+  };
+
+  while (connectedTerminalIndexes.size < terminals.length) {
+    const rankedRoutes: Array<{
+      routeNodeIndexes: number[];
+      toTerminalIndex: number;
+      marginalCost: number;
+      metricCost: number;
+    }> = [];
+
+    for (const metricEdge of metricEdges) {
+      const fromConnected = connectedTerminalIndexes.has(metricEdge.fromTerminalIndex);
+      const toConnected = connectedTerminalIndexes.has(metricEdge.toTerminalIndex);
+      if (fromConnected === toConnected) continue;
+
+      const fromTerminalIndex = fromConnected ? metricEdge.fromTerminalIndex : metricEdge.toTerminalIndex;
+      const toTerminalIndex = fromConnected ? metricEdge.toTerminalIndex : metricEdge.fromTerminalIndex;
+      const toNodeIndex = terminals[toTerminalIndex].nodeIndex;
+      if (toNodeIndex === undefined) continue;
+
+      const routeNodeIndexes = routeNodeIndexesFromSearch(terminals[fromTerminalIndex].search, toNodeIndex);
+      const marginalCost = routeNodeIndexes.reduce(
+        (cost, nodeIndex) => cost + (solution.nodeIndexes.has(nodeIndex) ? 0 : indexedGraph.nodeCosts[nodeIndex]),
+        0,
+      );
+      rankedRoutes.push({ routeNodeIndexes, toTerminalIndex, marginalCost, metricCost: metricEdge.cost });
+    }
+
+    rankedRoutes.sort((left, right) => left.marginalCost - right.marginalCost || left.metricCost - right.metricCost);
+    const selectedRouteIndex = rng ? Math.floor(rng() * Math.min(5, rankedRoutes.length)) : 0;
+    const selectedRoute = rankedRoutes[selectedRouteIndex];
+    if (!selectedRoute) break;
+
+    connectedTerminalIndexes.add(selectedRoute.toTerminalIndex);
+    selectedRoute.routeNodeIndexes.forEach((nodeIndex) => solution.nodeIndexes.add(nodeIndex));
+    addRouteEdgeKeys(selectedRoute.routeNodeIndexes, indexedGraph.nodeIds, solution.edgeKeys);
+  }
+
+  return pruneSolution(solution, terminals, indexedGraph);
+}
+
+function materializeMetricEdges(
+  selectedMetricEdges: MetricEdge[],
+  terminals: Terminal[],
+  indexedGraph: IndexedGraph,
+): SolutionSets {
+  const solution: SolutionSets = {
+    nodeIndexes: new Set(Array.from(indexedGraph.baseNodeSet)
+      .map((nodeId) => indexedGraph.nodeIndexById.get(nodeId))
+      .filter((nodeIndex): nodeIndex is number => nodeIndex !== undefined)),
+    edgeKeys: new Set<string>(),
+  };
+
+  for (const selectedEdge of selectedMetricEdges) {
+    const toTerminal = terminals[selectedEdge.toTerminalIndex];
+    if (toTerminal.nodeIndex === undefined) continue;
+    const routeNodeIndexes = routeNodeIndexesFromSearch(
+      terminals[selectedEdge.fromTerminalIndex].search,
+      toTerminal.nodeIndex,
+    );
+    routeNodeIndexes.forEach((nodeIndex) => solution.nodeIndexes.add(nodeIndex));
+    addRouteEdgeKeys(routeNodeIndexes, indexedGraph.nodeIds, solution.edgeKeys);
+  }
+
+  return pruneSolution(solution, terminals, indexedGraph);
+}
+
+function pruneSolution(solution: SolutionSets, terminals: Terminal[], indexedGraph: IndexedGraph): SolutionSets {
+  const terminalNodeIndexes = new Set<number>();
+  for (const terminal of terminals) {
+    if (terminal.nodeIndex !== undefined) terminalNodeIndexes.add(terminal.nodeIndex);
+  }
+  for (const nodeId of indexedGraph.baseNodeSet) {
+    const nodeIndex = indexedGraph.nodeIndexById.get(nodeId);
+    if (nodeIndex !== undefined) terminalNodeIndexes.add(nodeIndex);
+  }
+
+  const nodeIndexes = new Set(solution.nodeIndexes);
+  const edgeKeys = new Set(solution.edgeKeys);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const degrees = buildSolutionDegrees(edgeKeys, indexedGraph.nodeIndexById);
+    for (const nodeIndex of Array.from(nodeIndexes)) {
+      if (terminalNodeIndexes.has(nodeIndex) || (degrees.get(nodeIndex) ?? 0) > 1) continue;
+      nodeIndexes.delete(nodeIndex);
+      for (const edgeKey of Array.from(edgeKeys)) {
+        const [from, to] = edgeKeyNodeIds(edgeKey);
+        if (from === indexedGraph.nodeIds[nodeIndex] || to === indexedGraph.nodeIds[nodeIndex]) {
+          edgeKeys.delete(edgeKey);
+        }
+      }
+      changed = true;
+    }
+  }
+
+  return { nodeIndexes, edgeKeys };
+}
+
+function buildSolutionDegrees(edgeKeys: Iterable<string>, nodeIndexById: Map<NodeId, number>): Map<number, number> {
+  const degrees = new Map<number, number>();
+  for (const edgeKey of edgeKeys) {
+    const [from, to] = edgeKeyNodeIds(edgeKey);
+    const fromIndex = nodeIndexById.get(from);
+    const toIndex = nodeIndexById.get(to);
+    if (fromIndex === undefined || toIndex === undefined) continue;
+    degrees.set(fromIndex, (degrees.get(fromIndex) ?? 0) + 1);
+    degrees.set(toIndex, (degrees.get(toIndex) ?? 0) + 1);
+  }
+  return degrees;
+}
+
+function addRouteEdgeKeys(routeNodeIndexes: number[], nodeIds: NodeId[], edgeKeys: Set<string>) {
+  for (let index = 1; index < routeNodeIndexes.length; index += 1) {
+    edgeKeys.add(treeEdgeKey(nodeIds[routeNodeIndexes[index - 1]], nodeIds[routeNodeIndexes[index]]));
+  }
+}
+
+function routeCandidateFromSolution(
+  label: string,
+  solution: SolutionSets,
+  baseNodeIds: NodeId[],
+  baseEdgeKeys: string[],
+  indexedGraph: IndexedGraph,
+): BuildGoalsRouteCandidate {
+  const baseEdgeKeySet = new Set(baseEdgeKeys);
+  const addedEdgeKeys = Array.from(solution.edgeKeys).filter((edgeKey) => !baseEdgeKeySet.has(edgeKey));
+  const totalEdgeKeys = mergeOrdered(baseEdgeKeys, addedEdgeKeys);
+  const orderedNodeIds = orderConnectedSolutionNodeIds(
+    baseNodeIds,
+    nodeIdsFromIndexes(indexedGraph.nodeIds, solution.nodeIndexes),
+    totalEdgeKeys,
+  );
+  const addedNodeIds = orderedNodeIds.filter((nodeId) => !indexedGraph.baseNodeSet.has(nodeId));
+
+  return {
+    label,
+    addedNodeIds,
+    addedEdgeKeys: orderEdgeKeysByNodeOrder(addedEdgeKeys, orderedNodeIds),
+    totalNodeIds: orderedNodeIds,
+    totalEdgeKeys: orderEdgeKeysByNodeOrder(totalEdgeKeys, orderedNodeIds),
+    orderedNodeIds,
+    pointCost: addedNodeIds.length,
+  };
+}
+
+function resultFromRouteCandidate(
+  candidate: BuildGoalsRouteCandidate,
+  metadata: Pick<BuildGoalsOptimizeResult, "routeCandidates" | "improvementHistory" | "searchType">,
+): BuildGoalsOptimizeResult {
+  return {
+    status: "success",
+    addedNodeIds: candidate.addedNodeIds,
+    addedEdgeKeys: candidate.addedEdgeKeys,
+    totalNodeIds: candidate.totalNodeIds,
+    totalEdgeKeys: candidate.totalEdgeKeys,
+    orderedNodeIds: candidate.orderedNodeIds,
+    pointCost: candidate.pointCost,
+    unreachableGoalNodeIds: [],
+    searchType: metadata.searchType,
+    routeCandidates: [...(metadata.routeCandidates ?? [])],
+    improvementHistory: [...(metadata.improvementHistory ?? [])],
+  };
+}
+
+function annotateCompletedResult(
+  result: BuildGoalsOptimizeResult,
+  searchType: BuildGoalsOptimizeResult["searchType"],
+): BuildGoalsOptimizeResult {
+  if (result.status !== "success") return result;
+  const completeReason = searchType === "exact" ? "exact" : searchType === "bounded" ? "bounded" : undefined;
+  return {
+    ...result,
+    searchType,
+    completeReason,
+    routeCandidates: [routeCandidateFromResult(result, searchType ?? "route")],
+    improvementHistory: [result.pointCost],
+  };
+}
+
+function routeCandidateFromResult(result: BuildGoalsOptimizeResult, label: string): BuildGoalsRouteCandidate {
+  return {
+    label,
+    addedNodeIds: result.addedNodeIds,
+    addedEdgeKeys: result.addedEdgeKeys,
+    totalNodeIds: result.totalNodeIds,
+    totalEdgeKeys: result.totalEdgeKeys,
+    orderedNodeIds: result.orderedNodeIds,
+    pointCost: result.pointCost,
+  };
+}
+
+function randomizedMetricEdges(metricEdges: MetricEdge[], terminalCount: number, rng: () => number): MetricEdge[] {
+  const weightedEdges = metricEdges.map((edge) => ({
+    edge,
+    weight: edge.cost * (0.7 + rng() * 0.7),
+  }));
+
+  return minimumSpanningMetricEdges(
+    weightedEdges
+      .sort((left, right) => (
+        left.weight - right.weight
+        || left.edge.fromTerminalIndex - right.edge.fromTerminalIndex
+        || left.edge.toTerminalIndex - right.edge.toTerminalIndex
+      ))
+      .map(({ edge }) => edge),
+    terminalCount,
+  );
+}
+
+function routeCandidateSignature(candidate: BuildGoalsRouteCandidate): string {
+  return [...candidate.totalEdgeKeys].sort(compareNodeIds).join("|");
+}
+
+function compareRouteCandidates(left: BuildGoalsRouteCandidate, right: BuildGoalsRouteCandidate): number {
+  return left.pointCost - right.pointCost || routeCandidateSignature(left).localeCompare(routeCandidateSignature(right));
+}
+
+function mulberry32(seed: number): () => number {
+  let value = seed;
+  return () => {
+    value += 0x6D2B79F5;
+    let next = value;
+    next = Math.imul(next ^ (next >>> 15), next | 1);
+    next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
+    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function solveExactShortestTree(

@@ -1,5 +1,5 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { discoverPoe2Install } from "./discovery";
 import { ExtractionError } from "./errors";
 import { inventoryGameData } from "./inventory";
@@ -195,6 +195,15 @@ function normalizeFromPsg(input: {
   if (!Array.isArray(passiveSkills)) {
     throw new CliError(`Could not parse PassiveSkills table: ${input.skillsPath} must contain a JSON array`, 1);
   }
+  const masteryGroups = readOptionalJsonArray(join(dirname(input.skillsPath), "PassiveSkillMasteryGroups.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["masteryGroups"]
+    | undefined;
+  const masteryEffects = readOptionalJsonArray(join(dirname(input.skillsPath), "PassiveSkillMasteryEffects.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["masteryEffects"]
+    | undefined;
+  const ascendancies = readOptionalJsonArray(join(dirname(input.skillsPath), "Ascendancy.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["ascendancies"]
+    | undefined;
 
   const statFormatter =
     input.statsPath && input.statDescriptionPaths?.length
@@ -209,8 +218,20 @@ function normalizeFromPsg(input: {
     sourcePath: input.psgPath,
     graph: parsePsgFile(input.psgPath),
     passiveSkills,
+    masteryGroups,
+    masteryEffects,
+    ascendancies,
     statFormatter,
   });
+}
+
+function readOptionalJsonArray(path: string): unknown[] | undefined {
+  if (!existsSync(path)) return undefined;
+  const value = readJson(path);
+  if (!Array.isArray(value)) {
+    throw new CliError(`Could not parse optional table: ${path} must contain a JSON array`, 1);
+  }
+  return value;
 }
 
 function readStatsTable(path: string): Parameters<typeof createStatDescriptionFormatter>[0]["stats"] {

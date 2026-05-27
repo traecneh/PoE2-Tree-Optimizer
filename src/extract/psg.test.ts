@@ -114,6 +114,26 @@ describe("normalizePoe2PassiveTreeData", () => {
     expect(graph.nodes["100"].stats).toEqual(["stat:2=10"]);
   });
 
+  it("omits formatter-suppressed stat lines", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+          Stats: [448],
+          Stat1Value: 1,
+        },
+      ],
+      statFormatter: () => "",
+    });
+
+    expect(graph.nodes["100"].stats).toEqual([]);
+  });
+
   it("uses a stat formatter when one is provided", () => {
     const graph = normalizePoe2PassiveTreeData({
       gameVersion: "fixture-version",
@@ -142,6 +162,101 @@ description
     });
 
     expect(graph.nodes["100"].stats).toEqual(["15% increased chance to Shock"]);
+  });
+
+  it("attaches mastery choices without treating every choice as an active stat", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+          Stats: [1],
+          Stat1Value: 5,
+        },
+        {
+          Id: "mastery_attack1",
+          Name: "Attack Mastery",
+          PassiveSkillGraphId: 101,
+          Stats: [],
+          MasteryGroup: 4,
+        },
+      ],
+      masteryGroups: [
+        {
+          _index: 4,
+          Id: "Attack",
+          MasteryEffects: [24, 25],
+        },
+      ],
+      masteryEffects: [
+        {
+          _index: 24,
+          Id: "Attack1",
+          Stats: [11],
+          Stat1Value: 12,
+        },
+        {
+          _index: 25,
+          Id: "Attack2",
+          Stats: [12, 13],
+          Stat1Value: 20,
+          Stat2Value: 5,
+        },
+      ],
+    });
+
+    expect(graph.nodes["101"].stats).toEqual([]);
+    expect(graph.nodes["101"].flags.mastery).toBe(true);
+    expect(graph.nodes["101"].masteryEffects).toEqual([
+      { id: "Attack1", stats: ["stat:11=12"] },
+      { id: "Attack2", stats: ["stat:12=20", "stat:13=5"] },
+    ]);
+  });
+
+  it("attaches canonical ascendancy metadata from the Ascendancy table", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [
+        {
+          Id: "mercenary_start",
+          Name: "Mercenary",
+          PassiveSkillGraphId: 100,
+        },
+        {
+          Id: "ascendancy_gambler_start",
+          Name: "Gambler",
+          PassiveSkillGraphId: 101,
+          Ascendancy: 7,
+          IsAscendancyStartingNode: true,
+        },
+      ],
+      ascendancies: [
+        {
+          _index: 7,
+          Id: "Mercenary3",
+          Name: "Gemling Legionnaire",
+          Disabled: false,
+        },
+      ],
+    });
+
+    expect(graph.nodes["101"]).toMatchObject({
+      name: "Gambler",
+      flags: { classStart: true, ascendancy: true },
+      ascendancy: {
+        id: "Mercenary3",
+        name: "Gemling Legionnaire",
+        className: "Mercenary",
+        disabled: false,
+        startNode: true,
+      },
+    });
   });
 
   it("does not create passive icon art for empty icon fields", () => {

@@ -321,6 +321,217 @@ describe("TreeViewer", () => {
     expect(paths[1].getAttribute("data-route-orbit")).toBe("-3");
   });
 
+  it("dims inactive ascendancy trees when a specific ascendancy is active", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        gemling_start: {
+          id: "gemling_start",
+          name: "Gemling Start",
+          stats: [],
+          position: { x: 0, y: 0 },
+          flags: { classStart: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+            startNode: true,
+          },
+        },
+        gemling_passive: {
+          id: "gemling_passive",
+          name: "Gemling Passive",
+          stats: ["10% increased Gem Power"],
+          position: { x: 100, y: 0 },
+          flags: { notable: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        witchhunter_start: {
+          id: "witchhunter_start",
+          name: "Witchhunter Start",
+          stats: [],
+          position: { x: 0, y: 200 },
+          flags: { classStart: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary1",
+            name: "Witchhunter",
+            className: "Mercenary",
+            disabled: false,
+            startNode: true,
+          },
+        },
+        witchhunter_passive: {
+          id: "witchhunter_passive",
+          name: "Witchhunter Passive",
+          stats: ["10% increased Witchhunter Power"],
+          position: { x: 100, y: 200 },
+          flags: { notable: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary1",
+            name: "Witchhunter",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        main_tree_passive: {
+          id: "main_tree_passive",
+          name: "Main Tree Passive",
+          stats: ["10% increased Damage"],
+          position: { x: 100, y: 400 },
+          flags: { small: true },
+        },
+      },
+      edges: [
+        { from: "gemling_start", to: "gemling_passive" },
+        { from: "witchhunter_start", to: "witchhunter_passive" },
+        { from: "main_tree_passive", to: "gemling_passive" },
+      ],
+      groups: {},
+      classStarts: {},
+      bounds: { minX: 0, maxX: 100, minY: 0, maxY: 400 },
+    };
+
+    render(
+      <TreeViewer
+        graph={graph}
+        activeAscendancyId="Mercenary3"
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    expect(document.querySelector(".tree-viewer")?.classList.contains("has-active-ascendancy")).toBe(true);
+    expect(screen.getByRole("button", { name: "Gemling Passive" }).classList.contains("active-ascendancy")).toBe(true);
+    expect(screen.getByRole("button", { name: "Witchhunter Passive" }).classList.contains("inactive-ascendancy")).toBe(true);
+    expect(screen.getByRole("button", { name: "Main Tree Passive" }).classList.contains("inactive-ascendancy")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.active-ascendancy-edge")).toHaveLength(1);
+    expect(document.querySelectorAll(".tree-edge.inactive-ascendancy-edge")).toHaveLength(1);
+  });
+
+  it("renders the active ascendancy tree in the main tree center", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        north_start: {
+          id: "north_start",
+          name: "North Start",
+          stats: [],
+          position: { x: 0, y: -100 },
+          flags: { classStart: true },
+        },
+        south_start: {
+          id: "south_start",
+          name: "South Start",
+          stats: [],
+          position: { x: 0, y: 100 },
+          flags: { classStart: true },
+        },
+        west_start: {
+          id: "west_start",
+          name: "West Start",
+          stats: [],
+          position: { x: -100, y: 0 },
+          flags: { classStart: true },
+        },
+        east_start: {
+          id: "east_start",
+          name: "East Start",
+          stats: [],
+          position: { x: 100, y: 0 },
+          flags: { classStart: true },
+        },
+        gemling_start: {
+          id: "gemling_start",
+          name: "Gemling Start",
+          stats: [],
+          position: { x: 1000, y: 1000 },
+          flags: { classStart: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+            startNode: true,
+          },
+        },
+        gemling_passive: {
+          id: "gemling_passive",
+          name: "Gemling Passive",
+          stats: ["10% increased Gem Power"],
+          position: { x: 1100, y: 1000 },
+          flags: { notable: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        witchhunter_start: {
+          id: "witchhunter_start",
+          name: "Witchhunter Start",
+          stats: [],
+          position: { x: 1000, y: 2000 },
+          flags: { classStart: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary1",
+            name: "Witchhunter",
+            className: "Mercenary",
+            disabled: false,
+            startNode: true,
+          },
+        },
+        witchhunter_passive: {
+          id: "witchhunter_passive",
+          name: "Witchhunter Passive",
+          stats: ["10% increased Witchhunter Power"],
+          position: { x: 1100, y: 2000 },
+          flags: { notable: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary1",
+            name: "Witchhunter",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+      },
+      edges: [
+        { from: "gemling_start", to: "gemling_passive" },
+        { from: "witchhunter_start", to: "witchhunter_passive" },
+      ],
+      groups: {},
+      classStarts: {
+        North: "north_start",
+        South: "south_start",
+        West: "west_start",
+        East: "east_start",
+      },
+      bounds: { minX: -100, maxX: 1100, minY: -100, maxY: 2000 },
+    };
+
+    render(
+      <TreeViewer
+        graph={graph}
+        activeAscendancyId="Mercenary3"
+        searchMatchNodeIds={new Set(["gemling_passive"])}
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Gemling Start" }).getAttribute("transform")).toBe("translate(-50 0)");
+    expect(screen.getByRole("button", { name: "Gemling Passive" }).getAttribute("transform")).toBe("translate(50 0)");
+    expect(screen.getByRole("button", { name: "Witchhunter Passive" }).getAttribute("transform")).toBe("translate(1100 2000)");
+    expect(document.querySelector(".tree-edge.active-ascendancy-edge")?.getAttribute("d")).toBe("M -50 0 L 50 0");
+    expect(document.querySelector(".search-match-node")?.getAttribute("transform")).toBe("translate(50 0)");
+  });
+
   it("labels non-zero routed edges when route labels are enabled", () => {
     const graph: TreeGraph = {
       ...sampleGraph,
@@ -392,7 +603,7 @@ describe("TreeViewer", () => {
     expect(updateCount).toBe(0);
   });
 
-  it("pauses search pulse animations while the viewport is moving without React commits", () => {
+  it("keeps static search highlights cheap while the viewport is moving", () => {
     vi.useFakeTimers();
     let updateCount = 0;
 
@@ -414,7 +625,8 @@ describe("TreeViewer", () => {
       const viewer = document.querySelector(".tree-viewer");
       mockSvgCoordinateConversion(svg);
 
-      expect(screen.getByRole("button", { name: "Precise Shot" }).querySelector(".search-pulse-marker")).not.toBeNull();
+      expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("search-match")).toBe(false);
+      expect(document.querySelectorAll(".search-highlight-layer .search-match-marker")).toHaveLength(1);
       expect(viewer?.classList.contains("viewport-moving")).toBe(false);
 
       fireEvent.wheel(svg, { deltaY: -100 });
@@ -559,15 +771,17 @@ describe("TreeViewer", () => {
     const frame = node.querySelector(".node-frame");
     const core = node.querySelector(".node-core");
     const icon = node.querySelector(".node-icon");
-    const iconClip = node.querySelector(".node-icon-clip circle");
+    const iconClips = document.querySelectorAll(".node-icon-clip");
+    const iconClipCircle = document.querySelector(".node-icon-clip circle");
 
     expect(frame?.getAttribute("r")).toBe("46");
     expect(core?.getAttribute("r")).toBe("36");
     expect(icon).not.toBeNull();
     expect(icon?.getAttribute("href")).toBe("/tree-assets/icons/art-2dart-skillicons-passives-criticalnotable.png");
-    expect(icon?.getAttribute("clip-path")).toBe("url(#node-icon-clip-precise_shot)");
+    expect(icon?.getAttribute("clip-path")).toBe("url(#tree-node-icon-clip)");
     expect(icon?.getAttribute("width")).toBe("79.2");
-    expect(iconClip?.getAttribute("r")).toBe("36");
+    expect(iconClips).toHaveLength(1);
+    expect(iconClipCircle?.getAttribute("r")).toBe("0.454545");
     expect(node.querySelector(".node-glyph.notable-glyph")).toBeNull();
   });
 
@@ -605,13 +819,56 @@ describe("TreeViewer", () => {
     const matchingNode = screen.getByRole("button", { name: "Precise Shot" });
     const otherNode = screen.getByRole("button", { name: "Projectile Damage" });
 
-    expect(matchingNode.classList.contains("search-match")).toBe(true);
-    expect(matchingNode.querySelector(".search-pulse-marker")).not.toBeNull();
+    expect(matchingNode.classList.contains("search-match")).toBe(false);
+    expect(document.querySelectorAll(".search-highlight-layer .search-match-marker")).toHaveLength(1);
     expect(otherNode.classList.contains("search-match")).toBe(false);
-    expect(otherNode.querySelector(".search-pulse-marker")).toBeNull();
   });
 
-  it("marks the focused search result with a distinct map pulse", () => {
+  it("uses compact markers for passive search matches", () => {
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        searchMatchNodeIds={new Set(["precise_shot"])}
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    expect(document.querySelector(".search-match-marker")?.getAttribute("r")).toBe("60");
+    expect(document.querySelector(".search-match-core-marker")?.getAttribute("r")).toBe("40");
+  });
+
+  it("paints search highlights behind node icons", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        precise_shot: {
+          ...sampleGraph.nodes.precise_shot,
+          art: { icon: "Art/2DArt/SkillIcons/passives/CriticalNotable.dds" },
+        },
+      },
+    };
+
+    render(
+      <TreeViewer
+        graph={graph}
+        searchMatchNodeIds={new Set(["precise_shot"])}
+        searchFocusedNodeId="precise_shot"
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+      />,
+    );
+
+    const viewportLayers = Array.from(document.querySelector(".tree-svg > g")?.children ?? [])
+      .map((element) => element.getAttribute("class"));
+
+    expect(viewportLayers.indexOf("search-highlight-layer")).toBeLessThan(viewportLayers.indexOf("node-layer"));
+    expect(viewportLayers.indexOf("search-focus-highlight-layer")).toBeLessThan(viewportLayers.indexOf("node-layer"));
+    expect(screen.getByRole("button", { name: "Precise Shot" }).querySelector(".node-icon")).not.toBeNull();
+  });
+
+  it("marks the focused search result with a distinct static map highlight", () => {
     render(
       <TreeViewer
         graph={sampleGraph}
@@ -625,10 +882,9 @@ describe("TreeViewer", () => {
     const focusedNode = screen.getByRole("button", { name: "Precise Shot" });
     const otherNode = screen.getByRole("button", { name: "Projectile Damage" });
 
-    expect(focusedNode.classList.contains("search-focus")).toBe(true);
-    expect(focusedNode.querySelector(".search-focus-marker")).not.toBeNull();
+    expect(focusedNode.classList.contains("search-focus")).toBe(false);
+    expect(document.querySelectorAll(".search-focus-highlight-layer .search-focus-marker")).toHaveLength(1);
     expect(otherNode.classList.contains("search-focus")).toBe(false);
-    expect(otherNode.querySelector(".search-focus-marker")).toBeNull();
   });
 
   it("marks allocation path nodes and edges", () => {
@@ -750,6 +1006,54 @@ describe("TreeViewer", () => {
     expect(onSelectNode).toHaveBeenCalledWith("precise_shot");
   });
 
+  it("adds a build goal instead of selecting when Ctrl-clicking a node", () => {
+    const onSelectNode = vi.fn();
+    const onAddBuildGoal = vi.fn();
+
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        onSelectNode={onSelectNode}
+        onAddBuildGoal={onAddBuildGoal}
+        debug={debugOff}
+      />,
+    );
+
+    const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
+    const node = screen.getByRole("button", { name: "Projectile Damage" });
+    mockSvgCoordinateConversion(svg);
+
+    fireEvent.pointerDown(node, { pointerId: 1, button: 0, clientX: 100, clientY: 100, ctrlKey: true });
+    fireEvent.pointerUp(svg, { pointerId: 1 });
+
+    expect(onAddBuildGoal).toHaveBeenCalledWith("projectile_damage");
+    expect(onSelectNode).not.toHaveBeenCalled();
+  });
+
+  it("does not add a build goal after dragging from a Ctrl-clicked node", () => {
+    const onAddBuildGoal = vi.fn();
+
+    render(
+      <TreeViewer
+        graph={sampleGraph}
+        onSelectNode={vi.fn()}
+        onAddBuildGoal={onAddBuildGoal}
+        debug={debugOff}
+      />,
+    );
+
+    const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" }) as unknown as SVGSVGElement;
+    const node = screen.getByRole("button", { name: "Projectile Damage" });
+    mockSvgCoordinateConversion(svg);
+
+    fireEvent.pointerDown(node, { pointerId: 1, button: 0, clientX: 100, clientY: 100, ctrlKey: true });
+    fireEvent.pointerMove(node, { pointerId: 1, clientX: 120, clientY: 100, ctrlKey: true });
+    fireEvent.pointerUp(node, { pointerId: 1 });
+    fireEvent.click(node, { ctrlKey: true });
+
+    expect(onAddBuildGoal).not.toHaveBeenCalled();
+  });
+
   it("shows a passive tooltip while hovering a node", () => {
     render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
 
@@ -765,6 +1069,38 @@ describe("TreeViewer", () => {
     fireEvent.mouseLeave(screen.getByRole("button", { name: "Precise Shot" }));
 
     expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("shows mastery choices in the node tooltip", () => {
+    const graph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        mastery: {
+          id: "mastery",
+          name: "Attack Mastery",
+          stats: [],
+          masteryEffects: [
+            { id: "Attack1", stats: ["12% increased Attack Damage"] },
+            { id: "Attack2", stats: ["20% increased Accuracy Rating", "5% increased Attack Speed"] },
+          ],
+          position: { x: 480, y: 180 },
+          flags: { small: true, mastery: true },
+        },
+      },
+      bounds: { ...sampleGraph.bounds, maxX: 480, maxY: 180 },
+    };
+
+    render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Attack Mastery" }), { clientX: 220, clientY: 140 });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip.textContent).toContain("Attack Mastery");
+    expect(tooltip.textContent).toContain("Mastery choices");
+    expect(tooltip.textContent).toContain("12% increased Attack Damage");
+    expect(tooltip.textContent).toContain("20% increased Accuracy Rating");
+    expect(tooltip.textContent).toContain("5% increased Attack Speed");
   });
 
   it("shows and hides hover tooltips without a React commit", () => {

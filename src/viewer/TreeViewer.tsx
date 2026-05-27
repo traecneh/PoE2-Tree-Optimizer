@@ -1,16 +1,24 @@
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject, WheelEvent } from "react";
 import { passiveIconPublicPath } from "../tree/passiveIconAssets";
 import { treeEdgeKey } from "../tree/pathAllocation";
 import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
-import type { DebugOverlayState } from "./DebugControls";
 import { buildTreeEdgePath } from "./treeEdgePath";
 import { buildFitViewBox } from "./treeViewBox";
+
+export type DebugOverlayState = {
+  showNodeIds: boolean;
+  highlightMissingStats: boolean;
+  highlightOrphans: boolean;
+  showEdgeRoutes: boolean;
+  showEdgeRouteLabels: boolean;
+};
 
 type TreeViewerProps = {
   graph: TreeGraph;
   selectedNodeId?: string;
   pathStartNodeId?: string;
+  activeAscendancyId?: string;
   noAllocationPathNodeId?: string;
   nodeVisualScale?: number;
   searchMatchNodeIds?: ReadonlySet<string>;
@@ -23,6 +31,7 @@ type TreeViewerProps = {
   hoverAllocationPathNodeIds?: ReadonlySet<string>;
   hoverAllocationPathEdgeKeys?: ReadonlySet<string>;
   onSelectNode: (nodeId: string) => void;
+  onAddBuildGoal?: (nodeId: string) => void;
   onHoverNode?: (nodeId: string | undefined) => void;
   debug: DebugOverlayState;
 };
@@ -43,10 +52,39 @@ type NodeVisual = {
   iconSize: number;
 };
 
+type RenderedTreeEdge = {
+  id: string;
+  key: string;
+  path: string;
+  routeOrbit: number | undefined;
+  routeClass: string;
+  ascendancyClass?: string;
+  label: string | undefined;
+  labelPosition: Point;
+};
+
+type RenderedTreeNode = {
+  node: TreeNode;
+  typeClass: string;
+  visual: NodeVisual;
+  label: string;
+  iconPath: string | undefined;
+};
+
+type TreeLayoutProjection = {
+  nodes: Record<string, TreeNode>;
+  groups: TreeGraph["groups"];
+};
+
 type ViewportTransform = {
   x: number;
   y: number;
   scale: number;
+};
+
+type PendingNodePress = {
+  nodeId: string;
+  action: "select" | "add-build-goal";
 };
 
 const initialViewportTransform: ViewportTransform = { x: 0, y: 0, scale: 1 };
@@ -56,11 +94,15 @@ const minViewportScale = 0.2;
 const viewportZoomStep = 1.1;
 const defaultNodeVisualScale = 2;
 const viewportMovingIdleMs = 180;
+const nodeIconSizeMultiplier = 2.2;
+const nodeIconClipPathId = "tree-node-icon-clip";
+const nodeIconClipRadius = "0.454545";
 
 export function TreeViewer({
   graph,
   selectedNodeId,
   pathStartNodeId,
+  activeAscendancyId,
   noAllocationPathNodeId,
   nodeVisualScale = defaultNodeVisualScale,
   searchMatchNodeIds,
@@ -73,6 +115,7 @@ export function TreeViewer({
   hoverAllocationPathNodeIds,
   hoverAllocationPathEdgeKeys,
   onSelectNode,
+  onAddBuildGoal,
   onHoverNode,
   debug,
 }: TreeViewerProps) {
@@ -82,41 +125,84 @@ export function TreeViewer({
   const viewportTransform = useRef<ViewportTransform>({ ...initialViewportTransform });
   const viewportMovingTimer = useRef<number | undefined>(undefined);
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
-  const pendingNodePress = useRef<string | null>(null);
+  const pendingNodePress = useRef<PendingNodePress | null>(null);
   const suppressNextNodeClick = useRef(false);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const tooltipTitleRef = useRef<HTMLDivElement | null>(null);
   const tooltipStatsRef = useRef<HTMLDivElement | null>(null);
+  const onSelectNodeRef = useRef(onSelectNode);
+  const onAddBuildGoalRef = useRef(onAddBuildGoal);
+  const onHoverNodeRef = useRef(onHoverNode);
   const viewBox = buildFitViewBox(graph.bounds, 160);
+  const layoutProjection = useMemo(
+    () => projectActiveAscendancyLayout(graph, activeAscendancyId),
+    [activeAscendancyId, graph],
+  );
+
+  useEffect(() => {
+    onSelectNodeRef.current = onSelectNode;
+  }, [onSelectNode]);
+
+  useEffect(() => {
+    onAddBuildGoalRef.current = onAddBuildGoal;
+  }, [onAddBuildGoal]);
+
+  useEffect(() => {
+    onHoverNodeRef.current = onHoverNode;
+  }, [onHoverNode]);
   const connectedNodeIds = useMemo(() => new Set(graph.edges.flatMap((edge) => [edge.from, edge.to])), [graph.edges]);
   const renderedEdges = useMemo(
     () => graph.edges.flatMap((edge) => {
-      const from = graph.nodes[edge.from];
-      const to = graph.nodes[edge.to];
-      if (!shouldDrawEdge(from, to)) return [];
-      const group = from.groupId && from.groupId === to.groupId ? graph.groups[from.groupId] : undefined;
-      const classNames = ["tree-edge"];
-      const allocated = allocatedEdgeKeys?.has(treeEdgeKey(edge.from, edge.to)) ?? false;
-      const allocationPath = allocationPathEdgeKeys?.has(treeEdgeKey(edge.from, edge.to)) ?? false;
-      const hoverAllocationPath = hoverAllocationPathEdgeKeys?.has(treeEdgeKey(edge.from, edge.to)) ?? false;
-      if (allocated) classNames.push("allocated");
-      if (debug.showEdgeRoutes) classNames.push("edge-route-debug", edgeRouteClass(edge));
-      if (allocationPath) classNames.push("allocation-path");
-      if (hoverAllocationPath) classNames.push("hover-allocation-path");
+      const originalFrom = graph.nodes[edge.from];
+      const originalTo = graph.nodes[edge.to];
+      if (!shouldDrawEdge(originalFrom, originalTo)) return [];
+
+      const from = layoutProjection.nodes[edge.from];
+      const to = layoutProjection.nodes[edge.to];
+      if (!from || !to) return [];
+      const group = from.groupId && from.groupId === to.groupId ? layoutProjection.groups[from.groupId] : undefined;
       return [{
         id: `${edge.from}-${edge.to}`,
+        key: treeEdgeKey(edge.from, edge.to),
         path: buildTreeEdgePath(from, to, group, edge),
         routeOrbit: edge.connectionOrbit,
-        className: classNames.join(" "),
-        allocated,
-        allocationPath,
-        hoverAllocationPath,
+        routeClass: edgeRouteClass(edge),
+        ascendancyClass: edgeAscendancyClass(originalFrom, originalTo, activeAscendancyId),
         label: formatEdgeRouteLabel(edge.connectionOrbit),
         labelPosition: midpoint(from, to),
       }];
     }),
-    [allocatedEdgeKeys, allocationPathEdgeKeys, debug.showEdgeRoutes, graph.edges, graph.groups, graph.nodes, hoverAllocationPathEdgeKeys],
+    [activeAscendancyId, graph.edges, graph.nodes, layoutProjection.groups, layoutProjection.nodes],
   );
+  const renderedEdgeByKey = useMemo(
+    () => new Map(renderedEdges.map((edge) => [edge.key, edge])),
+    [renderedEdges],
+  );
+  const allocatedHighlightEdges = useMemo(
+    () => renderedEdgesForKeys(allocatedEdgeKeys, renderedEdgeByKey),
+    [allocatedEdgeKeys, renderedEdgeByKey],
+  );
+  const allocationPathHighlightEdges = useMemo(
+    () => renderedEdgesForKeys(allocationPathEdgeKeys, renderedEdgeByKey),
+    [allocationPathEdgeKeys, renderedEdgeByKey],
+  );
+  const hoverAllocationPathHighlightEdges = useMemo(
+    () => renderedEdgesForKeys(hoverAllocationPathEdgeKeys, renderedEdgeByKey),
+    [hoverAllocationPathEdgeKeys, renderedEdgeByKey],
+  );
+  const renderedNodes = useMemo(
+    () => Object.values(layoutProjection.nodes).map((node) => renderedNode(node, nodeVisualScale)),
+    [layoutProjection.nodes, nodeVisualScale],
+  );
+  const renderedNodeById = useMemo(
+    () => new Map(renderedNodes.map((node) => [node.node.id, node])),
+    [renderedNodes],
+  );
+  const searchMatchNodes = useMemo(
+    () => renderedNodesForIds(searchMatchNodeIds, renderedNodeById),
+    [renderedNodeById, searchMatchNodeIds],
+  );
+  const searchFocusedNode = searchFocusedNodeId ? renderedNodeById.get(searchFocusedNodeId) : undefined;
 
   useEffect(() => {
     applyViewportTransform(viewportRef.current, viewportTransform.current);
@@ -193,7 +279,7 @@ export function TreeViewer({
 
   function handlePointerUp(event: PointerEvent<SVGSVGElement>) {
     const dragged = lastPointer.current?.dragged;
-    const pendingNodeId = pendingNodePress.current;
+    const pendingPress = pendingNodePress.current;
     releasePointerCapture(event.currentTarget, event.pointerId);
     lastPointer.current = null;
     pendingNodePress.current = null;
@@ -203,9 +289,13 @@ export function TreeViewer({
       }, 0);
       return;
     }
-    if (pendingNodeId) {
+    if (pendingPress) {
       suppressNextNodeClick.current = true;
-      onSelectNode(pendingNodeId);
+      if (pendingPress.action === "add-build-goal") {
+        onAddBuildGoalRef.current?.(pendingPress.nodeId);
+      } else {
+        onSelectNodeRef.current(pendingPress.nodeId);
+      }
       window.setTimeout(() => {
         suppressNextNodeClick.current = false;
       }, 0);
@@ -239,47 +329,56 @@ export function TreeViewer({
     }, viewportMovingIdleMs);
   }
 
-  function handleSelectNode(nodeId: string) {
+  const handleSelectNode = useCallback((nodeId: string) => {
     if (suppressNextNodeClick.current) {
       suppressNextNodeClick.current = false;
       return;
     }
-    onSelectNode(nodeId);
-  }
+    onSelectNodeRef.current(nodeId);
+  }, []);
 
-  function handleBeginNodePress(nodeId: string) {
-    pendingNodePress.current = nodeId;
-  }
+  const handleBeginNodePress = useCallback((nodeId: string, event: PointerEvent<SVGGElement>) => {
+    if (event.button !== 0) return;
 
-  function showTooltipAtPointer(node: TreeNode, event: MouseEvent<SVGGElement> | PointerEvent<SVGGElement>) {
-    showTooltip(node, tooltipPositionFromClientPoint(event.clientX, event.clientY));
-  }
+    pendingNodePress.current = {
+      nodeId,
+      action: event.ctrlKey && onAddBuildGoalRef.current ? "add-build-goal" : "select",
+    };
+  }, []);
 
-  function showTooltipAtElement(node: TreeNode, element: SVGGElement) {
-    showTooltip(node, tooltipPositionFromElement(element));
-  }
-
-  function showTooltip(node: TreeNode, position: Point) {
+  const showTooltip = useCallback((node: TreeNode, position: Point) => {
     const tooltip = tooltipRef.current;
     const titleElement = tooltipTitleRef.current;
     const statsElement = tooltipStatsRef.current;
     if (!tooltip || !titleElement || !statsElement) return;
 
     titleElement.textContent = node.name ?? node.id;
-    statsElement.replaceChildren(...tooltipStatElements(node.stats.length > 0 ? node.stats : [nodeTypeLabel(node)]));
+    statsElement.replaceChildren(...tooltipStatElements(node));
     tooltip.style.left = `${position.x}px`;
     tooltip.style.top = `${position.y}px`;
     tooltip.hidden = false;
-  }
+  }, []);
 
-  function hideTooltip() {
+  const showTooltipAtPointer = useCallback((node: TreeNode, event: MouseEvent<SVGGElement> | PointerEvent<SVGGElement>) => {
+    showTooltip(node, tooltipPositionFromClientPoint(event.clientX, event.clientY));
+  }, [showTooltip]);
+
+  const showTooltipAtElement = useCallback((node: TreeNode, element: SVGGElement) => {
+    showTooltip(node, tooltipPositionFromElement(element));
+  }, [showTooltip]);
+
+  const hideTooltip = useCallback(() => {
     if (tooltipRef.current) {
       tooltipRef.current.hidden = true;
     }
-  }
+  }, []);
+
+  const handleHoverNode = useCallback((nodeId: string | undefined) => {
+    onHoverNodeRef.current?.(nodeId);
+  }, []);
 
   return (
-    <div ref={rootRef} className="tree-viewer">
+    <div ref={rootRef} className={`tree-viewer${activeAscendancyId ? " has-active-ascendancy" : ""}`}>
       <div className="viewport-toolbar" role="toolbar" aria-label="Tree viewport controls">
         <button
           className="tool-button viewport-button"
@@ -328,48 +427,47 @@ export function TreeViewer({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
       >
+        <defs>
+          <clipPath id={nodeIconClipPathId} className="node-icon-clip" clipPathUnits="objectBoundingBox">
+            <circle cx="0.5" cy="0.5" r={nodeIconClipRadius} />
+          </clipPath>
+        </defs>
         <g ref={viewportRef} transform={formatViewportTransform(viewportTransform.current)}>
           <g className="edge-layer">
             {renderedEdges.map((edge) => (
               <path
                 key={edge.id}
-                className={edge.className}
+                className={edgeClassName(edge, allocatedEdgeKeys, allocationPathEdgeKeys, hoverAllocationPathEdgeKeys, debug)}
                 d={edge.path}
                 data-route-orbit={debug.showEdgeRoutes ? edge.routeOrbit : undefined}
               />
             ))}
           </g>
           <g className="allocated-highlight-layer" aria-hidden="true">
-            {renderedEdges.flatMap((edge) => (
-              edge.allocated ? [
-                <path
-                  key={`${edge.id}-allocated-highlight`}
-                  className="allocated-edge"
-                  d={edge.path}
-                />,
-              ] : []
+            {allocatedHighlightEdges.map((edge) => (
+              <path
+                key={`${edge.id}-allocated-highlight`}
+                className="allocated-edge"
+                d={edge.path}
+              />
             ))}
           </g>
           <g className="path-highlight-layer" aria-hidden="true">
-            {renderedEdges.flatMap((edge) => (
-              edge.allocationPath ? [
-                <path
-                  key={`${edge.id}-path-highlight`}
-                  className="allocation-path-edge"
-                  d={edge.path}
-                />,
-              ] : []
+            {allocationPathHighlightEdges.map((edge) => (
+              <path
+                key={`${edge.id}-path-highlight`}
+                className="allocation-path-edge"
+                d={edge.path}
+              />
             ))}
           </g>
           <g className="hover-path-highlight-layer" aria-hidden="true">
-            {renderedEdges.flatMap((edge) => (
-              edge.hoverAllocationPath ? [
-                <path
-                  key={`${edge.id}-hover-path-highlight`}
-                  className="hover-allocation-path-edge"
-                  d={edge.path}
-                />,
-              ] : []
+            {hoverAllocationPathHighlightEdges.map((edge) => (
+              <path
+                key={`${edge.id}-hover-path-highlight`}
+                className="hover-allocation-path-edge"
+                d={edge.path}
+              />
             ))}
           </g>
           {debug.showEdgeRoutes && debug.showEdgeRouteLabels ? (
@@ -388,27 +486,36 @@ export function TreeViewer({
               ))}
             </g>
           ) : null}
+          <g className="search-highlight-layer" aria-hidden="true">
+            {searchMatchNodes.map((node) => (
+              <SearchMatchMarker key={`${node.node.id}-search-match`} renderedNode={node} nodeVisualScale={nodeVisualScale} />
+            ))}
+          </g>
+          <g className="search-focus-highlight-layer" aria-hidden="true">
+            {searchFocusedNode ? (
+              <SearchFocusMarker renderedNode={searchFocusedNode} nodeVisualScale={nodeVisualScale} />
+            ) : null}
+          </g>
           <g className="node-layer">
-            {Object.values(graph.nodes).map((node) => (
+            {renderedNodes.map((node) => (
               <ButtonNode
-                key={node.id}
-                node={node}
-                selected={node.id === selectedNodeId}
-                pathStart={node.id === pathStartNodeId}
-                noAllocationPath={node.id === noAllocationPathNodeId}
+                key={node.node.id}
+                renderedNode={node}
+                selected={node.node.id === selectedNodeId}
+                pathStart={node.node.id === pathStartNodeId}
+                ascendancyClass={nodeAscendancyClass(node.node, activeAscendancyId)}
+                noAllocationPath={node.node.id === noAllocationPathNodeId}
                 nodeVisualScale={nodeVisualScale}
-                searchMatched={searchMatchNodeIds?.has(node.id) ?? false}
-                searchFocused={node.id === searchFocusedNodeId}
-                buildGoal={buildGoalNodeIds?.has(node.id) ?? false}
-                allocated={allocatedNodeIds?.has(node.id) ?? false}
-                allocationPath={allocationPathNodeIds?.has(node.id) ?? false}
-                hoverAllocationPath={hoverAllocationPathNodeIds?.has(node.id) ?? false}
+                buildGoal={buildGoalNodeIds?.has(node.node.id) ?? false}
+                allocated={allocatedNodeIds?.has(node.node.id) ?? false}
+                allocationPath={allocationPathNodeIds?.has(node.node.id) ?? false}
+                hoverAllocationPath={hoverAllocationPathNodeIds?.has(node.node.id) ?? false}
                 debug={debug}
-                orphan={debug.highlightOrphans && !connectedNodeIds.has(node.id)}
+                orphan={debug.highlightOrphans && !connectedNodeIds.has(node.node.id)}
                 onShowTooltipAtPointer={showTooltipAtPointer}
                 onShowTooltipAtElement={showTooltipAtElement}
                 onHideTooltip={hideTooltip}
-                onHoverNode={onHoverNode}
+                onHoverNode={handleHoverNode}
                 onBeginNodePress={handleBeginNodePress}
                 onSelectNode={handleSelectNode}
               />
@@ -418,6 +525,187 @@ export function TreeViewer({
       </svg>
     </div>
   );
+}
+
+function projectActiveAscendancyLayout(
+  graph: TreeGraph,
+  activeAscendancyId: string | undefined,
+): TreeLayoutProjection {
+  if (!activeAscendancyId) {
+    return { nodes: graph.nodes, groups: graph.groups };
+  }
+
+  const activeNodes = Object.values(graph.nodes).filter((node) => isActiveAscendancyLayoutNode(node, activeAscendancyId));
+  if (activeNodes.length === 0) {
+    return { nodes: graph.nodes, groups: graph.groups };
+  }
+
+  const activeCenter = centerOfPoints(activeNodes.map((node) => node.position));
+  const mainCenter = mainTreeCenter(graph);
+  const dx = mainCenter.x - activeCenter.x;
+  const dy = mainCenter.y - activeCenter.y;
+  if (dx === 0 && dy === 0) {
+    return { nodes: graph.nodes, groups: graph.groups };
+  }
+
+  const activeNodeIds = new Set(activeNodes.map((node) => node.id));
+  const nodes = { ...graph.nodes };
+  for (const node of activeNodes) {
+    nodes[node.id] = {
+      ...node,
+      position: translatePoint(node.position, dx, dy),
+    };
+  }
+
+  const groups = { ...graph.groups };
+  for (const group of Object.values(graph.groups)) {
+    if (!group.position || !group.nodeIds.some((nodeId) => activeNodeIds.has(nodeId))) continue;
+    groups[group.id] = {
+      ...group,
+      position: translatePoint(group.position, dx, dy),
+    };
+  }
+
+  return { nodes, groups };
+}
+
+function isActiveAscendancyLayoutNode(node: TreeNode, activeAscendancyId: string): boolean {
+  return Boolean(node.flags.ascendancy && node.ascendancy?.id === activeAscendancyId);
+}
+
+function mainTreeCenter(graph: TreeGraph): Point {
+  const mainClassStartNodes = Object.values(graph.classStarts)
+    .map((nodeId) => graph.nodes[nodeId])
+    .filter((node): node is TreeNode => Boolean(node && node.flags.classStart && !node.flags.ascendancy));
+  if (mainClassStartNodes.length >= 3) {
+    return averagePoint(mainClassStartNodes.map((node) => node.position));
+  }
+
+  const mainTreeNodes = Object.values(graph.nodes).filter((node) => !node.flags.ascendancy);
+  if (mainTreeNodes.length > 0) {
+    return centerOfPoints(mainTreeNodes.map((node) => node.position));
+  }
+
+  return {
+    x: (graph.bounds.minX + graph.bounds.maxX) / 2,
+    y: (graph.bounds.minY + graph.bounds.maxY) / 2,
+  };
+}
+
+function centerOfPoints(points: Point[]): Point {
+  if (points.length === 0) return { x: 0, y: 0 };
+
+  let minX = points[0].x;
+  let maxX = points[0].x;
+  let minY = points[0].y;
+  let maxY = points[0].y;
+  for (const point of points.slice(1)) {
+    minX = Math.min(minX, point.x);
+    maxX = Math.max(maxX, point.x);
+    minY = Math.min(minY, point.y);
+    maxY = Math.max(maxY, point.y);
+  }
+
+  return {
+    x: (minX + maxX) / 2,
+    y: (minY + maxY) / 2,
+  };
+}
+
+function averagePoint(points: Point[]): Point {
+  if (points.length === 0) return { x: 0, y: 0 };
+
+  const total = points.reduce(
+    (sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }),
+    { x: 0, y: 0 },
+  );
+  return {
+    x: total.x / points.length,
+    y: total.y / points.length,
+  };
+}
+
+function translatePoint(point: Point, dx: number, dy: number): Point {
+  return {
+    x: roundLayoutNumber(point.x + dx),
+    y: roundLayoutNumber(point.y + dy),
+  };
+}
+
+function roundLayoutNumber(value: number): number {
+  return Number(value.toFixed(6));
+}
+
+function renderedNode(node: TreeNode, nodeVisualScale: number): RenderedTreeNode {
+  const typeClass = nodeClass(node);
+  return {
+    node,
+    typeClass,
+    visual: nodeVisual(node, typeClass, nodeVisualScale),
+    label: node.name ?? node.id,
+    iconPath: node.art?.icon
+      ? passiveIconPublicPath(node.art.icon, node.art.assetKey)
+      : undefined,
+  };
+}
+
+function renderedNodesForIds(
+  nodeIds: ReadonlySet<string> | undefined,
+  renderedNodeById: ReadonlyMap<string, RenderedTreeNode>,
+): RenderedTreeNode[] {
+  if (!nodeIds || nodeIds.size === 0) return [];
+  const nodes: RenderedTreeNode[] = [];
+  for (const nodeId of nodeIds) {
+    const node = renderedNodeById.get(nodeId);
+    if (node) nodes.push(node);
+  }
+  return nodes;
+}
+
+function renderedEdgesForKeys(
+  edgeKeys: ReadonlySet<string> | undefined,
+  renderedEdgeByKey: ReadonlyMap<string, RenderedTreeEdge>,
+): RenderedTreeEdge[] {
+  if (!edgeKeys || edgeKeys.size === 0) return [];
+  const edges: RenderedTreeEdge[] = [];
+  for (const edgeKey of edgeKeys) {
+    const edge = renderedEdgeByKey.get(edgeKey);
+    if (edge) edges.push(edge);
+  }
+  return edges;
+}
+
+function edgeClassName(
+  edge: RenderedTreeEdge,
+  allocatedEdgeKeys: ReadonlySet<string> | undefined,
+  allocationPathEdgeKeys: ReadonlySet<string> | undefined,
+  hoverAllocationPathEdgeKeys: ReadonlySet<string> | undefined,
+  debug: DebugOverlayState,
+): string {
+  const classNames = ["tree-edge"];
+  if (allocatedEdgeKeys?.has(edge.key)) classNames.push("allocated");
+  if (debug.showEdgeRoutes) classNames.push("edge-route-debug", edge.routeClass);
+  if (edge.ascendancyClass) classNames.push(edge.ascendancyClass);
+  if (allocationPathEdgeKeys?.has(edge.key)) classNames.push("allocation-path");
+  if (hoverAllocationPathEdgeKeys?.has(edge.key)) classNames.push("hover-allocation-path");
+  return classNames.join(" ");
+}
+
+function nodeAscendancyClass(node: TreeNode, activeAscendancyId: string | undefined): string | undefined {
+  if (!activeAscendancyId || !node.flags.ascendancy) return undefined;
+  return node.ascendancy?.id === activeAscendancyId ? "active-ascendancy" : "inactive-ascendancy";
+}
+
+function edgeAscendancyClass(
+  from: TreeNode,
+  to: TreeNode,
+  activeAscendancyId: string | undefined,
+): string | undefined {
+  if (!activeAscendancyId || !from.flags.ascendancy || !to.flags.ascendancy) return undefined;
+  const fromAscendancyId = from.ascendancy?.id;
+  const toAscendancyId = to.ascendancy?.id;
+  if (!fromAscendancyId || fromAscendancyId !== toAscendancyId) return undefined;
+  return fromAscendancyId === activeAscendancyId ? "active-ascendancy-edge" : "inactive-ascendancy-edge";
 }
 
 function shouldDrawEdge(from: TreeNode | undefined, to: TreeNode | undefined): boolean {
@@ -484,14 +772,34 @@ function clientPointToSvg(svg: SVGSVGElement, clientX: number, clientY: number):
   return { x: svgPoint.x, y: svgPoint.y };
 }
 
-function ButtonNode({
-  node,
+type ButtonNodeProps = {
+  renderedNode: RenderedTreeNode;
+  selected: boolean;
+  pathStart: boolean;
+  ascendancyClass?: string;
+  noAllocationPath: boolean;
+  nodeVisualScale: number;
+  buildGoal: boolean;
+  allocated: boolean;
+  allocationPath: boolean;
+  hoverAllocationPath: boolean;
+  debug: DebugOverlayState;
+  orphan: boolean;
+  onShowTooltipAtPointer: (node: TreeNode, event: MouseEvent<SVGGElement> | PointerEvent<SVGGElement>) => void;
+  onShowTooltipAtElement: (node: TreeNode, element: SVGGElement) => void;
+  onHideTooltip: () => void;
+  onHoverNode?: (nodeId: string | undefined) => void;
+  onBeginNodePress: (nodeId: string, event: PointerEvent<SVGGElement>) => void;
+  onSelectNode: (nodeId: string) => void;
+};
+
+const ButtonNode = memo(function ButtonNode({
+  renderedNode,
   selected,
   pathStart,
+  ascendancyClass,
   noAllocationPath,
   nodeVisualScale,
-  searchMatched,
-  searchFocused,
   buildGoal,
   allocated,
   allocationPath,
@@ -504,36 +812,11 @@ function ButtonNode({
   onHoverNode,
   onBeginNodePress,
   onSelectNode,
-}: {
-  node: TreeNode;
-  selected: boolean;
-  pathStart: boolean;
-  noAllocationPath: boolean;
-  nodeVisualScale: number;
-  searchMatched: boolean;
-  searchFocused: boolean;
-  buildGoal: boolean;
-  allocated: boolean;
-  allocationPath: boolean;
-  hoverAllocationPath: boolean;
-  debug: DebugOverlayState;
-  orphan: boolean;
-  onShowTooltipAtPointer: (node: TreeNode, event: MouseEvent<SVGGElement> | PointerEvent<SVGGElement>) => void;
-  onShowTooltipAtElement: (node: TreeNode, element: SVGGElement) => void;
-  onHideTooltip: () => void;
-  onHoverNode?: (nodeId: string | undefined) => void;
-  onBeginNodePress: (nodeId: string) => void;
-  onSelectNode: (nodeId: string) => void;
-}) {
-  const typeClass = nodeClass(node);
-  const visual = nodeVisual(node, typeClass, nodeVisualScale);
+}: ButtonNodeProps) {
+  const { node, typeClass, visual, label, iconPath } = renderedNode;
   const radius = visual.coreRadius;
-  const label = node.name ?? node.id;
-  const iconPath = node.art?.icon
-    ? passiveIconPublicPath(node.art.icon, node.art.assetKey)
-    : undefined;
-  const iconClipPathId = iconPath ? nodeIconClipPathId(node.id) : undefined;
-  const missingStats = debug.highlightMissingStats && node.stats.length === 0 && !node.flags.jewelSocket && !node.flags.classStart;
+  const iconClipPathId = iconPath ? nodeIconClipPathId : undefined;
+  const missingStats = debug.highlightMissingStats && node.stats.length === 0 && !isStatlessNodeAllowed(node);
   const handleSelect = () => onSelectNode(node.id);
   const handleKeyDown = (event: KeyboardEvent<SVGGElement>) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -542,7 +825,7 @@ function ButtonNode({
     handleSelect();
   };
   const handleMouseEnter = (event: MouseEvent<SVGGElement>) => {
-    onHoverNode?.(node.id);
+    onHoverNode?.(event.ctrlKey ? undefined : node.id);
     onShowTooltipAtPointer(node, event);
   };
   const handleMouseLeave = () => {
@@ -550,7 +833,7 @@ function ButtonNode({
     onHideTooltip();
   };
   const handlePointerEnter = (event: PointerEvent<SVGGElement>) => {
-    onHoverNode?.(node.id);
+    onHoverNode?.(event.ctrlKey ? undefined : node.id);
     onShowTooltipAtPointer(node, event);
   };
   const handlePointerLeave = () => {
@@ -568,13 +851,13 @@ function ButtonNode({
 
   return (
     <g
-      className={`tree-node ${typeClass} ${visual.accentClass}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${searchMatched ? " search-match" : ""}${searchFocused ? " search-focus" : ""}${buildGoal ? " build-goal" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${hoverAllocationPath ? " hover-allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
+      className={`tree-node ${typeClass} ${visual.accentClass}${ascendancyClass ? ` ${ascendancyClass}` : ""}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${buildGoal ? " build-goal" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${hoverAllocationPath ? " hover-allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}
       aria-label={label}
       aria-pressed={selected}
-      onPointerDown={() => onBeginNodePress(node.id)}
+      onPointerDown={(event) => onBeginNodePress(node.id, event)}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       onPointerEnter={handlePointerEnter}
@@ -584,19 +867,10 @@ function ButtonNode({
       onFocus={handleFocus}
       onBlur={handleBlur}
     >
-      {iconClipPathId ? (
-        <defs>
-          <clipPath id={iconClipPathId} className="node-icon-clip" clipPathUnits="userSpaceOnUse">
-            <circle r={radius} />
-          </clipPath>
-        </defs>
-      ) : null}
       <circle className="node-hit-target" r={visual.frameRadius + 16 * nodeVisualScale} />
       {orphan ? <circle className="debug-ring orphan-ring" r={radius + 14 * nodeVisualScale} /> : null}
       {missingStats ? <circle className="debug-ring missing-stats-ring" r={radius + 8 * nodeVisualScale} /> : null}
       {visual.haloRadius ? <circle className="node-halo" r={visual.haloRadius} /> : null}
-      {searchMatched ? <circle className="search-pulse-marker" r={visual.frameRadius + 20 * nodeVisualScale} /> : null}
-      {searchFocused ? <circle className="search-focus-marker" r={visual.frameRadius + 34 * nodeVisualScale} /> : null}
       {buildGoal ? <circle className="build-goal-marker" r={visual.frameRadius + 52 * nodeVisualScale} /> : null}
       {pathStart ? <circle className="path-start-marker" r={visual.frameRadius + 44 * nodeVisualScale} /> : null}
       {hoverAllocationPath ? <circle className="hover-path-marker" r={visual.frameRadius + 24 * nodeVisualScale} /> : null}
@@ -620,6 +894,26 @@ function ButtonNode({
         />
       ) : renderNodeGlyph(visual)}
       {debug.showNodeIds ? <text className="node-id-label" y={-radius - 8}>{node.id}</text> : null}
+    </g>
+  );
+});
+
+function SearchMatchMarker({ renderedNode, nodeVisualScale }: { renderedNode: RenderedTreeNode; nodeVisualScale: number }) {
+  const { node, visual } = renderedNode;
+  return (
+    <g className="search-match-node" transform={`translate(${node.position.x} ${node.position.y})`}>
+      <circle className="search-match-marker" r={visual.frameRadius + 7 * nodeVisualScale} />
+      <circle className="search-match-core-marker" r={visual.coreRadius + 2 * nodeVisualScale} />
+    </g>
+  );
+}
+
+function SearchFocusMarker({ renderedNode, nodeVisualScale }: { renderedNode: RenderedTreeNode; nodeVisualScale: number }) {
+  const { node, visual } = renderedNode;
+  return (
+    <g className="search-focus-node" transform={`translate(${node.position.x} ${node.position.y})`}>
+      <circle className="search-focus-marker" r={visual.frameRadius + 18 * nodeVisualScale} />
+      <circle className="search-focus-core-marker" r={visual.coreRadius + 5 * nodeVisualScale} />
     </g>
   );
 }
@@ -647,12 +941,28 @@ function NodeTooltipShell({
   );
 }
 
-function tooltipStatElements(stats: readonly string[]): HTMLDivElement[] {
-  return stats.map((stat) => {
-    const element = document.createElement("div");
-    element.textContent = stat;
-    return element;
-  });
+function tooltipStatElements(node: TreeNode): HTMLDivElement[] {
+  const elements = node.stats.map((stat) => tooltipLineElement(stat));
+  const masteryEffects = node.masteryEffects ?? [];
+
+  if (masteryEffects.length > 0) {
+    elements.push(tooltipLineElement("Mastery choices", "node-tooltip-section-title"));
+    for (const effect of masteryEffects) {
+      for (const stat of effect.stats) {
+        elements.push(tooltipLineElement(stat, "node-tooltip-mastery-stat"));
+      }
+    }
+  }
+
+  if (elements.length === 0) return [tooltipLineElement(nodeTypeLabel(node))];
+  return elements;
+}
+
+function tooltipLineElement(text: string, className?: string): HTMLDivElement {
+  const element = document.createElement("div");
+  if (className) element.className = className;
+  element.textContent = text;
+  return element;
 }
 
 function tooltipPositionFromClientPoint(clientX: number, clientY: number): Point {
@@ -695,7 +1005,7 @@ function nodeVisual(node: TreeNode, typeClass: string, nodeVisualScale: number):
     haloRadius: nodeHaloRadius(typeClass, coreRadius, nodeVisualScale),
     glyph: nodeGlyph(typeClass),
     accentClass: nodeAccentClass(node),
-    iconSize: roundNodeVisualNumber(coreRadius * 2.2),
+    iconSize: roundNodeVisualNumber(coreRadius * nodeIconSizeMultiplier),
   };
 }
 
@@ -721,6 +1031,8 @@ function nodeTypeLabel(node: TreeNode): string {
   if (node.flags.keystone) return "Keystone";
   if (node.flags.notable) return "Notable";
   if (node.flags.jewelSocket) return "Jewel socket";
+  if (node.flags.mastery) return "Mastery";
+  if (node.flags.ascendancy) return "Ascendancy passive";
   if (node.flags.attribute) return "Attribute";
   return "Small passive";
 }
@@ -746,7 +1058,7 @@ function nodeGlyph(typeClass: string): NodeGlyph | undefined {
 }
 
 function nodeAccentClass(node: TreeNode): string {
-  const text = node.stats.join(" ").toLowerCase();
+  const text = nodeStatsAndChoicesText(node);
   if (text.includes("strength")) return "node-accent-strength";
   if (text.includes("dexterity")) return "node-accent-dexterity";
   if (text.includes("intelligence")) return "node-accent-intelligence";
@@ -761,6 +1073,23 @@ function nodeAccentClass(node: TreeNode): string {
   if (text.includes("lightning")) return "node-accent-lightning";
   if (text.includes("chaos")) return "node-accent-chaos";
   return "node-accent-default";
+}
+
+function nodeStatsAndChoicesText(node: TreeNode): string {
+  return [
+    ...node.stats,
+    ...(node.masteryEffects?.flatMap((effect) => effect.stats) ?? []),
+  ].join(" ").toLowerCase();
+}
+
+function isStatlessNodeAllowed(node: TreeNode): boolean {
+  return Boolean(
+    node.flags.classStart
+    || node.flags.jewelSocket
+    || node.flags.mastery
+    || node.flags.ascendancy
+    || node.masteryEffects?.length,
+  );
 }
 
 function renderNodeGlyph(visual: NodeVisual) {
@@ -822,8 +1151,4 @@ function renderNodeGlyph(visual: NodeVisual) {
 
 function roundNodeVisualNumber(value: number): number {
   return Math.round(value * 10) / 10;
-}
-
-function nodeIconClipPathId(nodeId: string): string {
-  return `node-icon-clip-${nodeId.replace(/[^A-Za-z0-9_-]/g, "-")}`;
 }

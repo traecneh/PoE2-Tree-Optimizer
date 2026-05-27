@@ -1,4 +1,5 @@
 import type { TreeGraph } from "./types";
+import { publicAssetPath } from "./publicAssetPaths";
 
 export type PassiveIconAsset = {
   source: string;
@@ -12,7 +13,7 @@ export type PassiveIconAssetManifest = {
   icons: PassiveIconAsset[];
 };
 
-const defaultPublicIconBasePath = "/tree-assets/icons";
+const defaultPublicIconBasePath = publicAssetPath("tree-assets/icons");
 
 export function buildPassiveIconAssetManifest(
   graph: TreeGraph,

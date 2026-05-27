@@ -9,6 +9,21 @@ export type TreeNodeFlags = {
   notable?: boolean;
   keystone?: boolean;
   jewelSocket?: boolean;
+  mastery?: boolean;
+  ascendancy?: boolean;
+};
+
+export type TreeNodeMasteryEffect = {
+  id: string;
+  stats: string[];
+};
+
+export type TreeNodeAscendancy = {
+  id: string;
+  name: string;
+  className: string;
+  disabled: boolean;
+  startNode?: boolean;
 };
 
 export type TreeNode = {
@@ -22,6 +37,8 @@ export type TreeNode = {
   };
   position: { x: number; y: number };
   flags: TreeNodeFlags;
+  masteryEffects?: TreeNodeMasteryEffect[];
+  ascendancy?: TreeNodeAscendancy;
   art?: {
     icon?: string;
     assetKey?: string;

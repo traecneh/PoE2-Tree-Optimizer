@@ -43,4 +43,38 @@ describe("validateTreeGraph", () => {
     expect(report.summary.missingCoordinateCount).toBe(1);
     expect(report.summary.orphanNodeCount).toBe(1);
   });
+
+  it("does not report missing stats for mastery choice or ascendancy nodes", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        mastery: {
+          id: "mastery",
+          name: "Attack Mastery",
+          stats: [],
+          masteryEffects: [{ id: "Attack1", stats: ["12% increased Attack Damage"] }],
+          position: { x: 80, y: 0 },
+          flags: { small: true, mastery: true },
+        },
+        ascendancy: {
+          id: "ascendancy",
+          name: "Ascendancy Placeholder",
+          stats: [],
+          position: { x: 90, y: 0 },
+          flags: { notable: true, ascendancy: true },
+        },
+      },
+      edges: [
+        ...sampleGraph.edges,
+        { from: "projectile_damage", to: "mastery" },
+        { from: "projectile_damage", to: "ascendancy" },
+      ],
+    };
+
+    const report = validateTreeGraph(graph);
+
+    expect(report.issues.filter((issue) => issue.code === "missing-stats")).toEqual([]);
+    expect(report.summary.missingStatCount).toBe(0);
+  });
 });

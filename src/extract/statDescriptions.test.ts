@@ -60,6 +60,9 @@ describe("createStatDescriptionFormatter", () => {
       { _index: 701, Id: "rage_loss_delay_ms" },
       { _index: 702, Id: "base_darkness_refresh_rate_ms" },
       { _index: 703, Id: "dodge_roll_travel_distance_+_while_surrounded" },
+      { _index: 704, Id: "max_jade_stacks" },
+      { _index: 705, Id: "dummy_stat_display_nothing" },
+      { _index: 706, Id: "base_physical_damage_reduction_rating_no_display" },
     ],
     descriptions: [fixtureDescriptions],
   });
@@ -77,6 +80,15 @@ describe("createStatDescriptionFormatter", () => {
     expect(format(701, 4000)).toBe("Lose Rage after 4 seconds");
     expect(format(702, 1250)).toBe("Darkness refreshes after 1.25 seconds");
     expect(format(703, 15)).toBe("1.5 metres to Dodge Roll distance");
+  });
+
+  it("falls back to readable stat ids when a known stat has no description", () => {
+    expect(format(704, 10)).toBe("10 Max Jade Stacks");
+  });
+
+  it("omits known dummy and no-display stats", () => {
+    expect(format(705, 1)).toBe("");
+    expect(format(706, 200)).toBe("");
   });
 
   it("returns undefined for unknown stat ids or missing values", () => {

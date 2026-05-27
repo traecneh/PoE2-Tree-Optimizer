@@ -1,13 +1,16 @@
 import { deflateSync } from "node:zlib";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { sampleGraph } from "./tree/sampleGraph";
 import type { TreeGraph } from "./tree/types";
 
+configure({ asyncUtilTimeout: 3000 });
+
 describe("App", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    window.localStorage.clear();
   });
 
   function stubTreeFetch() {
@@ -18,6 +21,13 @@ describe("App", () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
       ok: true,
       json: () => Promise.resolve(graph),
+    })));
+  }
+
+  function stubTreeFetchFailure() {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({
+      ok: false,
+      json: () => Promise.resolve({}),
     })));
   }
 
@@ -74,6 +84,78 @@ describe("App", () => {
     };
   }
 
+  function repeatedMinionFixtureGraph(): TreeGraph {
+    return {
+      ...sampleGraph,
+      gameVersion: "repeated-minion-fixture",
+      nodes: {
+        ...sampleGraph.nodes,
+        minion_damage_one: {
+          id: "minion_damage_one",
+          groupId: "g1",
+          name: "Minion Damage One",
+          stats: ["15% increased Minion Damage"],
+          position: { x: 80, y: 100 },
+          flags: { small: true },
+        },
+        minion_damage_two: {
+          id: "minion_damage_two",
+          groupId: "g1",
+          name: "Minion Damage Two",
+          stats: ["15% increased Minion Damage"],
+          position: { x: 160, y: 100 },
+          flags: { small: true },
+        },
+        minion_damage_three: {
+          id: "minion_damage_three",
+          groupId: "g1",
+          name: "Minion Damage Three",
+          stats: ["15% increased Minion Damage"],
+          position: { x: 240, y: 100 },
+          flags: { small: true },
+        },
+        minion_damage_notable: {
+          id: "minion_damage_notable",
+          groupId: "g1",
+          name: "Minion Commander",
+          stats: ["25% increased Minion Damage"],
+          position: { x: 320, y: 100 },
+          flags: { notable: true },
+        },
+      },
+      groups: {
+        ...sampleGraph.groups,
+        g1: {
+          ...sampleGraph.groups.g1,
+          nodeIds: [
+            ...sampleGraph.groups.g1.nodeIds,
+            "minion_damage_one",
+            "minion_damage_two",
+            "minion_damage_three",
+            "minion_damage_notable",
+          ],
+        },
+      },
+      edges: [
+        ...sampleGraph.edges,
+        { from: "mercenary_start", to: "minion_damage_one" },
+        { from: "minion_damage_one", to: "minion_damage_two" },
+        { from: "minion_damage_two", to: "minion_damage_three" },
+        { from: "minion_damage_three", to: "minion_damage_notable" },
+      ],
+      bounds: { ...sampleGraph.bounds, maxY: 120 },
+    };
+  }
+
+  it("shows a clear missing data notice when the real tree graph cannot be loaded", async () => {
+    stubTreeFetchFailure();
+
+    render(<App />);
+
+    expect(await screen.findByText(/Real tree data is unavailable/i)).not.toBeNull();
+    expect(screen.getByText(/run npm run prepare-data/i)).not.toBeNull();
+  });
+
   function pobImportFixtureGraph(): TreeGraph {
     return {
       schemaVersion: 1,
@@ -129,6 +211,219 @@ describe("App", () => {
     };
   }
 
+  function poe2ClassStartFixtureGraph(): TreeGraph {
+    return {
+      schemaVersion: 1,
+      gameVersion: "poe2-class-start-fixture",
+      extractedAt: "2026-05-27T00:00:00.000Z",
+      source: { kind: "fixture", path: "src/App.test.tsx" },
+      nodes: {
+        witch_start: {
+          id: "witch_start",
+          name: "WITCH",
+          stats: ["Starting point"],
+          position: { x: 0, y: -100 },
+          flags: { classStart: true },
+        },
+        ranger_start: {
+          id: "ranger_start",
+          name: "RANGER",
+          stats: ["Starting point"],
+          position: { x: 100, y: 0 },
+          flags: { classStart: true },
+        },
+        marauder_start: {
+          id: "marauder_start",
+          name: "MARAUDER",
+          stats: ["Starting point"],
+          position: { x: -100, y: 0 },
+          flags: { classStart: true },
+        },
+        duelist_start: {
+          id: "duelist_start",
+          name: "DUELIST",
+          stats: ["Starting point"],
+          position: { x: 0, y: 100 },
+          flags: { classStart: true },
+        },
+        six_start: {
+          id: "six_start",
+          name: "SIX",
+          stats: ["Starting point"],
+          position: { x: 100, y: -100 },
+          flags: { classStart: true },
+        },
+        templar_start: {
+          id: "templar_start",
+          name: "TEMPLAR",
+          stats: ["Starting point"],
+          position: { x: -100, y: -100 },
+          flags: { classStart: true },
+        },
+      },
+      groups: {},
+      edges: [],
+      classStarts: {
+        WITCH: "witch_start",
+        RANGER: "ranger_start",
+        MARAUDER: "marauder_start",
+        DUELIST: "duelist_start",
+        SIX: "six_start",
+        TEMPLAR: "templar_start",
+      },
+      bounds: { minX: -100, maxX: 100, minY: -100, maxY: 100 },
+    };
+  }
+
+  function poe2AscendancyFixtureGraph(): TreeGraph {
+    const graph = poe2ClassStartFixtureGraph();
+    const ascendancyNodes = Object.fromEntries(
+      Array.from({ length: 9 }, (_, index) => {
+        const nodeNumber = index + 1;
+        const nodeId = `gemling_${nodeNumber}`;
+        return [nodeId, {
+          id: nodeId,
+          name: `Gemling Passive ${nodeNumber}`,
+          stats: [`${nodeNumber}% increased Gemling Power`],
+          position: { x: 1000 + nodeNumber * 80, y: 1000 },
+          flags: { small: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        }];
+      }),
+    );
+
+    return {
+      ...graph,
+      gameVersion: "poe2-ascendancy-fixture",
+      nodes: {
+        ...graph.nodes,
+        gemling_start: {
+          id: "gemling_start",
+          name: "Gambler",
+          stats: [],
+          position: { x: 1000, y: 1000 },
+          flags: { classStart: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+            startNode: true,
+          },
+        },
+        ...ascendancyNodes,
+        witchhunter_passive: {
+          id: "witchhunter_passive",
+          name: "Witchhunter Passive",
+          stats: ["10% increased Witchhunter Power"],
+          position: { x: 1200, y: 1200 },
+          flags: { notable: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary1",
+            name: "Witchhunter",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        implanted_gems: {
+          id: "implanted_gems",
+          name: "Implanted Gems",
+          stats: [],
+          position: { x: 900, y: 1100 },
+          flags: { notable: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        neurological_implants: {
+          id: "neurological_implants",
+          name: "Neurological Implants",
+          stats: ["+2 to Level of all Skills with an Intelligence requirement"],
+          position: { x: 980, y: 1180 },
+          flags: { small: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        bolstering_implants: {
+          id: "bolstering_implants",
+          name: "Bolstering Implants",
+          stats: ["+2 to Level of all Skills with a Strength requirement"],
+          position: { x: 900, y: 1200 },
+          flags: { small: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        motoric_implants: {
+          id: "motoric_implants",
+          name: "Motoric Implants",
+          stats: ["+2 to Level of all Skills with a Dexterity requirement"],
+          position: { x: 820, y: 1180 },
+          flags: { small: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+      },
+      edges: [
+        ...graph.edges,
+        { from: "duelist_start", to: "gemling_start" },
+        { from: "gemling_start", to: "gemling_1" },
+        ...Array.from({ length: 8 }, (_, index) => ({
+          from: `gemling_${index + 1}`,
+          to: `gemling_${index + 2}`,
+        })),
+        { from: "gemling_1", to: "implanted_gems" },
+        { from: "implanted_gems", to: "neurological_implants" },
+        { from: "implanted_gems", to: "bolstering_implants" },
+        { from: "implanted_gems", to: "motoric_implants" },
+      ],
+      bounds: { minX: -100, maxX: 1800, minY: -100, maxY: 1300 },
+    };
+  }
+
+  function changePassiveSearch(query: string) {
+    const input = screen.getByLabelText("Passive search") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: query } });
+    expect(input.value).toBe(query);
+  }
+
+  function enableHoverPathPreview() {
+    const toggle = screen.getByLabelText("Hover path preview") as HTMLInputElement;
+    fireEvent.click(toggle);
+    expect(toggle.checked).toBe(true);
+  }
+
+  function saveCurrentBuildAs(name: string) {
+    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: name } });
+    fireEvent.click(screen.getByRole("button", { name: "Save build" }));
+  }
+
+  function selectSavedBuild(name: string) {
+    const savedBuildSelect = screen.getByLabelText("Saved build") as HTMLSelectElement;
+    const option = Array.from(savedBuildSelect.options).find((currentOption) => currentOption.textContent === name);
+    expect(option).toBeDefined();
+    fireEvent.change(savedBuildSelect, { target: { value: option?.value } });
+  }
+
   it("lets the viewer node size be adjusted", () => {
     stubTreeFetch();
 
@@ -142,83 +437,373 @@ describe("App", () => {
     expect(classStart.querySelector(".node-core")?.getAttribute("r")).toBe("26");
   });
 
-  it("searches passive names and stats and highlights matching nodes", () => {
+  it("resets pending allocation previews from the header", () => {
     stubTreeFetch();
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
 
-    expect(screen.getByText("1 match")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("search-match")).toBe(true);
-    expect(screen.getByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" })).not.toBeNull();
-    expect(screen.getByText("Notable · 2 points from allocation")).not.toBeNull();
-    expect(screen.queryByText("Notable · precise_shot")).toBeNull();
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(3);
+
+    const resetButton = screen.getByRole("button", { name: "Reset allocation" }) as HTMLButtonElement;
+    expect(resetButton.disabled).toBe(false);
+
+    fireEvent.click(resetButton);
+
+    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("allocation-path")).toBe(false);
   });
 
-  it("focuses the map highlight when hovering a passive search result", () => {
+  it("does not show internal debug overlay controls in the header", () => {
     stubTreeFetch();
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
-
-    const result = screen.getByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" });
-    const mapNode = screen.getByRole("button", { name: "Precise Shot" });
-
-    fireEvent.mouseEnter(result);
-
-    expect(mapNode.classList.contains("search-focus")).toBe(true);
-    expect(mapNode.querySelector(".search-focus-marker")).not.toBeNull();
-
-    fireEvent.mouseLeave(result);
-
-    expect(mapNode.classList.contains("search-focus")).toBe(false);
-    expect(mapNode.querySelector(".search-focus-marker")).toBeNull();
+    expect(screen.queryByLabelText("Node IDs")).toBeNull();
+    expect(screen.queryByLabelText("Missing stats")).toBeNull();
+    expect(screen.queryByLabelText("Orphans")).toBeNull();
+    expect(screen.queryByLabelText("Edge routes")).toBeNull();
+    expect(screen.queryByLabelText("Route labels")).toBeNull();
   });
 
-  it("keeps the map highlight focused when selecting a passive search result", () => {
+  it("summarizes the currently visible allocation preview and committed path", () => {
     stubTreeFetch();
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+    const summary = screen.getByRole("complementary", { name: "Build summary" });
+    expect(within(summary).getByText("No allocated passives yet.")).not.toBeNull();
 
-    const result = screen.getByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" });
-    const mapNode = screen.getByRole("button", { name: "Precise Shot" });
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
 
-    fireEvent.click(result);
+    expect(within(summary).getByText("2 allocated points")).not.toBeNull();
+    expect(within(summary).getByText("12% increased Projectile Damage")).not.toBeNull();
+    expect(within(summary).getByText("25% increased Critical Hit Chance")).not.toBeNull();
+    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
 
-    expect(mapNode.classList.contains("search-focus")).toBe(true);
-    expect(mapNode.querySelector(".search-focus-marker")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+
+    expect(within(summary).getByText("2 allocated points")).not.toBeNull();
+    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
   });
 
-  it("shows allocated status for passive search results that are already allocated", () => {
+  it("adds any non-start passive as a build goal with Ctrl-click without pathing to it", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const smallPassive = screen.getByRole("button", { name: "Projectile Damage" });
+
+    fireEvent.pointerDown(smallPassive, { pointerId: 1, button: 0, clientX: 100, clientY: 100, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+
+    const buildGoals = screen.getByRole("region", { name: "Build goals" });
+    expect(within(buildGoals).getByText("Projectile Damage")).not.toBeNull();
+    expect(within(buildGoals).getByText("Passive · 1 point from allocation")).not.toBeNull();
+    expect(smallPassive.classList.contains("build-goal")).toBe(true);
+    expect(smallPassive.classList.contains("allocation-path")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(0);
+  });
+
+  it("removes a build goal when Ctrl-clicking the same map node again", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const smallPassive = screen.getByRole("button", { name: "Projectile Damage" });
+    const tree = screen.getByRole("img", { name: "PoE2 passive skill tree" });
+
+    fireEvent.pointerDown(smallPassive, { pointerId: 1, button: 0, clientX: 100, clientY: 100, ctrlKey: true });
+    fireEvent.pointerUp(tree, { pointerId: 1 });
+
+    const buildGoals = screen.getByRole("region", { name: "Build goals" });
+    expect(within(buildGoals).getByText("Projectile Damage")).not.toBeNull();
+    expect(smallPassive.classList.contains("build-goal")).toBe(true);
+
+    fireEvent.pointerDown(smallPassive, { pointerId: 2, button: 0, clientX: 100, clientY: 100, ctrlKey: true });
+    fireEvent.pointerUp(tree, { pointerId: 2 });
+
+    expect(within(buildGoals).queryByText("Projectile Damage")).toBeNull();
+    expect(within(buildGoals).getByText("No build goals selected.")).not.toBeNull();
+    expect(smallPassive.classList.contains("build-goal")).toBe(false);
+  });
+
+  it("saves and loads named builds from the header", () => {
     stubTreeFetch();
 
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add build goal" }));
+    saveCurrentBuildAs("Crit starter");
 
-    expect(screen.getByText("Notable · Allocated")).not.toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("Saved Crit starter");
+    expect((screen.getByLabelText("Saved build") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("Crit starter");
+
+    fireEvent.click(screen.getByRole("button", { name: "New build" }));
+
+    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("");
+    expect(within(screen.getByRole("region", { name: "Build goals" })).getByText("No build goals selected.")).not.toBeNull();
+
+    selectSavedBuild("Crit starter");
+
+    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
+    expect(within(screen.getByRole("region", { name: "Build goals" })).getByText("Precise Shot")).not.toBeNull();
+    expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("Crit starter");
   });
 
-  it("calculates passive search distance from the closest node in the current planned path", () => {
+  it("updates, deletes, and persists saved builds across remounts", () => {
+    stubTreeFetch();
+
+    const { unmount } = render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+    saveCurrentBuildAs("First pass");
+
+    unmount();
+    render(<App />);
+
+    selectSavedBuild("First pass");
+    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: "Updated pass" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save build" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New build" }));
+    selectSavedBuild("Updated pass");
+
+    expect(screen.getByText("Allocated 3 points")).not.toBeNull();
+    expect(screen.queryByText("First pass")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete build" }));
+
+    expect(screen.getByRole("status").textContent).toBe("Deleted Updated pass");
+    expect(screen.queryByText("Updated pass")).toBeNull();
+    expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("");
+    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+  });
+
+  it("shows PoE2 class aliases and saves the selected class label separately from the root node", async () => {
+    stubTreeFetchWithGraph(poe2ClassStartFixtureGraph());
+
+    render(<App />);
+
+    const pathStartSelect = screen.getByLabelText("Path start") as HTMLSelectElement;
+
+    await waitFor(() => {
+      expect(Array.from(pathStartSelect.options).map((option) => option.textContent)).toEqual([
+        "Witch",
+        "Ranger",
+        "Warrior",
+        "Sorceress",
+        "Huntress",
+        "Mercenary",
+        "Monk",
+        "Druid",
+      ]);
+    });
+
+    fireEvent.change(pathStartSelect, { target: { value: "sorceress" } });
+
+    expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Sorceress");
+    expect(screen.getByRole("button", { name: "WITCH" }).classList.contains("path-start")).toBe(true);
+
+    saveCurrentBuildAs("Sorceress alias");
+    fireEvent.change(pathStartSelect, { target: { value: "ranger" } });
+    expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Ranger");
+
+    selectSavedBuild("Sorceress alias");
+
+    expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Sorceress");
+    expect(screen.getByRole("button", { name: "WITCH" }).classList.contains("path-start")).toBe(true);
+  });
+
+  it("selects ascendancy nodes only for the active combined class option and caps them at eight", async () => {
+    stubTreeFetchWithGraph(poe2AscendancyFixtureGraph());
+
+    render(<App />);
+
+    const pathStartSelect = screen.getByLabelText("Path start") as HTMLSelectElement;
+
+    await waitFor(() => {
+      expect(Array.from(pathStartSelect.options).map((option) => option.textContent)).toContain("Mercenary - Gemling Legionnaire");
+    });
+
+    fireEvent.change(pathStartSelect, { target: { value: "mercenary:Mercenary3" } });
+
+    expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Mercenary - Gemling Legionnaire");
+    expect(screen.getByRole("button", { name: "DUELIST" }).classList.contains("path-start")).toBe(true);
+    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("active-ascendancy")).toBe(true);
+    expect(screen.getByRole("button", { name: "Witchhunter Passive" }).classList.contains("inactive-ascendancy")).toBe(true);
+    expect(screen.getByText("Ascendancy 0/8")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 1" }));
+
+    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByText("Ascendancy 1/8")).not.toBeNull();
+    expect(within(screen.getByRole("complementary", { name: "Build summary" })).getByText("1% increased Gemling Power")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Witchhunter Passive" }));
+
+    expect(screen.getByRole("button", { name: "Witchhunter Passive" }).classList.contains("allocated")).toBe(false);
+    expect(screen.getByText("Ascendancy 1/8")).not.toBeNull();
+
+    for (let index = 2; index <= 9; index += 1) {
+      fireEvent.click(screen.getByRole("button", { name: `Gemling Passive ${index}` }));
+    }
+
+    expect(screen.getByText("Ascendancy 8/8")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Gemling Passive 9" }).classList.contains("allocated")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 1" }));
+
+    expect(screen.getByText("Ascendancy 1/8")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Gemling Passive 2" }).classList.contains("allocated")).toBe(false);
+  });
+
+  it("allocates and prunes connected paths inside the selected ascendancy tree", async () => {
+    stubTreeFetchWithGraph(poe2AscendancyFixtureGraph());
+
+    render(<App />);
+
+    const pathStartSelect = screen.getByLabelText("Path start") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(Array.from(pathStartSelect.options).map((option) => option.textContent)).toContain("Mercenary - Gemling Legionnaire");
+    });
+    fireEvent.change(pathStartSelect, { target: { value: "mercenary:Mercenary3" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 3" }));
+
+    expect(screen.getByText("Ascendancy 3/8")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Gemling Passive 2" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Gemling Passive 3" }).classList.contains("allocated")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(3);
+    expect(document.querySelectorAll(".allocated-highlight-layer .allocated-edge")).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 2" }));
+
+    expect(screen.getByText("Ascendancy 2/8")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Gemling Passive 2" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Gemling Passive 3" }).classList.contains("allocated")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
+  });
+
+  it("counts ascendancy choice nodes as part of their parent point", async () => {
+    stubTreeFetchWithGraph(poe2AscendancyFixtureGraph());
+
+    render(<App />);
+
+    const pathStartSelect = screen.getByLabelText("Path start") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(Array.from(pathStartSelect.options).map((option) => option.textContent)).toContain("Mercenary - Gemling Legionnaire");
+    });
+    fireEvent.change(pathStartSelect, { target: { value: "mercenary:Mercenary3" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Neurological Implants" }));
+
+    expect(screen.getByText("Ascendancy 2/8")).not.toBeNull();
+    expect(within(screen.getByRole("complementary", { name: "Build summary" })).getByText("2 allocated points")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Implanted Gems" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Neurological Implants" }).classList.contains("allocated")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Motoric Implants" }));
+
+    expect(screen.getByText("Ascendancy 2/8")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Neurological Implants" }).classList.contains("allocated")).toBe(false);
+    expect(screen.getByRole("button", { name: "Motoric Implants" }).classList.contains("allocated")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(3);
+  });
+
+  it("searches passive names and stats and highlights matching nodes", async () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    changePassiveSearch("critical");
+
+    expect(await screen.findByText("1 match")).not.toBeNull();
+    expect(document.querySelectorAll(".search-highlight-layer .search-match-marker")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" })).not.toBeNull();
+    expect(screen.getByText("Notable · 2 points from allocation")).not.toBeNull();
+    expect(screen.queryByText("Notable · precise_shot")).toBeNull();
+  });
+
+  it("focuses the map highlight when hovering a passive search result", async () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    changePassiveSearch("critical");
+
+    const result = await screen.findByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" });
+    const mapNode = screen.getByRole("button", { name: "Precise Shot" });
+
+    fireEvent.mouseEnter(result);
+
+    expect(mapNode.classList.contains("search-focus")).toBe(false);
+    expect(document.querySelectorAll(".search-focus-highlight-layer .search-focus-marker")).toHaveLength(1);
+
+    fireEvent.mouseLeave(result);
+
+    expect(mapNode.classList.contains("search-focus")).toBe(false);
+    expect(document.querySelectorAll(".search-focus-highlight-layer .search-focus-marker")).toHaveLength(0);
+  });
+
+  it("keeps the map highlight focused when selecting a passive search result", async () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    changePassiveSearch("critical");
+
+    const result = await screen.findByRole("button", { name: "Precise Shot 25% increased Critical Hit Chance" });
+    const mapNode = screen.getByRole("button", { name: "Precise Shot" });
+
+    fireEvent.click(result);
+
+    expect(mapNode.classList.contains("search-focus")).toBe(false);
+    expect(document.querySelectorAll(".search-focus-highlight-layer .search-focus-marker")).toHaveLength(1);
+  });
+
+  it("shows allocated status for passive search results that are already allocated", async () => {
     stubTreeFetch();
 
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+    changePassiveSearch("critical");
 
-    expect(screen.getByText("Notable · 0 points from allocation")).not.toBeNull();
+    expect(await screen.findByText("Notable · Allocated")).not.toBeNull();
+  });
+
+  it("calculates passive search distance from the closest node in the current planned path", async () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+    changePassiveSearch("critical");
+
+    expect(await screen.findByText("Notable · 0 points from allocation")).not.toBeNull();
     expect(screen.queryByText("Notable · Allocated")).toBeNull();
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
+    changePassiveSearch("empty jewel slots");
 
-    expect(screen.getByText("Jewel socket · 1 point from allocation")).not.toBeNull();
+    expect(await screen.findByText("Jewel socket · 1 point from allocation")).not.toBeNull();
     expect(screen.queryByText("Jewel socket · 3 points from allocation")).toBeNull();
   });
 
@@ -229,8 +814,9 @@ describe("App", () => {
 
     await screen.findByText("5 nodes, 4 links, version search-sort-fixture");
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
+    changePassiveSearch("critical");
 
+    await screen.findByText("Small · 1 point from allocation");
     const resultNames = Array.from(document.querySelectorAll(".search-result-name"))
       .map((element) => element.textContent);
 
@@ -239,15 +825,38 @@ describe("App", () => {
     expect(screen.getByText("Notable · 2 points from allocation")).not.toBeNull();
   });
 
-  it("matches jewel sockets when searching for empty jewel slots", () => {
+  it("matches jewel sockets when searching for empty jewel slots", async () => {
     stubTreeFetch();
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
+    changePassiveSearch("empty jewel slots");
 
-    expect(screen.getByText("1 match")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("search-match")).toBe(true);
+    expect(await screen.findByText("1 match")).not.toBeNull();
+    expect(document.querySelectorAll(".search-highlight-layer .search-match-marker")).toHaveLength(1);
+  });
+
+  it("adds all current search results with the same matched stat as build goals", async () => {
+    stubTreeFetchWithGraph(repeatedMinionFixtureGraph());
+
+    render(<App />);
+
+    await screen.findByText("8 nodes, 7 links, version repeated-minion-fixture");
+    changePassiveSearch("15% minion damage");
+
+    const addAllMatching = await screen.findAllByRole("button", {
+      name: "Add all 3 nodes matching 15% increased Minion Damage to build goals",
+    });
+    fireEvent.click(addAllMatching[0]);
+
+    const buildGoals = screen.getByRole("region", { name: "Build goals" });
+    expect(within(buildGoals).getByText("Minion Damage One")).not.toBeNull();
+    expect(within(buildGoals).getByText("Minion Damage Two")).not.toBeNull();
+    expect(within(buildGoals).getByText("Minion Damage Three")).not.toBeNull();
+    expect(within(buildGoals).queryByText("Minion Commander")).toBeNull();
+    expect(screen.getByRole("button", { name: "Minion Damage One" }).classList.contains("build-goal")).toBe(true);
+    expect(screen.getByRole("button", { name: "Minion Damage Two" }).classList.contains("build-goal")).toBe(true);
+    expect(screen.getByRole("button", { name: "Minion Damage Three" }).classList.contains("build-goal")).toBe(true);
   });
 
   it("adds, removes, and clears build goals from the node inspector", () => {
@@ -276,13 +885,13 @@ describe("App", () => {
     expect(within(goalsPanel).getByText("No build goals selected.")).not.toBeNull();
   });
 
-  it("adds build goals from passive search results without duplicating them", () => {
+  it("adds build goals from passive search results without duplicating them", async () => {
     stubTreeFetch();
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Precise Shot to build goals" }));
+    changePassiveSearch("critical");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Precise Shot to build goals" }));
 
     const goalsPanel = screen.getByRole("region", { name: "Build goals" });
     expect(within(goalsPanel).getAllByText("Precise Shot")).toHaveLength(1);
@@ -338,10 +947,10 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Precise Shot to build goals" }));
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Jewel Socket to build goals" }));
+    changePassiveSearch("critical");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Precise Shot to build goals" }));
+    changePassiveSearch("empty jewel slots");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Jewel Socket to build goals" }));
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
 
     expect(await screen.findByText("Optimized route: 3 points")).not.toBeNull();
@@ -355,10 +964,10 @@ describe("App", () => {
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "critical" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Precise Shot to build goals" }));
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Jewel Socket to build goals" }));
+    changePassiveSearch("critical");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Precise Shot to build goals" }));
+    changePassiveSearch("empty jewel slots");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Jewel Socket to build goals" }));
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
 
     await screen.findByText("Optimized route: 3 points");
@@ -376,8 +985,8 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Jewel Socket to build goals" }));
+    changePassiveSearch("empty jewel slots");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Jewel Socket to build goals" }));
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
 
     expect(await screen.findByText("Optimized route: 1 point")).not.toBeNull();
@@ -393,10 +1002,10 @@ describe("App", () => {
 
     await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
 
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "empty jewel slots" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Jewel Socket to build goals" }));
-    fireEvent.change(screen.getByLabelText("Passive search"), { target: { value: "branch" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Near Start Branch to build goals" }));
+    changePassiveSearch("empty jewel slots");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Jewel Socket to build goals" }));
+    changePassiveSearch("branch");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Near Start Branch to build goals" }));
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
 
     await screen.findByText("Optimized route: 4 points");
@@ -418,7 +1027,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect((screen.getByLabelText("Path start") as HTMLSelectElement).value).toBe("mercenary_start");
+    expect((screen.getByLabelText("Path start") as HTMLSelectElement).value).toBe("Mercenary");
     expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("path-start")).toBe(true);
     expect(screen.getByRole("button", { name: "Mercenary" }).querySelector(".path-start-marker")).not.toBeNull();
 
@@ -435,6 +1044,7 @@ describe("App", () => {
     stubTreeFetch();
 
     render(<App />);
+    enableHoverPathPreview();
 
     const target = screen.getByRole("button", { name: "Precise Shot" });
 
@@ -455,10 +1065,74 @@ describe("App", () => {
     expect(document.querySelectorAll(".hover-path-highlight-layer .hover-allocation-path-edge")).toHaveLength(0);
   });
 
+  it("keeps hover allocation previews off until the header toggle is enabled", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const target = screen.getByRole("button", { name: "Precise Shot" });
+
+    fireEvent.mouseEnter(target, { clientX: 220, clientY: 140 });
+
+    expect(target.classList.contains("hover-allocation-path")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(0);
+
+    fireEvent.click(screen.getByLabelText("Hover path preview"));
+    fireEvent.mouseEnter(target, { clientX: 220, clientY: 140 });
+
+    expect(target.classList.contains("hover-allocation-path")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(2);
+
+    fireEvent.click(screen.getByLabelText("Hover path preview"));
+
+    expect(target.classList.contains("hover-allocation-path")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(0);
+  });
+
+  it("does not preview hover paths while Ctrl is held for goal adding", () => {
+    stubTreeFetch();
+
+    render(<App />);
+    enableHoverPathPreview();
+
+    fireEvent.keyDown(window, { key: "Control", ctrlKey: true });
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Precise Shot" }), {
+      clientX: 220,
+      clientY: 140,
+      ctrlKey: true,
+    });
+
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(0);
+
+    fireEvent.keyUp(window, { key: "Control" });
+  });
+
+  it("clears an existing hover path when Ctrl is pressed", () => {
+    stubTreeFetch();
+
+    render(<App />);
+    enableHoverPathPreview();
+
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Precise Shot" }), { clientX: 220, clientY: 140 });
+
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(2);
+
+    fireEvent.keyDown(window, { key: "Control", ctrlKey: true });
+
+    expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("hover-allocation-path")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(0);
+
+    fireEvent.keyUp(window, { key: "Control" });
+  });
+
   it("previews hover paths from the nearest committed allocation", async () => {
     stubTreeFetchWithGraph(endpointFixtureGraph());
 
     render(<App />);
+    enableHoverPathPreview();
 
     await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
 
@@ -476,6 +1150,7 @@ describe("App", () => {
     stubTreeFetch();
 
     render(<App />);
+    enableHoverPathPreview();
 
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
     fireEvent.mouseEnter(screen.getByRole("button", { name: "Jewel Socket" }), { clientX: 320, clientY: 180 });

@@ -8,10 +8,16 @@ export type BuildGoalsPanelGoal = {
 
 export type BuildGoalsPanelStatus =
   | { kind: "idle" }
-  | { kind: "running" }
+  | { kind: "running"; pointCost?: number; improvementHistory?: number[] }
   | { kind: "cancelled" }
   | { kind: "already-reached" }
-  | { kind: "success"; pointCost: number }
+  | {
+    kind: "success";
+    pointCost: number;
+    searchType?: "exact" | "bounded" | "anytime";
+    completeReason?: "exact" | "bounded" | "no-improvement" | "iteration-limit" | "cancelled";
+    improvementHistory?: number[];
+  }
   | { kind: "unreachable"; unreachableGoals: TreeNode[] }
   | { kind: "error"; message: string };
 
@@ -32,6 +38,8 @@ type BuildGoalsPanelProps = {
   pobImportCode: string;
   pobImportStatus: PobBuildImportStatus;
   canApplyOptimizedRoute: boolean;
+  routeCandidateCount?: number;
+  selectedRouteIndex?: number;
   onPobImportCodeChange: (code: string) => void;
   onImportPobBuildGoals: () => void;
   onRemoveGoal: (nodeId: string) => void;
@@ -39,6 +47,8 @@ type BuildGoalsPanelProps = {
   onOptimize: () => void;
   onCancel: () => void;
   onApplyOptimizedRoute: () => void;
+  onPreviousRoute?: () => void;
+  onNextRoute?: () => void;
 };
 
 export function BuildGoalsPanel({
@@ -47,6 +57,8 @@ export function BuildGoalsPanel({
   pobImportCode,
   pobImportStatus,
   canApplyOptimizedRoute,
+  routeCandidateCount = 0,
+  selectedRouteIndex = 0,
   onPobImportCodeChange,
   onImportPobBuildGoals,
   onRemoveGoal,
@@ -54,8 +66,11 @@ export function BuildGoalsPanel({
   onOptimize,
   onCancel,
   onApplyOptimizedRoute,
+  onPreviousRoute,
+  onNextRoute,
 }: BuildGoalsPanelProps) {
   const running = status.kind === "running";
+  const hasRouteCandidates = routeCandidateCount > 1;
 
   return (
     <section className="build-goals-panel" aria-label="Build goals">
@@ -133,11 +148,34 @@ export function BuildGoalsPanel({
           className="tool-button optimized-route-action"
           type="button"
           onClick={onApplyOptimizedRoute}
-          disabled={!canApplyOptimizedRoute || running}
+          disabled={!canApplyOptimizedRoute}
         >
           Apply optimized route
         </button>
       </div>
+      {hasRouteCandidates ? (
+        <div className="optimized-route-nav" aria-label="Optimized route candidates">
+          <button
+            className="tool-button optimized-route-nav-button"
+            type="button"
+            aria-label="Previous optimized route"
+            onClick={onPreviousRoute}
+            disabled={!onPreviousRoute}
+          >
+            {"<"}
+          </button>
+          <span>{`Route ${selectedRouteIndex + 1} of ${routeCandidateCount}`}</span>
+          <button
+            className="tool-button optimized-route-nav-button"
+            type="button"
+            aria-label="Next optimized route"
+            onClick={onNextRoute}
+            disabled={!onNextRoute}
+          >
+            {">"}
+          </button>
+        </div>
+      ) : null}
       <BuildGoalStatusMessage status={status} />
     </section>
   );
@@ -163,6 +201,19 @@ function PobImportStatusMessage({ status }: { status: PobBuildImportStatus }) {
 }
 
 function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {
+  if (status.kind === "idle") return null;
+  if (status.kind === "running" && status.pointCost !== undefined) {
+    return (
+      <div className="build-goals-status running" role="status">
+        <p>{`Best found so far: ${formatPointCost(status.pointCost)}`}</p>
+        {status.improvementHistory && status.improvementHistory.length > 1 ? (
+          <p>{`Improved: ${status.improvementHistory.map((pointCost) => String(pointCost)).join(" -> ")}`}</p>
+        ) : null}
+        <p>Still searching...</p>
+      </div>
+    );
+  }
+
   const message = formatStatusMessage(status);
   if (!message) return null;
 
@@ -178,7 +229,12 @@ function formatStatusMessage(status: BuildGoalsPanelStatus): string | undefined 
   if (status.kind === "running") return "Optimizing...";
   if (status.kind === "cancelled") return "Optimization cancelled.";
   if (status.kind === "already-reached") return "All goals reached";
-  if (status.kind === "success") return `Optimized route: ${formatPointCost(status.pointCost)}`;
+  if (status.kind === "success") {
+    if (status.searchType === "anytime") {
+      return `Best route found: ${formatPointCost(status.pointCost)}`;
+    }
+    return `Optimized route: ${formatPointCost(status.pointCost)}`;
+  }
   if (status.kind === "unreachable") {
     return `Unreachable: ${status.unreachableGoals.map((node) => node.name ?? node.id).join(", ")}`;
   }

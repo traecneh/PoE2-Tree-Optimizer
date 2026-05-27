@@ -1,7 +1,8 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { treeEdgeKey } from "./pathAllocation";
 import type { TreeGraph, TreeNode } from "./types";
-import { optimizeBuildGoals } from "./buildGoalsOptimizer";
+import { optimizeBuildGoals, optimizeBuildGoalsAnytime } from "./buildGoalsOptimizer";
 
 describe("optimizeBuildGoals", () => {
   it("finds the shortest route to one required goal", () => {
@@ -188,6 +189,57 @@ describe("optimizeBuildGoals", () => {
     expect(result.pointCost).toBe(32);
     expect(new Set(result.addedNodeIds)).toEqual(new Set(["hub", ...goalNodeIds]));
     expect(result.unreachableGoalNodeIds).toEqual([]);
+  });
+
+  it("keeps improving large goal routes after the initial bounded result", () => {
+    const graph = JSON.parse(readFileSync("public/tree-graph.json", "utf8")) as TreeGraph;
+    const goalNodeIds = [
+      "5777",
+      "1546",
+      "34553",
+      "9642",
+      "3215",
+      "59541",
+      "55180",
+      "36507",
+      "30720",
+      "38972",
+      "14945",
+      "61026",
+      "54814",
+      "18959",
+      "33240",
+      "62887",
+      "62230",
+      "39567",
+      "61419",
+      "7960",
+      "21984",
+      "26196",
+      "61834",
+      "26725",
+      "31175",
+    ];
+    const progressCosts: number[] = [];
+
+    const result = optimizeBuildGoalsAnytime({
+      graph,
+      baseNodeIds: [graph.classStarts.WITCH],
+      baseEdgeKeys: [],
+      goalNodeIds,
+      mode: "shortest",
+    }, (progress) => {
+      progressCosts.push(progress.pointCost);
+    }, {
+      maxIterations: 200,
+      noImprovementMs: 60_000,
+    });
+
+    expect(result.status).toBe("success");
+    expect(result.searchType).toBe("anytime");
+    expect(progressCosts.length).toBeGreaterThan(1);
+    expect(progressCosts[0]).toBeGreaterThan(result.pointCost);
+    expect(result.routeCandidates?.length).toBeGreaterThan(1);
   });
 });
 

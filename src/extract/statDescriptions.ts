@@ -39,8 +39,9 @@ export function createStatDescriptionFormatter(input: {
     if (typeof value !== "number") return undefined;
     const statName = statNamesByIndex.get(String(statId));
     if (!statName) return undefined;
+    if (isNoDisplayStat(statName)) return "";
     const description = descriptionsByStat.get(statName);
-    if (!description) return undefined;
+    if (!description) return formatUndescribedStat(statName, value);
     const rule = description.rules.find((candidate) => matchesCondition(candidate.condition, value)) ?? description.rules[0];
     if (!rule) return undefined;
     return renderRule(rule, value);
@@ -176,6 +177,33 @@ function roundDisplayNumber(value: number): number {
 
 function formatDisplayNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : String(value).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function formatUndescribedStat(statName: string, value: number): string {
+  const hasPercentUnit = statName.includes("%");
+  const label = humanizeStatName(statName);
+  if (value === 1 && !hasPercentUnit && !hasExplicitMagnitude(statName)) return label;
+  if (hasPercentUnit) return `${formatDisplayNumber(value)}% ${label}`;
+  return `${formatDisplayNumber(value)} ${label}`;
+}
+
+function humanizeStatName(statName: string): string {
+  return statName
+    .replace(/_%_/g, "_")
+    .replace(/_\+_/g, "_")
+    .replace(/_\+$/g, "")
+    .replace(/_ms$/g, " ms")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase())
+    .trim();
+}
+
+function hasExplicitMagnitude(statName: string): boolean {
+  return /(?:^|_)(?:max|maximum|base|additional|number|stacks?|allowed)(?:_|$)/.test(statName);
+}
+
+function isNoDisplayStat(statName: string): boolean {
+  return statName === "dummy_stat_display_nothing" || statName.includes("_no_display");
 }
 
 function cleanupGameMarkup(text: string): string {
