@@ -42,12 +42,6 @@ button {
   font-size: 18px;
 }
 
-.top-bar p {
-  margin: 4px 0 0;
-  color: #aab4c4;
-  font-size: 13px;
-}
-
 .data-warning {
   display: flex;
   flex-wrap: wrap;

@@ -31,6 +31,15 @@ describe("App", () => {
     })));
   }
 
+  it("renders the Boomslang title without graph metadata in the header", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    expect(screen.getByRole("heading", { name: "PoE2 Tree Optimizer for Boomslang" })).not.toBeNull();
+    expect(screen.queryByText(/nodes, .*links, version/i)).toBeNull();
+  });
+
   function endpointFixtureGraph(): TreeGraph {
     return {
       ...sampleGraph,
@@ -812,7 +821,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("5 nodes, 4 links, version search-sort-fixture");
+    await screen.findByRole("button", { name: "Close Critical" });
 
     changePassiveSearch("critical");
 
@@ -841,7 +850,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("8 nodes, 7 links, version repeated-minion-fixture");
+    await screen.findByRole("button", { name: "Minion Damage One" });
     changePassiveSearch("15% minion damage");
 
     const addAllMatching = await screen.findAllByRole("button", {
@@ -929,7 +938,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("5 nodes, 4 links, version pob-import-fixture");
+    await screen.findByRole("button", { name: "Required Notable" });
 
     fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
     fireEvent.click(screen.getByRole("button", { name: "Import PoB goals" }));
@@ -1000,7 +1009,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
+    await screen.findByRole("button", { name: "Near Start Branch" });
 
     changePassiveSearch("empty jewel slots");
     fireEvent.click(await screen.findByRole("button", { name: "Add Jewel Socket to build goals" }));
@@ -1134,7 +1143,7 @@ describe("App", () => {
     render(<App />);
     enableHoverPathPreview();
 
-    await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
+    await screen.findByRole("button", { name: "Near Start Branch" });
 
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
@@ -1187,7 +1196,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
+    await screen.findByRole("button", { name: "Near Start Branch" });
 
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
@@ -1210,7 +1219,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByText("5 nodes, 4 links, version endpoint-fixture");
+    await screen.findByRole("button", { name: "Near Start Branch" });
 
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
 

@@ -803,8 +803,7 @@ export default function App() {
     <main className="app-shell">
       <header className="top-bar">
         <div>
-          <h1>PoE2 Passive Tree Viewer</h1>
-          <p>{Object.keys(graph.nodes).length} nodes, {graph.edges.length} links, version {graph.gameVersion}</p>
+          <h1>PoE2 Tree Optimizer for Boomslang</h1>
         </div>
         <div className="top-controls">
           <div className="saved-build-control" aria-label="Saved builds">
