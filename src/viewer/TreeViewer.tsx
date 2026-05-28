@@ -18,6 +18,7 @@ type TreeViewerProps = {
   graph: TreeGraph;
   selectedNodeId?: string;
   pathStartNodeId?: string;
+  pathStartClassName?: string;
   activeAscendancyId?: string;
   noAllocationPathNodeId?: string;
   nodeVisualScale?: number;
@@ -102,6 +103,7 @@ export function TreeViewer({
   graph,
   selectedNodeId,
   pathStartNodeId,
+  pathStartClassName,
   activeAscendancyId,
   noAllocationPathNodeId,
   nodeVisualScale = defaultNodeVisualScale,
@@ -191,8 +193,12 @@ export function TreeViewer({
     [hoverAllocationPathEdgeKeys, renderedEdgeByKey],
   );
   const renderedNodes = useMemo(
-    () => Object.values(layoutProjection.nodes).map((node) => renderedNode(node, nodeVisualScale)),
-    [layoutProjection.nodes, nodeVisualScale],
+    () => Object.values(layoutProjection.nodes).map((node) => renderedNode(
+      node,
+      nodeVisualScale,
+      node.id === pathStartNodeId ? pathStartClassName : undefined,
+    )),
+    [layoutProjection.nodes, nodeVisualScale, pathStartClassName, pathStartNodeId],
   );
   const renderedNodeById = useMemo(
     () => new Map(renderedNodes.map((node) => [node.node.id, node])),
@@ -636,17 +642,75 @@ function roundLayoutNumber(value: number): number {
   return Number(value.toFixed(6));
 }
 
-function renderedNode(node: TreeNode, nodeVisualScale: number): RenderedTreeNode {
+function renderedNode(node: TreeNode, nodeVisualScale: number, classStartNameOverride?: string): RenderedTreeNode {
   const typeClass = nodeClass(node);
+  const art = classStartIconArt(node, classStartNameOverride) ?? node.art;
   return {
     node,
     typeClass,
     visual: nodeVisual(node, typeClass, nodeVisualScale),
     label: node.name ?? node.id,
-    iconPath: node.art?.icon
-      ? passiveIconPublicPath(node.art.icon, node.art.assetKey)
+    iconPath: art?.icon
+      ? passiveIconPublicPath(art.icon, art.assetKey)
       : undefined,
   };
+}
+
+const classStartIconArtByName: Record<string, NonNullable<TreeNode["art"]>> = {
+  DUELIST: {
+    icon: "Art/2DArt/SkillIcons/ExplosiveGrenade.dds",
+    assetKey: "art-2dart-skillicons-explosivegrenade",
+  },
+  MERCENARY: {
+    icon: "Art/2DArt/SkillIcons/ExplosiveGrenade.dds",
+    assetKey: "art-2dart-skillicons-explosivegrenade",
+  },
+  MARAUDER: {
+    icon: "Art/2DArt/SkillIcons/passives/Warrior.dds",
+    assetKey: "art-2dart-skillicons-passives-warrior",
+  },
+  WARRIOR: {
+    icon: "Art/2DArt/SkillIcons/passives/Warrior.dds",
+    assetKey: "art-2dart-skillicons-passives-warrior",
+  },
+  RANGER: {
+    icon: "Art/2DArt/SkillIcons/passives/Hunter.dds",
+    assetKey: "art-2dart-skillicons-passives-hunter",
+  },
+  HUNTRESS: {
+    icon: "Art/2DArt/SkillIcons/passives/Hunter.dds",
+    assetKey: "art-2dart-skillicons-passives-hunter",
+  },
+  TEMPLAR: {
+    icon: "Art/2DArt/SkillIcons/passives/DruidGenericShapeshiftNode.dds",
+    assetKey: "art-2dart-skillicons-passives-druidgenericshapeshiftnode",
+  },
+  DRUID: {
+    icon: "Art/2DArt/SkillIcons/passives/DruidGenericShapeshiftNode.dds",
+    assetKey: "art-2dart-skillicons-passives-druidgenericshapeshiftnode",
+  },
+  WITCH: {
+    icon: "Art/2DArt/SkillIcons/WitchBoneStorm.dds",
+    assetKey: "art-2dart-skillicons-witchbonestorm",
+  },
+  SORCERESS: {
+    icon: "Art/2DArt/SkillIcons/passives/SorceressInvocationSpellsKeystone.dds",
+    assetKey: "art-2dart-skillicons-passives-sorceressinvocationspellskeystone",
+  },
+  SIX: {
+    icon: "Art/2DArt/SkillIcons/passives/MonkElementalChakra.dds",
+    assetKey: "art-2dart-skillicons-passives-monkelementalchakra",
+  },
+  MONK: {
+    icon: "Art/2DArt/SkillIcons/passives/MonkElementalChakra.dds",
+    assetKey: "art-2dart-skillicons-passives-monkelementalchakra",
+  },
+};
+
+function classStartIconArt(node: TreeNode, classNameOverride?: string): TreeNode["art"] | undefined {
+  if (!node.flags.classStart || node.flags.ascendancy) return undefined;
+  const className = (classNameOverride ?? node.name)?.trim().toUpperCase();
+  return className ? classStartIconArtByName[className] : undefined;
 }
 
 function renderedNodesForIds(

@@ -745,7 +745,8 @@ describe("TreeViewer", () => {
 
     expect(classStart.querySelector(".node-halo")).not.toBeNull();
     expect(classStart.querySelector(".node-frame")).not.toBeNull();
-    expect(classStart.querySelector(".node-glyph.class-start-glyph")).not.toBeNull();
+    expect(classStart.querySelector(".node-icon")).not.toBeNull();
+    expect(classStart.querySelector(".node-glyph.class-start-glyph")).toBeNull();
     expect(notable.querySelector(".node-glyph.notable-glyph")).not.toBeNull();
     expect(jewel.querySelector(".node-glyph.jewel-socket-glyph")).not.toBeNull();
     expect(keystone.querySelector(".node-glyph.keystone-glyph")).not.toBeNull();
@@ -783,6 +784,66 @@ describe("TreeViewer", () => {
     expect(iconClips).toHaveLength(1);
     expect(iconClipCircle?.getAttribute("r")).toBe("0.454545");
     expect(node.querySelector(".node-glyph.notable-glyph")).toBeNull();
+  });
+
+  it("replaces legacy class start placeholder art with class-themed icons", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        mercenary_start: {
+          ...sampleGraph.nodes.mercenary_start,
+          name: "DUELIST",
+          art: {
+            icon: "Art/2DArt/SkillIcons/passives/blankDex.dds",
+            assetKey: "art-2dart-skillicons-passives-blankdex",
+          },
+        },
+      },
+    };
+
+    render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const node = screen.getByRole("button", { name: "DUELIST" });
+
+    expect(node.querySelector(".node-icon")?.getAttribute("href")).toBe(
+      "/tree-assets/icons/art-2dart-skillicons-explosivegrenade.png",
+    );
+    expect(node.querySelector(".node-glyph.class-start-glyph")).toBeNull();
+  });
+
+  it("uses the selected shared class start icon for the active path start", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        mercenary_start: {
+          ...sampleGraph.nodes.mercenary_start,
+          name: "WITCH",
+          art: {
+            icon: "Art/2DArt/SkillIcons/passives/blankInt.dds",
+            assetKey: "art-2dart-skillicons-passives-blankint",
+          },
+        },
+      },
+    };
+    const selectedClassStartProps = { pathStartClassName: "Sorceress" };
+
+    render(
+      <TreeViewer
+        graph={graph}
+        pathStartNodeId="mercenary_start"
+        onSelectNode={vi.fn()}
+        debug={debugOff}
+        {...selectedClassStartProps}
+      />,
+    );
+
+    const node = screen.getByRole("button", { name: "WITCH" });
+
+    expect(node.querySelector(".node-icon")?.getAttribute("href")).toBe(
+      "/tree-assets/icons/art-2dart-skillicons-passives-sorceressinvocationspellskeystone.png",
+    );
   });
 
   it("scales node visuals from the configured node scale", () => {

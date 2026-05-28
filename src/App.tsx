@@ -909,6 +909,7 @@ export default function App() {
           graph={graph}
           selectedNodeId={selectedNodeId}
           pathStartNodeId={pathStartNodeId}
+          pathStartClassName={selectedClassStartOption?.className}
           activeAscendancyId={selectedAscendancy?.id}
           noAllocationPathNodeId={noAllocationPathNodeId}
           nodeVisualScale={nodeVisualScale}
