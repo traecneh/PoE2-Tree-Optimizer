@@ -674,7 +674,8 @@ describe("App", () => {
     render(<App />);
 
     const classStart = screen.getByRole("button", { name: "Mercenary" });
-    expect(classStart.querySelector(".node-core")?.getAttribute("r")).toBe("52");
+    expect((screen.getByLabelText("Node size") as HTMLSelectElement).value).toBe("3");
+    expect(classStart.querySelector(".node-core")?.getAttribute("r")).toBe("78");
 
     fireEvent.change(screen.getByLabelText("Node size"), { target: { value: "1" } });
 

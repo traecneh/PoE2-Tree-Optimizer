@@ -40,6 +40,7 @@ import { PassiveSearchPanel, type PassiveSearchPanelResult } from "./viewer/Pass
 import { TreeViewer, type DebugOverlayState } from "./viewer/TreeViewer";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
+const defaultNodeVisualScale = 3;
 const maxAscendancyAllocationCount = 8;
 const maxPassiveAllocationPointCount = 123;
 const treeDataVersionLabel = "PoE2 0.4.0l";
@@ -80,7 +81,7 @@ export default function App() {
     previewEdgeKeys: [],
     previewRouteNodePath: [],
   });
-  const [nodeVisualScale, setNodeVisualScale] = useState<number>(2);
+  const [nodeVisualScale, setNodeVisualScale] = useState<number>(defaultNodeVisualScale);
   const [ascendancyAllocationNodeIds, setAscendancyAllocationNodeIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>();
@@ -1259,7 +1260,7 @@ function allocationPlanNodeIds(allocationPlan: AllocationPlan): string[] {
 }
 
 function validNodeVisualScale(scale: number): number {
-  return nodeVisualScaleOptions.some((option) => option === scale) ? scale : 2;
+  return nodeVisualScaleOptions.some((option) => option === scale) ? scale : defaultNodeVisualScale;
 }
 
 function ascendancyPointCostByNodeId(

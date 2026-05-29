@@ -1,4 +1,5 @@
 export const savedBuildsStorageKey = "poe2-skill-tree-optimizer.saved-builds.v1";
+const defaultNodeVisualScale = 3;
 
 export type SavedBuildAllocationPlan = {
   committedNodePath: string[];
@@ -94,7 +95,7 @@ function normalizeSavedBuild(value: unknown): SavedBuild[] {
       selectedClassStartId: typeof state.selectedClassStartId === "string" ? state.selectedClassStartId : undefined,
       pathStartNodeId: typeof state.pathStartNodeId === "string" ? state.pathStartNodeId : undefined,
       allocationPlan,
-      nodeVisualScale: typeof state.nodeVisualScale === "number" ? state.nodeVisualScale : 2,
+      nodeVisualScale: typeof state.nodeVisualScale === "number" ? state.nodeVisualScale : defaultNodeVisualScale,
       buildGoalNodeIds,
       ascendancyAllocationNodeIds,
     },
