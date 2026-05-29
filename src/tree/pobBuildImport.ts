@@ -7,6 +7,11 @@ export type PobBuildGoalImportResult = {
   className?: string;
   ascendClassName?: string;
   allocatedNodeIds: NodeId[];
+  weaponSetNodeIds: NodeId[];
+  weaponSet1NodeIds: NodeId[];
+  weaponSet2NodeIds: NodeId[];
+  ascendancyNodeIds: NodeId[];
+  pobBasePassivePointCount: number;
   goalNodeIds: NodeId[];
   ignoredNodeIds: NodeId[];
   missingNodeIds: NodeId[];
@@ -14,6 +19,7 @@ export type PobBuildGoalImportResult = {
 
 type PobSpecElement = {
   getAttribute: (name: string) => string | null;
+  getChildAttributes: (elementNamePattern: RegExp, attributeName: string) => string[];
 };
 
 export function importBuildGoalsFromPobCode(code: string, graph: TreeGraph): PobBuildGoalImportResult {
@@ -31,7 +37,21 @@ export function decodePobBuildCode(code: string): string {
 export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): PobBuildGoalImportResult {
   const spec = findActiveTreeSpec(xmlText);
   const metadata = findBuildMetadata(xmlText);
-  const allocatedNodeIds = uniqueNodeIds(spec.getAttribute("nodes") ?? "");
+  const rawAllocatedNodeIds = uniqueNodeIds(spec.getAttribute("nodes") ?? "");
+  const weaponSet1NodeIdSet = new Set(uniqueNodeIds(spec.getChildAttributes(/^WeaponSet1$/, "nodes").join(",")));
+  const weaponSet2NodeIdSet = new Set(uniqueNodeIds(spec.getChildAttributes(/^WeaponSet2$/, "nodes").join(",")));
+  const weaponSetNodeIdSet = new Set([...weaponSet1NodeIdSet, ...weaponSet2NodeIdSet]);
+  const weaponSet1NodeIds = rawAllocatedNodeIds.filter((nodeId) => weaponSet1NodeIdSet.has(nodeId));
+  const weaponSet2NodeIds = rawAllocatedNodeIds.filter((nodeId) => weaponSet2NodeIdSet.has(nodeId));
+  const weaponSetNodeIds = rawAllocatedNodeIds.filter((nodeId) => weaponSetNodeIdSet.has(nodeId));
+  const allocatedNodeIds = rawAllocatedNodeIds.filter((nodeId) => !weaponSetNodeIdSet.has(nodeId));
+  const ascendancyNodeIds = rawAllocatedNodeIds.filter((nodeId) => isPobCountedAscendancyPassive(graph.nodes[nodeId]));
+  const pobBasePassivePointCount = countPobBasePassivePoints(
+    rawAllocatedNodeIds,
+    weaponSet1NodeIds,
+    weaponSet2NodeIds,
+    graph,
+  );
   const goalNodeIds: NodeId[] = [];
   const ignoredNodeIds: NodeId[] = [];
   const missingNodeIds: NodeId[] = [];
@@ -54,10 +74,35 @@ export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): P
     className: metadata.className,
     ascendClassName: metadata.ascendClassName,
     allocatedNodeIds,
+    weaponSetNodeIds,
+    weaponSet1NodeIds,
+    weaponSet2NodeIds,
+    ascendancyNodeIds,
+    pobBasePassivePointCount,
     goalNodeIds,
     ignoredNodeIds,
     missingNodeIds,
   };
+}
+
+function countPobBasePassivePoints(
+  rawAllocatedNodeIds: NodeId[],
+  weaponSet1NodeIds: NodeId[],
+  weaponSet2NodeIds: NodeId[],
+  graph: TreeGraph,
+): number {
+  const mainTreeAllocatedNodeCount = rawAllocatedNodeIds.filter((nodeId) => isPobCountedMainTreePassive(graph.nodes[nodeId])).length;
+  const weaponSet1Count = weaponSet1NodeIds.filter((nodeId) => isPobCountedMainTreePassive(graph.nodes[nodeId])).length;
+  const weaponSet2Count = weaponSet2NodeIds.filter((nodeId) => isPobCountedMainTreePassive(graph.nodes[nodeId])).length;
+  return mainTreeAllocatedNodeCount - Math.min(weaponSet1Count, weaponSet2Count);
+}
+
+function isPobCountedMainTreePassive(node: TreeNode | undefined): boolean {
+  return Boolean(node && !node.flags.classStart && !node.flags.ascendancy);
+}
+
+function isPobCountedAscendancyPassive(node: TreeNode | undefined): boolean {
+  return Boolean(node?.flags.ascendancy && !node.flags.classStart);
 }
 
 function findBuildMetadata(xmlText: string): { className?: string; ascendClassName?: string } {
@@ -123,7 +168,7 @@ function findActiveTreeSpec(xmlText: string): PobSpecElement {
   }
 
   const activeSpecIndex = Math.max(0, (Number(tree?.getAttribute("activeSpec")) || 1) - 1);
-  return specs[activeSpecIndex] ?? specs[0];
+  return pobSpecElementFromDomElement(specs[activeSpecIndex] ?? specs[0]);
 }
 
 function findActiveTreeSpecWithoutDomParser(xmlText: string): PobSpecElement {
@@ -137,16 +182,42 @@ function findActiveTreeSpecWithoutDomParser(xmlText: string): PobSpecElement {
   }
 
   const treeAttributes = parseXmlAttributes(treeMatch[1]);
-  const specs = Array.from(treeMatch[2].matchAll(/<Spec\b([^>]*)>/g), (match) => parseXmlAttributes(match[1]));
+  const specs = Array.from(treeMatch[2].matchAll(/<Spec\b([^>]*?)(?:\/>|>([\s\S]*?)<\/Spec>)/g), (match) => ({
+    attributes: parseXmlAttributes(match[1]),
+    innerXml: match[2] ?? "",
+  }));
   if (specs.length === 0) {
     throw new Error("PoB build does not contain a passive tree spec.");
   }
 
   const activeSpecIndex = Math.max(0, (Number(treeAttributes.get("activeSpec")) || 1) - 1);
-  const specAttributes = specs[activeSpecIndex] ?? specs[0];
+  const spec = specs[activeSpecIndex] ?? specs[0];
   return {
-    getAttribute: (name: string) => specAttributes.get(name) ?? null,
+    getAttribute: (name: string) => spec.attributes.get(name) ?? null,
+    getChildAttributes: (elementNamePattern: RegExp, attributeName: string) => (
+      Array.from(spec.innerXml.matchAll(/<([A-Za-z_:][\w:.-]*)\b([^>]*)>/g))
+        .filter((match) => matchesElementName(elementNamePattern, match[1]))
+        .map((match) => parseXmlAttributes(match[2]).get(attributeName))
+        .filter((value): value is string => value !== undefined)
+    ),
   };
+}
+
+function pobSpecElementFromDomElement(element: Element): PobSpecElement {
+  return {
+    getAttribute: (name: string) => element.getAttribute(name),
+    getChildAttributes: (elementNamePattern: RegExp, attributeName: string) => (
+      Array.from(element.children)
+        .filter((child) => matchesElementName(elementNamePattern, child.nodeName))
+        .map((child) => child.getAttribute(attributeName))
+        .filter((value): value is string => value !== null)
+    ),
+  };
+}
+
+function matchesElementName(pattern: RegExp, elementName: string): boolean {
+  pattern.lastIndex = 0;
+  return pattern.test(elementName);
 }
 
 function parseXmlAttributes(attributeText: string): Map<string, string> {

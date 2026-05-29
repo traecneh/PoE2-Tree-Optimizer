@@ -27,7 +27,8 @@ export type PobBuildImportStatus =
   | {
     kind: "success";
     importedGoalCount: number;
-    allocatedNodeCount: number;
+    pobBasePassivePointCount: number;
+    selectedAscendancyNodeCount: number;
     alreadySelectedGoalCount: number;
     missingNodeCount: number;
     pathStart?: PobBuildImportPathStartStatus;
@@ -257,7 +258,11 @@ function PobImportStatusMessage({ status }: { status: PobBuildImportStatus }) {
 
   return (
     <p className="pob-import-status success" role="status">
-      <span>{`Imported ${formatGoalCount(status.importedGoalCount)} from ${formatPassiveCount(status.allocatedNodeCount)}.`}</span>
+      <span>{`Imported ${formatGoalCount(status.importedGoalCount)}.`}</span>
+      <span>{` PoB base passives: ${status.pobBasePassivePointCount}.`}</span>
+      {status.selectedAscendancyNodeCount > 0 ? (
+        <span>{` Selected ${formatAscendancyPassiveCount(status.selectedAscendancyNodeCount)}.`}</span>
+      ) : null}
       {status.alreadySelectedGoalCount > 0 ? (
         <span>{` ${formatGoalCount(status.alreadySelectedGoalCount)} already selected.`}</span>
       ) : null}
@@ -341,6 +346,10 @@ function formatGoalCount(goalCount: number): string {
 
 function formatPassiveCount(passiveCount: number): string {
   return `${passiveCount} allocated ${passiveCount === 1 ? "passive" : "passives"}`;
+}
+
+function formatAscendancyPassiveCount(passiveCount: number): string {
+  return `${passiveCount} ascendancy ${passiveCount === 1 ? "passive" : "passives"}`;
 }
 
 function nodeTypeLabel(node: TreeNode): string {

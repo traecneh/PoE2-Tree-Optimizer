@@ -41,6 +41,9 @@ import { TreeViewer, type DebugOverlayState } from "./viewer/TreeViewer";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
 const maxAscendancyAllocationCount = 8;
+const maxPassiveAllocationPointCount = 123;
+const treeDataVersionLabel = "PoE2 0.4.0l";
+const savedBuildToastDurationMs = 3000;
 const debugOverlayOff: DebugOverlayState = {
   showNodeIds: false,
   highlightMissingStats: false,
@@ -96,6 +99,7 @@ export default function App() {
   const [savedBuildStatus, setSavedBuildStatus] = useState("");
   const [savedBuildStatusFeedbackKey, setSavedBuildStatusFeedbackKey] = useState(0);
   const optimizerRun = useRef<BuildGoalsOptimizationRun | undefined>(undefined);
+  const savedBuildStatusTimeoutId = useRef<number | undefined>(undefined);
   const selectedNode = useMemo(
     () => (selectedNodeId ? graph.nodes[selectedNodeId] : undefined),
     [graph.nodes, selectedNodeId],
@@ -315,11 +319,22 @@ export default function App() {
   }
 
   function showSavedBuildStatus(nextStatus: string) {
+    if (savedBuildStatusTimeoutId.current !== undefined) {
+      window.clearTimeout(savedBuildStatusTimeoutId.current);
+    }
     setSavedBuildStatus(nextStatus);
     setSavedBuildStatusFeedbackKey((currentKey) => currentKey + 1);
+    savedBuildStatusTimeoutId.current = window.setTimeout(() => {
+      setSavedBuildStatus("");
+      savedBuildStatusTimeoutId.current = undefined;
+    }, savedBuildToastDurationMs);
   }
 
   function clearSavedBuildStatus() {
+    if (savedBuildStatusTimeoutId.current !== undefined) {
+      window.clearTimeout(savedBuildStatusTimeoutId.current);
+      savedBuildStatusTimeoutId.current = undefined;
+    }
     setSavedBuildStatus("");
   }
 
@@ -488,16 +503,24 @@ export default function App() {
         ascendClassName: result.ascendClassName,
         allocatedNodeIds: result.allocatedNodeIds,
       });
+      const nextClassStartOption = pathStartResolution.kind === "matched" ? pathStartResolution.option : selectedClassStartOption;
+      const importedAscendancyNodeIds = sanitizeAscendancyAllocationNodeIds(
+        result.ascendancyNodeIds,
+        graph,
+        nextClassStartOption?.ascendancy,
+      );
 
       clearOptimizedRouteState();
       if (pathStartResolution.kind === "matched") {
         applyClassStartOption(pathStartResolution.option);
       }
+      setAscendancyAllocationNodeIds(importedAscendancyNodeIds);
       setBuildGoalNodeIds((current) => mergeNodeIds(current, importedGoalNodeIds));
       setPobImportStatus({
         kind: "success",
         importedGoalCount: importedGoalNodeIds.length,
-        allocatedNodeCount: result.allocatedNodeIds.length,
+        pobBasePassivePointCount: result.pobBasePassivePointCount,
+        selectedAscendancyNodeCount: importedAscendancyNodeIds.length,
         alreadySelectedGoalCount: result.goalNodeIds.length - importedGoalNodeIds.length,
         missingNodeCount: result.missingNodeIds.length,
         pathStart: pobPathStartStatus(pathStartResolution),
@@ -814,6 +837,12 @@ export default function App() {
     optimizerRun.current?.cancel();
   }, []);
 
+  useEffect(() => () => {
+    if (savedBuildStatusTimeoutId.current !== undefined) {
+      window.clearTimeout(savedBuildStatusTimeoutId.current);
+    }
+  }, []);
+
   useEffect(() => {
     fetch(publicAssetPath("tree-graph.json"))
       .then((response) => (response.ok ? response.json() : Promise.reject()))
@@ -832,31 +861,36 @@ export default function App() {
       <header className="top-bar">
         <div className="top-brand">
           <h1>PoE2 Tree Optimizer for Boomslang</h1>
-          <div className="site-help">
-            <button
-              className="site-help-trigger"
-              type="button"
-              aria-describedby="site-help-tooltip"
-            >
-              How to use the site
-            </button>
-            <div
-              id="site-help-tooltip"
-              className="site-help-tooltip"
-              role="tooltip"
-              aria-label="Site usage help"
-            >
-              <strong>Quick controls</strong>
-              <ul>
-                <li>Ctrl + left click a node to add or remove it from Build goals.</li>
-                <li>Click nodes on the tree to preview allocation paths, then apply the path from the node inspector.</li>
-                <li>Use Passive search to find passives, add one result, or add all matching nodes with the same effect.</li>
-                <li>Import PoB goals to pull build goals from a Path of Building code.</li>
-                <li>Optimize route previews the shortest route through current Build goals; Apply optimized route commits it.</li>
-                <li>Check Hover path preview to see routes while hovering unallocated nodes.</li>
-                <li>Use Path start for class or ascendancy start, Node size for visibility, and Reset allocation to clear selected nodes.</li>
-                <li>Use New build, Save build, the build dropdown, and Delete build to manage saved trees in this browser.</li>
-              </ul>
+          <div className="brand-support">
+            <span className="tree-data-version" aria-label="Tree data version">
+              Tree data: {treeDataVersionLabel}
+            </span>
+            <div className="site-help">
+              <button
+                className="site-help-trigger"
+                type="button"
+                aria-describedby="site-help-tooltip"
+              >
+                How to use the site
+              </button>
+              <div
+                id="site-help-tooltip"
+                className="site-help-tooltip"
+                role="tooltip"
+                aria-label="Site usage help"
+              >
+                <strong>Quick controls</strong>
+                <ul>
+                  <li>Ctrl + left click a node to add or remove it from Build goals.</li>
+                  <li>Click nodes on the tree to preview allocation paths, then apply the path from the node inspector.</li>
+                  <li>Use Passive search to find passives, add one result, or add all matching nodes with the same effect.</li>
+                  <li>Import PoB goals to pull build goals from a Path of Building code.</li>
+                  <li>Optimize route previews the shortest route through current Build goals; Apply optimized route commits it.</li>
+                  <li>Check Hover path preview to see routes while hovering unallocated nodes.</li>
+                  <li>Use Path start for class or ascendancy start, Node size for visibility, and Reset allocation to clear selected nodes.</li>
+                  <li>Use New build, Save build, the build dropdown, and Delete build to manage saved trees in this browser.</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -925,16 +959,6 @@ export default function App() {
                 Delete
               </button>
             </ControlTooltip>
-            {savedBuildStatus ? (
-              <span
-                key={savedBuildStatusFeedbackKey}
-                className="saved-build-status"
-                role="status"
-                data-feedback-key={savedBuildStatusFeedbackKey}
-              >
-                {savedBuildStatus}
-              </span>
-            ) : null}
           </div>
           <div className="header-control-group tree-setup-control" role="group" aria-label="Tree setup">
             <label className="path-start-control">
@@ -981,12 +1005,16 @@ export default function App() {
             </label>
           </div>
           <div className="header-control-group allocation-control" role="group" aria-label="Allocation summary">
-            <ControlTooltip id="allocated-count-tooltip" text="Current committed passive points in this build.">
-              <span aria-describedby="allocated-count-tooltip">{formatAllocatedPointCount(allocatedPointCount)}</span>
-            </ControlTooltip>
-            {selectedAscendancy ? (
-              <span>{formatAscendancyPointCount(activeAscendancyPointCount)}</span>
-            ) : null}
+            <div className="allocation-counts">
+              <ControlTooltip id="allocated-count-tooltip" text="Current committed main tree passive points out of 123.">
+                <span className="allocation-count-row" aria-describedby="allocated-count-tooltip">
+                  {formatAllocatedPointCount(allocatedPointCount)}
+                </span>
+              </ControlTooltip>
+              <span className="allocation-count-row">
+                {selectedAscendancy ? formatAscendancyPointCount(activeAscendancyPointCount) : "\u00a0"}
+              </span>
+            </div>
             <ControlTooltip id="reset-allocation-tooltip" text="Clear committed allocation and the current preview path.">
               <button
                 className="tool-button"
@@ -1001,6 +1029,18 @@ export default function App() {
             </ControlTooltip>
           </div>
         </div>
+        {savedBuildStatus ? (
+          <div
+            key={savedBuildStatusFeedbackKey}
+            className="saved-build-toast"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            data-feedback-key={savedBuildStatusFeedbackKey}
+          >
+            {savedBuildStatus}
+          </div>
+        ) : null}
       </header>
       {graphLoadStatus === "fallback" ? (
         <div className="data-warning" role="status">
@@ -1095,7 +1135,7 @@ export default function App() {
 }
 
 function formatAllocatedPointCount(pointCount: number): string {
-  return `Allocated ${pointCount} ${pointCount === 1 ? "point" : "points"}`;
+  return `Allocated ${pointCount}/${maxPassiveAllocationPointCount}`;
 }
 
 function formatAscendancyPointCount(pointCount: number): string {

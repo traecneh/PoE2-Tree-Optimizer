@@ -1,5 +1,5 @@
 import { deflateSync } from "node:zlib";
-import { configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import { sampleGraph } from "./tree/sampleGraph";
@@ -9,6 +9,7 @@ configure({ asyncUtilTimeout: 3000 });
 
 describe("App", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     window.localStorage.clear();
   });
@@ -37,6 +38,7 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "PoE2 Tree Optimizer for Boomslang" })).not.toBeNull();
+    expect(screen.getByText("Tree data: PoE2 0.4.0l")).not.toBeNull();
     expect(screen.queryByText(/nodes, .*links, version/i)).toBeNull();
   });
 
@@ -77,7 +79,7 @@ describe("App", () => {
     expectTooltipText(within(treeSetupGroup).getByLabelText("Hover path preview"), "temporary path preview");
 
     const allocationGroup = screen.getByRole("group", { name: "Allocation summary" });
-    expect(within(allocationGroup).getByText("Allocated 0 points")).not.toBeNull();
+    expect(within(allocationGroup).getByText("Allocated 0/123")).not.toBeNull();
     expectTooltipText(within(allocationGroup).getByRole("button", { name: "Reset allocation" }), "Clear committed allocation");
   });
 
@@ -534,6 +536,114 @@ describe("App", () => {
     };
   }
 
+  function pobAscendancyImportFixtureGraph(): TreeGraph {
+    return {
+      schemaVersion: 1,
+      gameVersion: "pob-ascendancy-import-fixture",
+      extractedAt: "2026-05-26T00:00:00.000Z",
+      source: { kind: "fixture", path: "src/App.test.tsx" },
+      nodes: {
+        "1000": {
+          id: "1000",
+          name: "DUELIST",
+          stats: [],
+          position: { x: 0, y: 0 },
+          flags: { classStart: true },
+        },
+        "2000": {
+          id: "2000",
+          name: "Gambler",
+          stats: [],
+          position: { x: 1000, y: 1000 },
+          flags: { classStart: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+            startNode: true,
+          },
+        },
+        "2001": {
+          id: "2001",
+          name: "Gemling Passive 1",
+          stats: ["1% increased Gemling Power"],
+          position: { x: 1080, y: 1000 },
+          flags: { small: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        "2002": {
+          id: "2002",
+          name: "Gemling Passive 2",
+          stats: ["2% increased Gemling Power"],
+          position: { x: 1160, y: 1000 },
+          flags: { small: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        "2003": {
+          id: "2003",
+          name: "Gemling Passive 3",
+          stats: ["3% increased Gemling Power"],
+          position: { x: 1240, y: 1000 },
+          flags: { small: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        "2010": {
+          id: "2010",
+          name: "Implanted Gems",
+          stats: [],
+          position: { x: 1080, y: 1080 },
+          flags: { notable: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+        "2011": {
+          id: "2011",
+          name: "Neurological Implants",
+          stats: ["+2 to Level of all Skills with an Intelligence requirement"],
+          position: { x: 1160, y: 1160 },
+          flags: { small: true, ascendancy: true },
+          ascendancy: {
+            id: "Mercenary3",
+            name: "Gemling Legionnaire",
+            className: "Mercenary",
+            disabled: false,
+          },
+        },
+      },
+      groups: {},
+      edges: [
+        { from: "1000", to: "2000" },
+        { from: "2000", to: "2001" },
+        { from: "2001", to: "2002" },
+        { from: "2002", to: "2003" },
+        { from: "2001", to: "2010" },
+        { from: "2010", to: "2011" },
+      ],
+      classStarts: { DUELIST: "1000" },
+      bounds: { minX: 0, maxX: 1300, minY: 0, maxY: 1200 },
+    };
+  }
+
   function changePassiveSearch(query: string) {
     const input = screen.getByLabelText("Passive search") as HTMLInputElement;
     fireEvent.change(input, { target: { value: query } });
@@ -585,7 +695,7 @@ describe("App", () => {
 
     fireEvent.click(resetButton);
 
-    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 0/123")).not.toBeNull();
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(0);
     expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("allocation-path")).toBe(false);
   });
@@ -615,12 +725,12 @@ describe("App", () => {
     expect(within(summary).getByText("2 allocated points")).not.toBeNull();
     expect(within(summary).getByText("12% increased Projectile Damage")).not.toBeNull();
     expect(within(summary).getByText("25% increased Critical Hit Chance")).not.toBeNull();
-    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 0/123")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
 
     expect(within(summary).getByText("2 allocated points")).not.toBeNull();
-    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 2/123")).not.toBeNull();
   });
 
   it("adds any non-start passive as a build goal with Ctrl-click without pathing to it", () => {
@@ -680,35 +790,51 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New build" }));
 
-    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 0/123")).not.toBeNull();
     expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("");
     expect(within(screen.getByRole("region", { name: "Build goals" })).getByText("No build goals selected.")).not.toBeNull();
 
     selectSavedBuild("Crit starter");
 
-    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 2/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
     expect(within(screen.getByRole("region", { name: "Build goals" })).getByText("Precise Shot")).not.toBeNull();
     expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("Crit starter");
   });
 
-  it("refreshes saved build feedback when saving the same build again", () => {
+  it("shows saved build feedback as a temporary toast when saving the same build again", () => {
+    vi.useFakeTimers();
     stubTreeFetch();
 
     render(<App />);
 
     saveCurrentBuildAs("Crit starter");
 
-    const firstStatus = screen.getByRole("status");
-    const firstFeedbackKey = firstStatus.getAttribute("data-feedback-key");
-    expect(firstStatus.textContent).toBe("Saved Crit starter");
+    const buildGroup = screen.getByRole("group", { name: "Build management" });
+    expect(within(buildGroup).queryByRole("status")).toBeNull();
+
+    const firstToast = screen.getByRole("status");
+    const firstFeedbackKey = firstToast.getAttribute("data-feedback-key");
+    expect(firstToast.textContent).toBe("Saved Crit starter");
+    expect(firstToast.getAttribute("aria-live")).toBe("polite");
+    expect(firstToast.classList.contains("saved-build-toast")).toBe(true);
     expect(firstFeedbackKey).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Save build" }));
 
-    const secondStatus = screen.getByRole("status");
-    expect(secondStatus.textContent).toBe("Saved Crit starter");
-    expect(secondStatus.getAttribute("data-feedback-key")).not.toBe(firstFeedbackKey);
+    const secondToast = screen.getByRole("status");
+    expect(secondToast.textContent).toBe("Saved Crit starter");
+    expect(secondToast.getAttribute("data-feedback-key")).not.toBe(firstFeedbackKey);
+
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(screen.getByRole("status").textContent).toBe("Saved Crit starter");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("updates, deletes, and persists saved builds across remounts", () => {
@@ -724,7 +850,7 @@ describe("App", () => {
     render(<App />);
 
     selectSavedBuild("First pass");
-    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 2/123")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
@@ -734,7 +860,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "New build" }));
     selectSavedBuild("Updated pass");
 
-    expect(screen.getByText("Allocated 3 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 3/123")).not.toBeNull();
     expect(screen.queryByText("First pass")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Delete build" }));
@@ -742,7 +868,7 @@ describe("App", () => {
     expect(screen.getByRole("status").textContent).toBe("Deleted Updated pass");
     expect(screen.queryByText("Updated pass")).toBeNull();
     expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("");
-    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 0/123")).not.toBeNull();
   });
 
   it("shows PoE2 class aliases and saves the selected class label separately from the root node", async () => {
@@ -1087,12 +1213,47 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
     fireEvent.click(screen.getByRole("button", { name: "Import PoB goals" }));
 
-    expect(await screen.findByText("Imported 2 build goals from 5 allocated passives.")).not.toBeNull();
+    expect(await screen.findByText("Imported 2 build goals.")).not.toBeNull();
+    expect(screen.getByText("PoB base passives: 3.")).not.toBeNull();
     const goalsPanel = screen.getByRole("region", { name: "Build goals" });
     expect(within(goalsPanel).getByText("Required Notable")).not.toBeNull();
     expect(within(goalsPanel).getByText("Imported Jewel")).not.toBeNull();
     expect(within(goalsPanel).queryByText("Pathing")).toBeNull();
     expect(within(goalsPanel).queryByText("Unused Keystone")).toBeNull();
+  });
+
+  it("imports and selects PoB ascendancy passives with a concise import summary", async () => {
+    stubTreeFetchWithGraph(pobAscendancyImportFixtureGraph());
+    const code = encodePobXml(`
+      <PathOfBuilding2>
+        <Build className="Mercenary" ascendClassName="Gemling Legionnaire" />
+        <Tree activeSpec="1">
+          <Spec title="Gemling Tree" nodes="1000,2000,2001,2002,2003,2010,2011" />
+        </Tree>
+      </PathOfBuilding2>
+    `);
+
+    render(<App />);
+
+    const pathStartSelect = screen.getByLabelText("Path start") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(Array.from(pathStartSelect.options).map((option) => option.textContent)).toContain("Mercenary - Gemling Legionnaire");
+    });
+
+    fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
+    fireEvent.click(screen.getByRole("button", { name: "Import PoB goals" }));
+
+    expect(await screen.findByText("Imported 0 build goals.")).not.toBeNull();
+    expect(screen.getByText("PoB base passives: 0.")).not.toBeNull();
+    expect(screen.getByText("Selected 5 ascendancy passives.")).not.toBeNull();
+    expect(screen.queryByText(/weapon set/i)).toBeNull();
+    expect(screen.queryByText(/Non-weapon nodes imported/i)).toBeNull();
+    expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Mercenary - Gemling Legionnaire");
+    expect(screen.getByText("Ascendancy 4/8")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Gemling Passive 3" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Implanted Gems" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Neurological Implants" }).classList.contains("allocated")).toBe(true);
   });
 
   it("sets Path start from explicit PoB class metadata when importing goals", async () => {
@@ -1136,7 +1297,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
 
     expect(await screen.findByText("Optimized route: 3 points")).not.toBeNull();
-    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 0/123")).not.toBeNull();
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(3);
     expect((screen.getByRole("button", { name: "Apply optimized route" }) as HTMLButtonElement).disabled).toBe(false);
   });
@@ -1155,7 +1316,7 @@ describe("App", () => {
     await screen.findByText("Optimized route: 3 points");
     fireEvent.click(screen.getByRole("button", { name: "Apply optimized route" }));
 
-    expect(screen.getByText("Allocated 3 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 3/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(3);
@@ -1193,12 +1354,12 @@ describe("App", () => {
     await screen.findByText("Optimized route: 4 points");
     fireEvent.click(screen.getByRole("button", { name: "Apply optimized route" }));
 
-    expect(screen.getByText("Allocated 4 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 4/123")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Allocated 1 point")).not.toBeNull();
+      expect(screen.getByText("Allocated 1/123")).not.toBeNull();
     });
     expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("allocated")).toBe(true);
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(false);
@@ -1353,7 +1514,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
 
-    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 2/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
 
@@ -1381,7 +1542,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
 
-    expect(screen.getByText("Allocated 4 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 4/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
     expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("allocated")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(4);
@@ -1401,7 +1562,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
 
-    expect(screen.getByText("Allocated 0 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 0/123")).not.toBeNull();
     expect(screen.getByText("1 point")).not.toBeNull();
     expect(screen.getByText("Mercenary -> Near Start Branch")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(true);
@@ -1417,12 +1578,12 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
 
-    expect(screen.getByText("Allocated 3 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 3/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
 
-    expect(screen.getByText("Allocated 2 points")).not.toBeNull();
+    expect(screen.getByText("Allocated 2/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(false);
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);

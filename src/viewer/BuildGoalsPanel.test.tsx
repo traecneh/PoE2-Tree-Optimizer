@@ -67,6 +67,65 @@ describe("BuildGoalsPanel", () => {
     expectTooltipText(screen.getByRole("button", { name: "Cancel" }), "Stop the running optimizer");
     expectTooltipText(screen.getByRole("button", { name: "Apply optimized route" }), "Commit the optimized preview");
   });
+
+  it("reports a concise PoB import summary", () => {
+    render(
+      <BuildGoalsPanel
+        goals={[]}
+        status={{ kind: "idle" }}
+        pobImportCode="example-code"
+        pobImportStatus={{
+          kind: "success",
+          importedGoalCount: 3,
+          pobBasePassivePointCount: 10,
+          selectedAscendancyNodeCount: 0,
+          alreadySelectedGoalCount: 0,
+          missingNodeCount: 0,
+        }}
+        canApplyOptimizedRoute={false}
+        onPobImportCodeChange={vi.fn()}
+        onImportPobBuildGoals={vi.fn()}
+        onRemoveGoal={vi.fn()}
+        onClearGoals={vi.fn()}
+        onOptimize={vi.fn()}
+        onCancel={vi.fn()}
+        onApplyOptimizedRoute={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Imported 3 build goals.")).not.toBeNull();
+    expect(screen.getByText("PoB base passives: 10.")).not.toBeNull();
+    expect(screen.queryByText(/weapon set/i)).toBeNull();
+    expect(screen.queryByText(/Non-weapon nodes imported/i)).toBeNull();
+  });
+
+  it("reports selected ascendancy nodes during PoB import", () => {
+    render(
+      <BuildGoalsPanel
+        goals={[]}
+        status={{ kind: "idle" }}
+        pobImportCode="example-code"
+        pobImportStatus={{
+          kind: "success",
+          importedGoalCount: 1,
+          pobBasePassivePointCount: 8,
+          selectedAscendancyNodeCount: 8,
+          alreadySelectedGoalCount: 0,
+          missingNodeCount: 0,
+        }}
+        canApplyOptimizedRoute={false}
+        onPobImportCodeChange={vi.fn()}
+        onImportPobBuildGoals={vi.fn()}
+        onRemoveGoal={vi.fn()}
+        onClearGoals={vi.fn()}
+        onOptimize={vi.fn()}
+        onCancel={vi.fn()}
+        onApplyOptimizedRoute={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Selected 8 ascendancy passives.")).not.toBeNull();
+  });
 });
 
 function expectTooltipText(element: HTMLElement, expectedText: string) {

@@ -43,6 +43,43 @@ describe("PoB build import", () => {
     expect(result.ignoredNodeIds).toEqual(["105", "201"]);
   });
 
+  it("excludes weapon set passives from imported build goals", () => {
+    const result = importBuildGoalsFromPobXml(`
+      <PathOfBuilding2>
+        <Tree activeSpec="1">
+          <Spec title="Active" nodes="100,101,102,103,104">
+            <WeaponSet1 nodes="103" />
+            <WeaponSet2 nodes="104" />
+          </Spec>
+        </Tree>
+      </PathOfBuilding2>
+    `, fixtureGraph());
+
+    expect(result.allocatedNodeIds).toEqual(["100", "101", "102"]);
+    expect(result.weaponSetNodeIds).toEqual(["103", "104"]);
+    expect(result.goalNodeIds).toEqual(["101"]);
+    expect(result.ignoredNodeIds).toEqual(["100", "102"]);
+  });
+
+  it("reports PoB-style passive point counts separately from raw imported nodes", () => {
+    const result = importBuildGoalsFromPobXml(`
+      <PathOfBuilding2>
+        <Tree activeSpec="1">
+          <Spec title="Active" nodes="100,101,102,103,104,105,200,201">
+            <WeaponSet1 nodes="103,104" />
+            <WeaponSet2 nodes="105" />
+          </Spec>
+        </Tree>
+      </PathOfBuilding2>
+    `, fixtureGraph());
+
+    expect(result.allocatedNodeIds).toEqual(["100", "101", "102", "200", "201"]);
+    expect(result.weaponSet1NodeIds).toEqual(["103", "104"]);
+    expect(result.weaponSet2NodeIds).toEqual(["105"]);
+    expect(result.ascendancyNodeIds).toEqual(["201"]);
+    expect(result.pobBasePassivePointCount).toBe(4);
+  });
+
   it("ignores goalable nodes outside the imported allocated component", () => {
     const result = importBuildGoalsFromPobXml(`
       <PathOfBuilding2>
@@ -76,13 +113,17 @@ describe("PoB build import", () => {
       <PathOfBuilding2 className="Ranger" ascendClassName="Deadeye">
         <Tree activeSpec="2">
           <Spec title="Ignored" nodes="101" />
-          <Spec title="Fallback Parser" nodes="100,101,102,103,104" />
+          <Spec title="Fallback Parser" nodes="100,101,102,103,104">
+            <WeaponSet1 nodes="104" />
+          </Spec>
         </Tree>
       </PathOfBuilding2>
     `, fixtureGraph());
 
     expect(result.activeSpecTitle).toBe("Fallback Parser");
-    expect(result.goalNodeIds).toEqual(["101", "103", "104"]);
+    expect(result.allocatedNodeIds).toEqual(["100", "101", "102", "103"]);
+    expect(result.weaponSetNodeIds).toEqual(["104"]);
+    expect(result.goalNodeIds).toEqual(["101", "103"]);
     expect(result.className).toBe("Ranger");
     expect(result.ascendClassName).toBe("Deadeye");
   });
@@ -171,7 +212,7 @@ function fixtureGraph(): TreeGraph {
         name: "Ascendancy Notable",
         stats: ["20% increased Ascendancy Power"],
         position: { x: 10_100, y: 0 },
-        flags: { notable: true },
+        flags: { notable: true, ascendancy: true },
       },
     },
     groups: {},
