@@ -1,6 +1,6 @@
 # Local PoE2 Passive Tree Extraction
 
-Date: 2026-05-24
+Date: 2026-05-29
 
 ## Result
 
@@ -12,22 +12,20 @@ Detected install:
 C:\Program Files (x86)\Steam\steamapps\common\Path of Exile 2
 ```
 
-Generated normalized graph:
+Generated normalized graph for PoE2 0.5.0:
 
 ```text
-nodes: 4975
-edges: 5888
-groups: 1497
+nodes: 5079
+edges: 6014
+groups: 1550
 class starts: 6
 missing coordinates: 0
 dangling edges: 0
 orphan nodes: 0
-statless nodes: 648
-raw stat fallback lines: 25
+missing stat lines: 0
 ```
 
-The statless nodes are currently treated as warnings because the local game data includes mastery placeholders, unused rows, and class/ascendancy support nodes with no direct stat rows. Structural graph errors remain fatal.
-The remaining raw stat fallback lines are mostly no-display armour grants and ascendancy/system flags that do not have user-facing stat description entries.
+The 0.5.0 PSG includes 22 isolated non-start passive rows. The normalizer filters those before writing the app graph because they cannot be routed, optimized, or allocated from the main tree. Structural graph errors remain fatal.
 
 ## Source Files
 
@@ -73,6 +71,8 @@ Use `pathofexile-dat` from the ignored working directory `var/pathofexile-dat`. 
         "Stat5Value",
         "PassiveSkillGraphId",
         "Characters",
+        "MasteryGroup",
+        "Ascendancy",
         "IsKeystone",
         "IsNotable",
         "IsJewelSocket",
@@ -80,6 +80,22 @@ Use `pathofexile-dat` from the ignored working directory `var/pathofexile-dat`. 
         "IsAttribute",
         "NodeFrameArt"
       ]
+    },
+    {
+      "name": "PassiveSkillMasteryGroups",
+      "columns": ["Id", "MasteryEffects", "MasteryCountStat", "Art"]
+    },
+    {
+      "name": "PassiveSkillMasteryEffects",
+      "columns": ["Id", "Stats", "Stat1Value", "Stat2Value", "Stat3Value"]
+    },
+    {
+      "name": "PassiveSkillTreeMasteryArt",
+      "columns": ["Id", "InactiveIcon", "ActiveIcon", "ActiveEffectImage"]
+    },
+    {
+      "name": "Ascendancy",
+      "columns": ["Id", "Name", "Disabled"]
     }
   ],
   "translations": ["English"],
@@ -98,7 +114,7 @@ Then run:
 Set-Location var/pathofexile-dat
 npx --yes pathofexile-dat
 Set-Location ..\..
-npm run extract:graph -- --psg "var/pathofexile-dat/files/metadata@passiveskillgraph.psg" --skills "var/pathofexile-dat/tables/English/PassiveSkills.json" --stats "var/pathofexile-dat/tables/English/Stats.json" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@stat_descriptions.csd" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@passive_skill_stat_descriptions.csd"
+npm run extract:graph -- --game-version "0.5.0" --psg "var/pathofexile-dat/files/metadata@passiveskillgraph.psg" --skills "var/pathofexile-dat/tables/English/PassiveSkills.json" --stats "var/pathofexile-dat/tables/English/Stats.json" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@stat_descriptions.csd" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@passive_skill_stat_descriptions.csd"
 npm run validate:graph
 ```
 
@@ -112,13 +128,13 @@ Passive skill rows include `Icon_DDSFile` paths. The graph normalizer preserves 
 public/tree-assets/icons/<asset-key>.png
 ```
 
-Generated icon assets are local game data derivatives and are ignored by git. Export them with:
+Export the icon assets with:
 
 ```powershell
 npm run extract:icons
 ```
 
-The command reads `public/tree-graph.json`, exports the unique DDS icons through `pathofexile-dat`, converts them to PNG, and writes `public/tree-assets/icon-manifest.json`. On machines without ImageMagick, the command builds a local `magick` shim in `var/icon-export/bin` that converts DDS bytes with Python/Pillow. On this install the main tree currently exports 543 unique icon PNGs for 4972 icon-bearing nodes.
+The command reads `public/tree-graph.json`, exports the unique DDS icons through `pathofexile-dat`, converts them to PNG, and writes `public/tree-assets/icon-manifest.json`. On machines without ImageMagick, the command builds a local `magick` shim in `var/icon-export/bin` that converts DDS bytes with Python/Pillow. For deploy builds, copy the refreshed graph and icon assets into `data/` so `npm run prepare-data` can mirror them into `public/`. On this install the main tree currently exports 572 unique icon PNGs for 5076 icon-bearing nodes.
 
 ## PSG Format Notes
 

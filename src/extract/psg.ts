@@ -163,16 +163,19 @@ export function normalizePoe2PassiveTreeData(input: {
     }
   }
 
+  const normalizedEdges = dedupeEdges(edges);
+  const filteredGraph = filterDisconnectedNonStartNodes(nodes, groups, normalizedEdges);
+
   return {
     schemaVersion: 1,
     gameVersion: input.gameVersion,
     extractedAt: new Date().toISOString(),
     source: { kind: "local-game-data", path: input.sourcePath },
-    nodes,
-    groups,
-    edges: dedupeEdges(edges),
+    nodes: filteredGraph.nodes,
+    groups: filteredGraph.groups,
+    edges: filteredGraph.edges,
     classStarts: buildClassStarts(input.graph.rootNodeIds, skillsByGraphId),
-    bounds: computeBounds(Object.values(nodes)),
+    bounds: computeBounds(Object.values(filteredGraph.nodes)),
   };
 }
 
@@ -364,6 +367,37 @@ function dedupeEdges(edges: TreeEdge[]): TreeEdge[] {
     seen.add(key);
     return true;
   });
+}
+
+function filterDisconnectedNonStartNodes(
+  nodes: TreeGraph["nodes"],
+  groups: TreeGraph["groups"],
+  edges: TreeEdge[],
+): Pick<TreeGraph, "nodes" | "groups" | "edges"> {
+  const connectedNodeIds = new Set<string>();
+  for (const edge of edges) {
+    connectedNodeIds.add(edge.from);
+    connectedNodeIds.add(edge.to);
+  }
+
+  const filteredNodes = Object.fromEntries(
+    Object.entries(nodes).filter(([nodeId, node]) => node.flags.classStart || connectedNodeIds.has(nodeId)),
+  );
+  const filteredNodeIds = new Set(Object.keys(filteredNodes));
+  const filteredGroups = Object.fromEntries(
+    Object.entries(groups)
+      .map(([groupId, group]) => [
+        groupId,
+        {
+          ...group,
+          nodeIds: group.nodeIds.filter((nodeId) => filteredNodeIds.has(nodeId)),
+        },
+      ] as const)
+      .filter(([, group]) => group.nodeIds.length > 0),
+  );
+  const filteredEdges = edges.filter((edge) => filteredNodeIds.has(edge.from) && filteredNodeIds.has(edge.to));
+
+  return { nodes: filteredNodes, groups: filteredGroups, edges: filteredEdges };
 }
 
 function computeBounds(nodes: TreeNode[]): TreeGraph["bounds"] {

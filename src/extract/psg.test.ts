@@ -276,6 +276,74 @@ description
 
     expect(graph.nodes["100"].art).toBeUndefined();
   });
+
+  it("filters disconnected non-start nodes from the normalized graph", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: {
+        version: 3,
+        type: 0,
+        orbits: [1, 4],
+        rootNodeIds: [100],
+        groups: [
+          {
+            id: "0",
+            position: { x: 100, y: 200 },
+            groupAssociationKey: 7,
+            groupBackgroundOverride: 0,
+            isJewelPositionReference: false,
+            nodes: [
+              {
+                id: 100,
+                orbit: 0,
+                orbitIndex: 0,
+                connections: [{ nodeId: 101, orbit: 3 }],
+              },
+              {
+                id: 101,
+                orbit: 1,
+                orbitIndex: 0,
+                connections: [{ nodeId: 100, orbit: 0 }],
+              },
+              {
+                id: 102,
+                orbit: 1,
+                orbitIndex: 1,
+                connections: [],
+              },
+            ],
+          },
+        ],
+      },
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+        },
+        {
+          Id: "connected",
+          Name: "Connected Notable",
+          PassiveSkillGraphId: 101,
+          IsNotable: true,
+        },
+        {
+          Id: "disconnected",
+          Name: "Disconnected Notable",
+          PassiveSkillGraphId: 102,
+          IsNotable: true,
+        },
+      ],
+    });
+
+    expect(graph.nodes["100"]).toBeDefined();
+    expect(graph.nodes["101"]).toBeDefined();
+    expect(graph.nodes["102"]).toBeUndefined();
+    expect(graph.groups["0"].nodeIds).toEqual(["100", "101"]);
+    expect(graph.edges).toEqual([{ from: "100", to: "101", connectionOrbit: 3 }]);
+    expect(graph.bounds).toEqual({ minX: 100, maxX: 100, minY: 118, maxY: 200 });
+  });
 });
 
 function makePsgFixture(): Buffer {

@@ -43,7 +43,7 @@ const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
 const defaultNodeVisualScale = 3;
 const maxAscendancyAllocationCount = 8;
 const maxPassiveAllocationPointCount = 123;
-const treeDataVersionLabel = "PoE2 0.4.0l";
+const treeDataVersionLabel = "PoE2 0.5.0";
 const savedBuildToastDurationMs = 3000;
 const debugOverlayOff: DebugOverlayState = {
   showNodeIds: false,

@@ -38,7 +38,7 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "PoE2 Tree Optimizer for Boomslang" })).not.toBeNull();
-    expect(screen.getByText("Tree data: PoE2 0.4.0l")).not.toBeNull();
+    expect(screen.getByText("Tree data: PoE2 0.5.0")).not.toBeNull();
     expect(screen.queryByText(/nodes, .*links, version/i)).toBeNull();
   });
 

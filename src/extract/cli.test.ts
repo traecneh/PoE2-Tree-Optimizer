@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -96,6 +96,33 @@ describe("extract CLI", () => {
     expect(result.stderr).toContain(`Could not parse PSG file: ${psgPath}`);
     expect(result.stderr).not.toContain("Error:");
     expect(result.stderr).not.toContain("at ");
+  });
+
+  it("uses an explicit game version when extracting a graph", () => {
+    const workspace = mkdtempSync(join(tmpdir(), "poe2-cli-"));
+    const installPath = join(workspace, "fake-poe2");
+    const rawPath = join(workspace, "raw-passive-tree.json");
+    const graphPath = join(workspace, "tree-graph.json");
+
+    mkdirSync(installPath, { recursive: true });
+    writeFileSync(join(installPath, "Content.ggpk"), "", "utf8");
+    writeFileSync(rawPath, "{}", "utf8");
+
+    const result = runCli([
+      "graph",
+      "--install",
+      installPath,
+      "--raw",
+      rawPath,
+      "--graph",
+      graphPath,
+      "--game-version",
+      "0.5.0",
+    ]);
+
+    expect(result.status).toBe(0);
+    const graph = JSON.parse(readFileSync(graphPath, "utf8")) as TreeGraph;
+    expect(graph.gameVersion).toBe("0.5.0");
   });
 
   it("exits 1 when validation reports issues", () => {

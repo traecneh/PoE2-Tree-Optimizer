@@ -11,7 +11,7 @@ import { validateTreeGraph } from "../tree/validateTreeGraph";
 import type { TreeGraph } from "../tree/types";
 
 const usage =
-  "Usage: tsx src/extract/cli.ts <inventory|graph|validate|icons> [--install PATH] [--raw PATH] [--psg PATH] [--skills PATH] [--stats PATH] [--stat-descriptions PATH] [--graph PATH] [--report PATH] [--assets PATH] [--workdir PATH] [--limit COUNT]";
+  "Usage: tsx src/extract/cli.ts <inventory|graph|validate|icons> [--install PATH] [--raw PATH] [--psg PATH] [--skills PATH] [--stats PATH] [--stat-descriptions PATH] [--game-version VERSION] [--graph PATH] [--report PATH] [--assets PATH] [--workdir PATH] [--limit COUNT]";
 const knownFlags = new Set([
   "--install",
   "--raw",
@@ -19,6 +19,7 @@ const knownFlags = new Set([
   "--skills",
   "--stats",
   "--stat-descriptions",
+  "--game-version",
   "--graph",
   "--report",
   "--assets",
@@ -54,16 +55,17 @@ try {
   } else if (command === "graph") {
     validateGraphArgs(args);
     const install = discoverPoe2Install({ explicitPath });
+    const gameVersion = args.gameVersion ?? install.gameVersion ?? "unknown";
     const graph =
       args.psg || args.skills
         ? normalizeFromPsg({
-            gameVersion: install.gameVersion ?? "unknown",
+            gameVersion,
             psgPath: args.psg,
             skillsPath: args.skills,
             statsPath: args.stats,
             statDescriptionPaths: args.statDescriptions,
           })
-        : normalizeFromRawPayload({ gameVersion: install.gameVersion ?? "unknown", rawPath });
+        : normalizeFromRawPayload({ gameVersion, rawPath });
     writeJson(graphPath, graph);
     writeJson("public/tree-graph.json", graph);
     console.log(`Wrote ${graphPath} and public/tree-graph.json`);
@@ -111,6 +113,7 @@ type CliArgs = {
   skills?: string;
   stats?: string;
   statDescriptions?: string[];
+  gameVersion?: string;
   graph?: string;
   report?: string;
   assets?: string;
@@ -140,6 +143,7 @@ function readArgs(argv: string[]): CliArgs {
       args.statDescriptions ??= [];
       args.statDescriptions.push(value);
     }
+    else if (flag === "--game-version") args.gameVersion = value;
     else if (flag === "--graph") args.graph = value;
     else if (flag === "--report") args.report = value;
     else if (flag === "--assets") args.assets = value;

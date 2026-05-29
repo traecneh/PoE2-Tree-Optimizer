@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-05-24T20:55:50.932Z",
-  "totalIcons": 543,
+  "generatedAt": "2026-05-29T17:51:01.015Z",
+  "totalIcons": 572,
   "icons": [
     {
       "source": "Art/2DArt/SkillIcons/ExplosiveGrenade.dds",
@@ -86,6 +86,11 @@
       "source": "Art/2DArt/SkillIcons/passives/AcolyteofChayula/AcolyteOfChayulaReplaceSpiritWithDarkness.dds",
       "assetKey": "art-2dart-skillicons-passives-acolyteofchayula-acolyteofchayulareplacespiritwithdarkness",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-acolyteofchayula-acolyteofchayulareplacespiritwithdarkness.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/AcolyteofChayula/AcolyteOfChayulaSpecialNode.dds",
+      "assetKey": "art-2dart-skillicons-passives-acolyteofchayula-acolyteofchayulaspecialnode",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-acolyteofchayula-acolyteofchayulaspecialnode.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/AcolyteofChayula/AcolyteOfChayulaUnravelling.dds",
@@ -178,6 +183,16 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-archongenericnotable.png"
     },
     {
+      "source": "Art/2DArt/SkillIcons/passives/ArchonofUndeathNode.dds",
+      "assetKey": "art-2dart-skillicons-passives-archonofundeathnode",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-archonofundeathnode.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/ArchonofUndeathNoteble.dds",
+      "assetKey": "art-2dart-skillicons-passives-archonofundeathnoteble",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-archonofundeathnoteble.png"
+    },
+    {
       "source": "Art/2DArt/SkillIcons/passives/AreaDmgNode.dds",
       "assetKey": "art-2dart-skillicons-passives-areadmgnode",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-areadmgnode.png"
@@ -211,6 +226,16 @@
       "source": "Art/2DArt/SkillIcons/passives/ArmourBreak2BuffIcon.dds",
       "assetKey": "art-2dart-skillicons-passives-armourbreak2bufficon",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-armourbreak2bufficon.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/ArmourElementalDamageDeflect.dds",
+      "assetKey": "art-2dart-skillicons-passives-armourelementaldamagedeflect",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-armourelementaldamagedeflect.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/ArmourElementalDamageEnergyShieldRecharge.dds",
+      "assetKey": "art-2dart-skillicons-passives-armourelementaldamageenergyshieldrecharge",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-armourelementaldamageenergyshieldrecharge.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/Ascendants/SkillPoint.dds",
@@ -588,6 +613,11 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-colddamagenode.png"
     },
     {
+      "source": "Art/2DArt/SkillIcons/passives/ColdFireNode.dds",
+      "assetKey": "art-2dart-skillicons-passives-coldfirenode",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-coldfirenode.png"
+    },
+    {
       "source": "Art/2DArt/SkillIcons/passives/coldresist.dds",
       "assetKey": "art-2dart-skillicons-passives-coldresist",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-coldresist.png"
@@ -953,6 +983,16 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-energyshieldnode.png"
     },
     {
+      "source": "Art/2DArt/SkillIcons/passives/EnergyShieldRechargeDeflect.dds",
+      "assetKey": "art-2dart-skillicons-passives-energyshieldrechargedeflect",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-energyshieldrechargedeflect.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/EnergyShieldRechargeDeflectNode.dds",
+      "assetKey": "art-2dart-skillicons-passives-energyshieldrechargedeflectnode",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-energyshieldrechargedeflectnode.png"
+    },
+    {
       "source": "Art/2DArt/SkillIcons/passives/EternalYouth.dds",
       "assetKey": "art-2dart-skillicons-passives-eternalyouth",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-eternalyouth.png"
@@ -1063,6 +1103,11 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-frostborn.png"
     },
     {
+      "source": "Art/2DArt/SkillIcons/passives/Gemling/GemlingBarrier.dds",
+      "assetKey": "art-2dart-skillicons-passives-gemling-gemlingbarrier",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-gemling-gemlingbarrier.png"
+    },
+    {
       "source": "Art/2DArt/SkillIcons/passives/Gemling/GemlingBuffSkillsReserveLessSpirit.dds",
       "assetKey": "art-2dart-skillicons-passives-gemling-gemlingbuffskillsreservelessspirit",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-gemling-gemlingbuffskillsreservelessspirit.png"
@@ -1111,11 +1156,6 @@
       "source": "Art/2DArt/SkillIcons/passives/Gemling/GemlingSameSupportMultipleTimes.dds",
       "assetKey": "art-2dart-skillicons-passives-gemling-gemlingsamesupportmultipletimes",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-gemling-gemlingsamesupportmultipletimes.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/Gemling/GemlingSkillGemQuality.dds",
-      "assetKey": "art-2dart-skillicons-passives-gemling-gemlingskillgemquality",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-gemling-gemlingskillgemquality.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/Gemling/GemlingSkillsAdditionalSupport.dds",
@@ -1541,6 +1581,51 @@
       "source": "Art/2DArt/SkillIcons/passives/MarkNode.dds",
       "assetKey": "art-2dart-skillicons-passives-marknode",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-marknode.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistAdditionalComboHit.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartistadditionalcombohit",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistadditionalcombohit.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistAllAttacksGenerateCombo.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartistallattacksgeneratecombo",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistallattacksgeneratecombo.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistCarrySoectralBell.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartistcarrysoectralbell",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistcarrysoectralbell.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistCoveredinStone.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartistcoveredinstone",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistcoveredinstone.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistExtraRunes.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartistextrarunes",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistextrarunes.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistHandWraps.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartisthandwraps",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartisthandwraps.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistMantraofIllusions.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartistmantraofillusions",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistmantraofillusions.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistNode.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartistnode",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistnode.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/MartialArtist/MartialArtistSpectralBell.dds",
+      "assetKey": "art-2dart-skillicons-passives-martialartist-martialartistspectralbell",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistspectralbell.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/MasteryArmourandEnergyShield.dds",
@@ -2108,6 +2193,16 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-projectilespeed.png"
     },
     {
+      "source": "Art/2DArt/SkillIcons/passives/PuppeteerNode.dds",
+      "assetKey": "art-2dart-skillicons-passives-puppeteernode",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-puppeteernode.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/PuppeteerNoteble.dds",
+      "assetKey": "art-2dart-skillicons-passives-puppeteernoteble",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-puppeteernoteble.png"
+    },
+    {
       "source": "Art/2DArt/SkillIcons/passives/Rage.dds",
       "assetKey": "art-2dart-skillicons-passives-rage",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-rage.png"
@@ -2666,6 +2761,56 @@
       "source": "Art/2DArt/SkillIcons/passives/Warrior.dds",
       "assetKey": "art-2dart-skillicons-passives-warrior",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-warrior.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerBonusPerSocketedTalisman.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakerbonuspersocketedtalisman",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakerbonuspersocketedtalisman.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerCompanionDmgWeapon.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakercompaniondmgweapon",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakercompaniondmgweapon.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerNode.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakernode",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakernode.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerOwlFeatherHigherCritDmg.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakerowlfeatherhighercritdmg",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakerowlfeatherhighercritdmg.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerOwlFeathers.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakerowlfeathers",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakerowlfeathers.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerSacredWisp.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakersacredwisp",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakersacredwisp.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerTameBeastTargetUnique.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakertamebeasttargetunique",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakertamebeasttargetunique.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerVividStags.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakervividstags",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakervividstags.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerVividWisps.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakervividwisps",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakervividwisps.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/Wildspeaker/WildspeakerWildBear.dds",
+      "assetKey": "art-2dart-skillicons-passives-wildspeaker-wildspeakerwildbear",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-wildspeaker-wildspeakerwildbear.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/Witchhunter/WitchunterArmourEvasionConvertedSpellAegis.dds",
