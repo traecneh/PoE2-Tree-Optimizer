@@ -1075,7 +1075,7 @@ function nodeVisual(node: TreeNode, typeClass: string, nodeVisualScale: number):
 
 function nodeRadius(node: TreeNode, nodeVisualScale: number): number {
   if (node.flags.classStart) return 26 * nodeVisualScale;
-  if (node.flags.keystone) return 24 * nodeVisualScale;
+  if (node.flags.keystone) return 36 * nodeVisualScale;
   if (node.flags.notable) return 18 * nodeVisualScale;
   if (node.flags.jewelSocket) return 16 * nodeVisualScale;
   return 10 * nodeVisualScale;

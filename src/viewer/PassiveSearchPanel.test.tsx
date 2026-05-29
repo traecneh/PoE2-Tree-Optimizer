@@ -126,7 +126,14 @@ describe("PassiveSearchPanel", () => {
       />,
     );
 
-    expectTooltipText(screen.getByLabelText("Passive search"), "quoted phrases");
+    const passiveSearchTooltip = tooltipTextFor(screen.getByLabelText("Passive search"));
+    expect(passiveSearchTooltip).toContain("Search examples");
+    expect(passiveSearchTooltip).toContain("keystone - all keystone passives");
+    expect(passiveSearchTooltip).toContain("notable - all notable passives");
+    expect(passiveSearchTooltip).toContain("empty jewel slots - jewel sockets");
+    expect(passiveSearchTooltip).toContain("Minion Attack Speed - minion attack speed");
+    expect(passiveSearchTooltip).toContain("\"Stun Threshold\" \"Energy Shield\" - exact ES stun-threshold wording");
+    expect(passiveSearchTooltip).toContain("Flask Charges -Life -Mana - flask charge nodes excluding Life/Mana flask nodes");
     expectTooltipText(screen.getAllByRole("button", { name: "Minion Damage One 15% increased Minion Damage" })[0], "Select this passive");
     expectTooltipText(screen.getByRole("button", { name: "Add Minion Damage One to build goals" }), "Add this passive");
     expectTooltipText(screen.getAllByRole("button", {
@@ -136,9 +143,13 @@ describe("PassiveSearchPanel", () => {
 });
 
 function expectTooltipText(element: HTMLElement, expectedText: string) {
+  expect(tooltipTextFor(element)).toContain(expectedText);
+}
+
+function tooltipTextFor(element: HTMLElement) {
   const tooltipId = element.getAttribute("aria-describedby");
   expect(tooltipId).toBeTruthy();
-  expect(document.getElementById(tooltipId ?? "")?.textContent).toContain(expectedText);
+  return document.getElementById(tooltipId ?? "")?.textContent ?? "";
 }
 
 function testNode(id: string, name: string, stats: string[], flags: TreeNode["flags"] = { small: true }): TreeNode {

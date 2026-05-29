@@ -212,6 +212,20 @@ button {
   left: auto;
 }
 
+.passive-search-tooltip-guide {
+  display: grid;
+  gap: 5px;
+}
+
+.passive-search-help-tooltip .control-tooltip-content {
+  width: min(360px, calc(100vw - 36px));
+}
+
+.passive-search-tooltip-guide strong {
+  color: #f1d59b;
+  font-size: 12px;
+}
+
 .data-warning {
   display: flex;
   flex-wrap: wrap;

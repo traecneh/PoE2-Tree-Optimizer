@@ -754,6 +754,37 @@ describe("TreeViewer", () => {
     expect(attribute.querySelector(".node-glyph.attribute-glyph")).not.toBeNull();
   });
 
+  it("renders keystones about twice the core size of notable nodes", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        chaos_inoculation: {
+          id: "chaos_inoculation",
+          groupId: "g3",
+          name: "Chaos Inoculation",
+          stats: ["Keystone passive skill"],
+          position: { x: 480, y: -80 },
+          flags: { keystone: true },
+        },
+      },
+      groups: {
+        ...sampleGraph.groups,
+        g3: { id: "g3", position: { x: 480, y: -80 }, nodeIds: ["chaos_inoculation"] },
+      },
+      bounds: { ...sampleGraph.bounds, maxX: 480, minY: -80 },
+    };
+
+    render(<TreeViewer graph={graph} onSelectNode={vi.fn()} debug={debugOff} />);
+
+    const notableCoreRadius = Number(screen.getByRole("button", { name: "Precise Shot" })
+      .querySelector(".node-core")?.getAttribute("r"));
+    const keystoneCoreRadius = Number(screen.getByRole("button", { name: "Chaos Inoculation" })
+      .querySelector(".node-core")?.getAttribute("r"));
+
+    expect(keystoneCoreRadius).toBe(notableCoreRadius * 2);
+  });
+
   it("renders a game icon image for nodes with passive icon art", () => {
     const graph: TreeGraph = {
       ...sampleGraph,

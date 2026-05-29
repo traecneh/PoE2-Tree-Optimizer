@@ -68,8 +68,9 @@ export function PassiveSearchPanel({
       <label className="passive-search-label" htmlFor="passive-search-input">Passive search</label>
       <ControlTooltip
         id="passive-search-tooltip"
-        text="Search by node name, stat text, quoted phrases, or exclusions like -Minion."
+        text={<PassiveSearchTooltipContent />}
         block
+        className="passive-search-help-tooltip"
       >
         <input
           id="passive-search-input"
@@ -165,6 +166,20 @@ export function PassiveSearchPanel({
         </>
       ) : null}
     </section>
+  );
+}
+
+function PassiveSearchTooltipContent() {
+  return (
+    <span className="passive-search-tooltip-guide">
+      <strong>Search examples</strong>
+      <span>keystone - all keystone passives</span>
+      <span>notable - all notable passives</span>
+      <span>empty jewel slots - jewel sockets</span>
+      <span>Minion Attack Speed - minion attack speed, including attack/cast speed wording</span>
+      <span>"Stun Threshold" "Energy Shield" - exact ES stun-threshold wording</span>
+      <span>Flask Charges -Life -Mana - flask charge nodes excluding Life/Mana flask nodes</span>
+    </span>
   );
 }
 

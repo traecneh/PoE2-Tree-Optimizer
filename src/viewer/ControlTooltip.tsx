@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 type ControlTooltipProps = {
   id: string;
-  text: string;
+  text: ReactNode;
   children: ReactNode;
   block?: boolean;
   className?: string;
