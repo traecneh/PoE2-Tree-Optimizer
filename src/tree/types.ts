@@ -26,6 +26,16 @@ export type TreeNodeAscendancy = {
   startNode?: boolean;
 };
 
+export type TreeNodeVisibility = {
+  requiredAscendancy: {
+    id: string;
+    name: string;
+    className: string;
+  };
+  unlockNodeId?: NodeId;
+  unlockNodeName?: string;
+};
+
 export type TreeNode = {
   id: NodeId;
   groupId?: GroupId;
@@ -39,6 +49,7 @@ export type TreeNode = {
   flags: TreeNodeFlags;
   masteryEffects?: TreeNodeMasteryEffect[];
   ascendancy?: TreeNodeAscendancy;
+  visibility?: TreeNodeVisibility;
   art?: {
     icon?: string;
     assetKey?: string;

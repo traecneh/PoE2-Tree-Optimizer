@@ -25,6 +25,7 @@ import {
   type SavedBuild,
   type SavedBuildState,
 } from "./tree/savedBuilds";
+import { filterVisibleTreeGraph } from "./tree/treeVisibility";
 import type { TreeGraph, TreeNode } from "./tree/types";
 import {
   BuildGoalsPanel,
@@ -101,12 +102,6 @@ export default function App() {
   const [savedBuildStatusFeedbackKey, setSavedBuildStatusFeedbackKey] = useState(0);
   const optimizerRun = useRef<BuildGoalsOptimizationRun | undefined>(undefined);
   const savedBuildStatusTimeoutId = useRef<number | undefined>(undefined);
-  const selectedNode = useMemo(
-    () => (selectedNodeId ? graph.nodes[selectedNodeId] : undefined),
-    [graph.nodes, selectedNodeId],
-  );
-  const passiveSearchIndex = useMemo(() => createPassiveSearchIndex(graph), [graph]);
-  const searchResults = useMemo(() => searchPassiveTree(passiveSearchIndex, searchQuery), [passiveSearchIndex, searchQuery]);
   const classStartOptions = useMemo(
     () => buildClassStartOptions(graph),
     [graph],
@@ -127,6 +122,19 @@ export default function App() {
     () => sanitizeAscendancyAllocationNodeIds(ascendancyAllocationNodeIds, graph, selectedAscendancy),
     [ascendancyAllocationNodeIds, graph, selectedAscendancy],
   );
+  const visibleGraph = useMemo(
+    () => filterVisibleTreeGraph(graph, {
+      selectedAscendancyId: selectedAscendancy?.id,
+      allocatedAscendancyNodeIds: activeAscendancyAllocationNodeIds,
+    }),
+    [activeAscendancyAllocationNodeIds, graph, selectedAscendancy?.id],
+  );
+  const selectedNode = useMemo(
+    () => (selectedNodeId ? visibleGraph.nodes[selectedNodeId] : undefined),
+    [selectedNodeId, visibleGraph.nodes],
+  );
+  const passiveSearchIndex = useMemo(() => createPassiveSearchIndex(visibleGraph), [visibleGraph]);
+  const searchResults = useMemo(() => searchPassiveTree(passiveSearchIndex, searchQuery), [passiveSearchIndex, searchQuery]);
   const activeAscendancyPointCostByNodeId = useMemo(
     () => ascendancyPointCostByNodeId(graph, selectedAscendancy, activeAscendancyAllocationNodeIds),
     [activeAscendancyAllocationNodeIds, graph, selectedAscendancy],
@@ -162,12 +170,12 @@ export default function App() {
     [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys],
   );
   const allocationDistances = useMemo(
-    () => findAllocationDistancesFrom(graph, allocationDistanceNodeIds),
-    [allocationDistanceNodeIds, graph],
+    () => findAllocationDistancesFrom(visibleGraph, allocationDistanceNodeIds),
+    [allocationDistanceNodeIds, visibleGraph],
   );
   const buildSummaryData = useMemo(
-    () => buildSummary(graph, buildSummaryNodeIds, { pointCostByNodeId: activeAscendancyPointCostByNodeId }),
-    [activeAscendancyPointCostByNodeId, buildSummaryNodeIds, graph],
+    () => buildSummary(visibleGraph, buildSummaryNodeIds, { pointCostByNodeId: activeAscendancyPointCostByNodeId }),
+    [activeAscendancyPointCostByNodeId, buildSummaryNodeIds, visibleGraph],
   );
   const buildGoalNodeIdSet = useMemo(
     () => new Set(buildGoalNodeIds),
@@ -175,7 +183,7 @@ export default function App() {
   );
   const buildGoalPanelGoals = useMemo<BuildGoalsPanelGoal[]>(
     () => buildGoalNodeIds.flatMap((nodeId) => {
-      const node = graph.nodes[nodeId];
+      const node = visibleGraph.nodes[nodeId];
       if (!node) return [];
       return [{
         node,
@@ -183,7 +191,7 @@ export default function App() {
         reached: allocationDistanceNodeIds.has(nodeId),
       }];
     }),
-    [allocationDistanceNodeIds, allocationDistances, buildGoalNodeIds, graph.nodes],
+    [allocationDistanceNodeIds, allocationDistances, buildGoalNodeIds, visibleGraph.nodes],
   );
   const searchResultsWithAllocationDistance = useMemo<PassiveSearchPanelResult[]>(
     () => searchResults
@@ -239,9 +247,9 @@ export default function App() {
       && !goalShortcutActive
       && hoverPreviewTargetNodeId
       && !allocationDistanceNodeIds.has(hoverPreviewTargetNodeId)
-      ? findShortestAllocationPathFromAllocated(graph, allocationDistanceNodeIds, hoverPreviewTargetNodeId)
+      ? findShortestAllocationPathFromAllocated(visibleGraph, allocationDistanceNodeIds, hoverPreviewTargetNodeId)
       : undefined),
-    [allocationDistanceNodeIds, goalShortcutActive, graph, hoverPathPreviewEnabled, hoverPreviewTargetNodeId],
+    [allocationDistanceNodeIds, goalShortcutActive, hoverPathPreviewEnabled, hoverPreviewTargetNodeId, visibleGraph],
   );
   const hoverAllocationPathNodeIds = useMemo(
     () => new Set((hoverAllocationPath?.nodeIds ?? []).filter((nodeId) => !allocationDistanceNodeIds.has(nodeId))),
@@ -260,8 +268,8 @@ export default function App() {
     || allocationPlan.previewRouteNodePath.length > 0
     || Boolean(allocationPlan.noAllocationPathNodeId);
   const allocationPathNodeNames = useMemo(
-    () => allocationPath?.nodeIds.map((nodeId) => graph.nodes[nodeId]?.name ?? nodeId) ?? [],
-    [allocationPath, graph.nodes],
+    () => allocationPath?.nodeIds.map((nodeId) => visibleGraph.nodes[nodeId]?.name ?? nodeId) ?? [],
+    [allocationPath, visibleGraph.nodes],
   );
   const selectedSavedBuild = useMemo(
     () => savedBuilds.find((build) => build.id === selectedSavedBuildId),
@@ -452,7 +460,7 @@ export default function App() {
   }
 
   function addBuildGoal(nodeId: string, options: { allowAnyPassive?: boolean } = {}) {
-    const node = graph.nodes[nodeId];
+    const node = visibleGraph.nodes[nodeId];
     if (!node || !canAddBuildGoal(node, options)) return;
     clearOptimizedRouteState();
     setPobImportStatus({ kind: "idle" });
@@ -461,7 +469,7 @@ export default function App() {
 
   function addMatchingBuildGoals(nodeIds: string[]) {
     const addableNodeIds = nodeIds.filter((nodeId) => {
-      const node = graph.nodes[nodeId];
+      const node = visibleGraph.nodes[nodeId];
       return node && canAddBuildGoal(node, { allowAnyPassive: true });
     });
     if (addableNodeIds.length === 0) return;
@@ -549,7 +557,7 @@ export default function App() {
       ? allocationPlan.previewEdgeKeys
       : allocationPlan.committedEdgeKeys;
     const run = runBuildGoalsOptimization({
-      graph,
+      graph: visibleGraph,
       baseNodeIds,
       baseEdgeKeys,
       goalNodeIds: buildGoalNodeIds,
@@ -590,7 +598,9 @@ export default function App() {
     if (result.status === "unreachable") {
       setBuildGoalStatus({
         kind: "unreachable",
-        unreachableGoals: result.unreachableGoalNodeIds.flatMap((nodeId) => graph.nodes[nodeId] ? [graph.nodes[nodeId]] : []),
+        unreachableGoals: result.unreachableGoalNodeIds.flatMap((nodeId) => (
+          visibleGraph.nodes[nodeId] ? [visibleGraph.nodes[nodeId]] : []
+        )),
       });
       return;
     }
@@ -666,7 +676,8 @@ export default function App() {
   function selectTreeNode(nodeId: string) {
     clearOptimizedRouteState();
     setSelectedNodeId(nodeId);
-    const node = graph.nodes[nodeId];
+    const node = visibleGraph.nodes[nodeId];
+    if (!node) return;
     if (node?.flags.ascendancy) {
       setHoverPreviewTargetNodeId(undefined);
       toggleAscendancyAllocationNode(node);
@@ -676,7 +687,7 @@ export default function App() {
     setAllocationPlan((current) => {
       const committedNodeIndex = current.committedNodePath.lastIndexOf(nodeId);
       if (committedNodeIndex !== -1) {
-        const committedNodePath = current.committedNodePath.slice(0, committedNodeIndex + 1);
+        const committedNodePath = pruneCommittedNodePathOnClick(current.committedNodePath, nodeId);
         return {
           committedNodePath,
           committedEdgeKeys: filterEdgeKeysToNodeIds(current.committedEdgeKeys, committedNodePath),
@@ -713,7 +724,7 @@ export default function App() {
         ? baseNodePath
         : pathStartNodeId ? [pathStartNodeId] : [];
       const nextPath = pathStartNodePath.length > 0
-        ? findShortestAllocationPathFromAllocated(graph, new Set(pathStartNodePath), nodeId)
+        ? findShortestAllocationPathFromAllocated(visibleGraph, new Set(pathStartNodePath), nodeId)
         : undefined;
 
       if (!nextPath) {
@@ -792,21 +803,33 @@ export default function App() {
     setBuildGoalStatus({ kind: "idle" });
     setAllocationPlan((current) => {
       const currentPlanHasState = allocationPlanHasVisibleState(current);
-      const currentPlanIsValid = allocationPlanNodeIds(current).every((nodeId) => graph.nodes[nodeId]);
+      const currentPlanIsValid = allocationPlanNodeIds(current).every((nodeId) => visibleGraph.nodes[nodeId]);
       if (currentPlanHasState && currentPlanIsValid) return current;
-      return emptyAllocationPlanForStart(pathStartNodeId && graph.nodes[pathStartNodeId] ? pathStartNodeId : undefined);
+      return emptyAllocationPlanForStart(pathStartNodeId && visibleGraph.nodes[pathStartNodeId] ? pathStartNodeId : undefined);
     });
-  }, [graph.nodes, pathStartNodeId]);
+  }, [pathStartNodeId, visibleGraph.nodes]);
 
   useEffect(() => {
     setBuildGoalNodeIds((current) => {
       const next = current.filter((nodeId) => {
-        const node = graph.nodes[nodeId];
+        const node = visibleGraph.nodes[nodeId];
         return node && canAddBuildGoal(node, { allowAnyPassive: true });
       });
       return next.length === current.length ? current : next;
     });
-  }, [graph.nodes]);
+  }, [visibleGraph.nodes]);
+
+  useEffect(() => {
+    if (selectedNodeId && !visibleGraph.nodes[selectedNodeId]) {
+      setSelectedNodeId(undefined);
+    }
+    if (searchFocusedNodeId && !visibleGraph.nodes[searchFocusedNodeId]) {
+      setSearchFocusedNodeId(undefined);
+    }
+    if (hoverPreviewTargetNodeId && !visibleGraph.nodes[hoverPreviewTargetNodeId]) {
+      setHoverPreviewTargetNodeId(undefined);
+    }
+  }, [hoverPreviewTargetNodeId, searchFocusedNodeId, selectedNodeId, visibleGraph.nodes]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -1063,7 +1086,7 @@ export default function App() {
             </div>
           ) : null}
           <TreeViewer
-            graph={graph}
+            graph={visibleGraph}
             selectedNodeId={selectedNodeId}
             pathStartNodeId={pathStartNodeId}
             pathStartClassName={selectedClassStartOption?.className}
@@ -1119,10 +1142,10 @@ export default function App() {
           />
           <NodeInspector
             node={selectedNode}
-            edges={graph.edges}
+            edges={visibleGraph.edges}
             allocationPath={allocationPath}
             allocationPathNodeNames={allocationPathNodeNames}
-            pathStartName={currentPathEndpointNodeId ? graph.nodes[currentPathEndpointNodeId]?.name : undefined}
+            pathStartName={currentPathEndpointNodeId ? visibleGraph.nodes[currentPathEndpointNodeId]?.name : undefined}
             canAllocatePath={allocationPlan.previewNodePath.length > 0 && (allocationPath?.pointCost ?? 0) > 0}
             onAllocatePath={allocatePreviewPath}
             canAddBuildGoal={selectedNode ? isBuildGoalableNode(selectedNode) : false}
@@ -1257,6 +1280,13 @@ function allocationPlanNodeIds(allocationPlan: AllocationPlan): string[] {
     allocationPlan.previewHighlightNodeIds ?? [],
     allocationPlan.noAllocationPathNodeId ? [allocationPlan.noAllocationPathNodeId] : [],
   );
+}
+
+function pruneCommittedNodePathOnClick(nodePath: string[], nodeId: string): string[] {
+  const nodeIndex = nodePath.lastIndexOf(nodeId);
+  if (nodeIndex <= 0) return nodePath.slice(0, 1);
+  const clickedEndpoint = nodeIndex === nodePath.length - 1;
+  return nodePath.slice(0, clickedEndpoint ? nodeIndex : nodeIndex + 1);
 }
 
 function validNodeVisualScale(scale: number): number {

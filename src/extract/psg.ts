@@ -1,4 +1,12 @@
-import type { TreeEdge, TreeGraph, TreeGroup, TreeNode, TreeNodeAscendancy, TreeNodeMasteryEffect } from "../tree/types";
+import type {
+  TreeEdge,
+  TreeGraph,
+  TreeGroup,
+  TreeNode,
+  TreeNodeAscendancy,
+  TreeNodeMasteryEffect,
+  TreeNodeVisibility,
+} from "../tree/types";
 import { POE2_ORBIT_RADII } from "../tree/orbits";
 import { passiveIconAssetKey } from "../tree/passiveIconAssets";
 import type { StatDescriptionFormatter } from "./statDescriptions";
@@ -124,6 +132,10 @@ type StatSource = {
   Stat5Value?: number;
 };
 
+const gatedPassiveUnlockNodeNamesByAscendancyId = new Map<string, string>([
+  ["Druid1", "The Unseen Path"],
+]);
+
 export function parsePassiveSkillGraph(bytes: Uint8Array): ParsedPassiveSkillGraph {
   const reader = new BinaryReader(bytes);
   const version = reader.readU8();
@@ -172,6 +184,10 @@ export function normalizePoe2PassiveTreeData(input: {
   const masteryGroupsByIndex = indexRows(input.masteryGroups ?? []);
   const masteryEffectsByIndex = indexRows(input.masteryEffects ?? []);
   const ascendanciesByIndex = indexRows(input.ascendancies ?? []);
+  const visibilityUnlocksByAscendancyIndex = buildVisibilityUnlocksByAscendancyIndex(
+    input.passiveSkills,
+    ascendanciesByIndex,
+  );
   const grantedEffectsByIndex = indexRows(input.grantedEffects ?? []);
   const activeSkillsByIndex = indexRows(input.activeSkills ?? []);
   const activeSkillsByGrantedEffectId = indexActiveSkillsByGrantedEffectId(input.activeSkills ?? []);
@@ -203,6 +219,7 @@ export function normalizePoe2PassiveTreeData(input: {
         masteryGroupsByIndex,
         masteryEffectsByIndex,
         ascendanciesByIndex,
+        visibilityUnlocksByAscendancyIndex,
         grantedEffectsByIndex,
         activeSkillsByIndex,
         activeSkillsByGrantedEffectId,
@@ -272,6 +289,7 @@ function normalizeNodeRef(
   masteryGroupsByIndex: Map<string, Poe2PassiveSkillMasteryGroupRow>,
   masteryEffectsByIndex: Map<string, Poe2PassiveSkillMasteryEffectRow>,
   ascendanciesByIndex: Map<string, Poe2AscendancyRow>,
+  visibilityUnlocksByAscendancyIndex: Map<string, Pick<TreeNodeVisibility, "unlockNodeId" | "unlockNodeName">>,
   grantedEffectsByIndex: Map<string, Poe2GrantedEffectRow>,
   activeSkillsByIndex: Map<string, Poe2ActiveSkillRow>,
   activeSkillsByGrantedEffectId: Map<string, Poe2ActiveSkillRow>,
@@ -288,6 +306,7 @@ function normalizeNodeRef(
   const mastery = isMasterySkill(skill);
   const ascendancy = isAscendancySkill(skill);
   const ascendancyMetadata = normalizeAscendancy(skill, ascendanciesByIndex);
+  const visibility = normalizeVisibility(skill, ascendanciesByIndex, visibilityUnlocksByAscendancyIndex);
   const stats = uniqueLines([
     ...formatStats(skill, statFormatter),
     ...formatPassiveMetadataStats(
@@ -321,6 +340,7 @@ function normalizeNodeRef(
     },
     masteryEffects: masteryEffects.length > 0 ? masteryEffects : undefined,
     ascendancy: ascendancyMetadata,
+    visibility,
     art: normalizePassiveIconArt(skill),
   };
 }
@@ -555,6 +575,58 @@ function normalizeAscendancy(
     disabled: Boolean(ascendancy.Disabled),
     startNode: Boolean(skill.IsAscendancyStartingNode),
   };
+}
+
+function normalizeVisibility(
+  skill: Poe2PassiveSkillRow | undefined,
+  ascendanciesByIndex: Map<string, Poe2AscendancyRow>,
+  visibilityUnlocksByAscendancyIndex: Map<string, Pick<TreeNodeVisibility, "unlockNodeId" | "unlockNodeName">>,
+): TreeNodeVisibility | undefined {
+  if (!skill || skill.VisibleForAscendancy === undefined || skill.VisibleForAscendancy === null) return undefined;
+  const ascendancyIndex = String(skill.VisibleForAscendancy);
+  const ascendancy = ascendanciesByIndex.get(ascendancyIndex);
+  if (!ascendancy) return undefined;
+
+  const id = ascendancy.Id?.trim() || ascendancyIndex;
+  const unlock = visibilityUnlocksByAscendancyIndex.get(ascendancyIndex);
+  return {
+    requiredAscendancy: {
+      id,
+      name: ascendancy.Name?.trim() || id,
+      className: classNameFromAscendancyId(id),
+    },
+    ...unlock,
+  };
+}
+
+function buildVisibilityUnlocksByAscendancyIndex(
+  passiveSkills: Poe2PassiveSkillRow[],
+  ascendanciesByIndex: Map<string, Poe2AscendancyRow>,
+): Map<string, Pick<TreeNodeVisibility, "unlockNodeId" | "unlockNodeName">> {
+  const unlocks = new Map<string, Pick<TreeNodeVisibility, "unlockNodeId" | "unlockNodeName">>();
+  for (const [ascendancyIndex, ascendancy] of ascendanciesByIndex) {
+    const ascendancyId = ascendancy.Id?.trim() || ascendancyIndex;
+    const unlockNodeName = gatedPassiveUnlockNodeNamesByAscendancyId.get(ascendancyId);
+    if (!unlockNodeName) continue;
+
+    const unlockSkill = passiveSkills.find((skill) => (
+      String(skill.Ascendancy) === ascendancyIndex
+      && normalizeName(skill.Name) === normalizeName(unlockNodeName)
+      && skill.PassiveSkillGraphId !== undefined
+      && skill.PassiveSkillGraphId !== null
+    ));
+    if (!unlockSkill) continue;
+
+    unlocks.set(ascendancyIndex, {
+      unlockNodeId: String(unlockSkill.PassiveSkillGraphId),
+      unlockNodeName: unlockSkill.Name?.trim() || unlockNodeName,
+    });
+  }
+  return unlocks;
+}
+
+function normalizeName(value: string | undefined): string {
+  return value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() ?? "";
 }
 
 function classNameFromAscendancyId(id: string): string {

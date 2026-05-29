@@ -536,6 +536,68 @@ describe("App", () => {
     };
   }
 
+  function poe2OracleGatedFixtureGraph(): TreeGraph {
+    const graph = poe2ClassStartFixtureGraph();
+
+    return {
+      ...graph,
+      gameVersion: "poe2-oracle-gated-fixture",
+      nodes: {
+        ...graph.nodes,
+        oracle_start: {
+          id: "oracle_start",
+          name: "Oracle",
+          stats: [],
+          position: { x: -1000, y: 1000 },
+          flags: { classStart: true, ascendancy: true },
+          ascendancy: {
+            id: "Druid1",
+            name: "Oracle",
+            className: "Druid",
+            disabled: false,
+            startNode: true,
+          },
+        },
+        oracle_unseen_path: {
+          id: "oracle_unseen_path",
+          name: "The Unseen Path",
+          stats: ["Walk the Paths Not Taken"],
+          position: { x: -920, y: 1000 },
+          flags: { notable: true, ascendancy: true },
+          ascendancy: {
+            id: "Druid1",
+            name: "Oracle",
+            className: "Druid",
+            disabled: false,
+          },
+        },
+        comradery: {
+          id: "comradery",
+          name: "Comradery",
+          stats: ["30% increased Damage", "Minions deal 30% increased Damage"],
+          position: { x: -140, y: -100 },
+          flags: { notable: true },
+          visibility: {
+            requiredAscendancy: {
+              id: "Druid1",
+              name: "Oracle",
+              className: "Druid",
+            },
+            unlockNodeId: "oracle_unseen_path",
+            unlockNodeName: "The Unseen Path",
+          },
+        },
+      },
+      edges: [
+        ...graph.edges,
+        { from: "templar_start", to: "oracle_start" },
+        { from: "oracle_start", to: "oracle_unseen_path" },
+        { from: "templar_start", to: "comradery" },
+      ],
+      bounds: { minX: -1100, maxX: 100, minY: -100, maxY: 1100 },
+    };
+  }
+
   function pobAscendancyImportFixtureGraph(): TreeGraph {
     return {
       schemaVersion: 1,
@@ -781,9 +843,8 @@ describe("App", () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
-    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
-    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
     fireEvent.click(screen.getByRole("button", { name: "Add build goal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
     saveCurrentBuildAs("Crit starter");
 
     expect(screen.getByRole("status").textContent).toBe("Saved Crit starter");
@@ -1005,6 +1066,31 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Neurological Implants" }).classList.contains("allocated")).toBe(false);
     expect(screen.getByRole("button", { name: "Motoric Implants" }).classList.contains("allocated")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(3);
+  });
+
+  it("hides ascendancy-gated tree passives until their unlock node is allocated", async () => {
+    stubTreeFetchWithGraph(poe2OracleGatedFixtureGraph());
+
+    render(<App />);
+
+    const pathStartSelect = screen.getByLabelText("Path start") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(Array.from(pathStartSelect.options).map((option) => option.textContent)).toContain("Druid - Oracle");
+    });
+
+    expect(screen.queryByRole("button", { name: "Comradery" })).toBeNull();
+
+    changePassiveSearch("Comradery");
+    expect(await screen.findByText("0 matches")).not.toBeNull();
+
+    fireEvent.change(pathStartSelect, { target: { value: "druid:Druid1" } });
+    expect(screen.queryByRole("button", { name: "Comradery" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "The Unseen Path" }));
+
+    expect(await screen.findByRole("button", { name: "Comradery" })).not.toBeNull();
+    expect(await screen.findByText("1 match")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Comradery 30% increased Damage" })).not.toBeNull();
   });
 
   it("searches passive names and stats and highlights matching nodes", async () => {
@@ -1583,6 +1669,25 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
+
+    expect(screen.getByText("Allocated 2/123")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
+  });
+
+  it("clicking the last allocated node removes that node", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+
+    expect(screen.getByText("Allocated 3/123")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
 
     expect(screen.getByText("Allocated 2/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);

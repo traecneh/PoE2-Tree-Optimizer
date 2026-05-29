@@ -434,6 +434,121 @@ description
     expect(graph.edges).toEqual([{ from: "100", to: "102", connectionOrbit: 3 }]);
   });
 
+  it("tags passives gated behind a specific ascendancy unlock without removing them from the graph", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: {
+        version: 3,
+        type: 0,
+        orbits: [1, 4],
+        rootNodeIds: [100],
+        groups: [
+          {
+            id: "0",
+            position: { x: 100, y: 200 },
+            groupAssociationKey: 7,
+            groupBackgroundOverride: 0,
+            isJewelPositionReference: false,
+            nodes: [
+              {
+                id: 100,
+                orbit: 0,
+                orbitIndex: 0,
+                connections: [
+                  { nodeId: 101, orbit: 3 },
+                  { nodeId: 102, orbit: 3 },
+                ],
+              },
+              {
+                id: 101,
+                orbit: 1,
+                orbitIndex: 0,
+                connections: [
+                  { nodeId: 100, orbit: 0 },
+                  { nodeId: 102, orbit: 0 },
+                ],
+              },
+              {
+                id: 102,
+                orbit: 1,
+                orbitIndex: 1,
+                connections: [
+                  { nodeId: 100, orbit: 0 },
+                  { nodeId: 101, orbit: 0 },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+        },
+        {
+          Id: "oracle_damage_and_minions4",
+          Name: "Comradery",
+          PassiveSkillGraphId: 101,
+          Stats: [1],
+          Stat1Value: 30,
+          IsNotable: true,
+          VisibleForAscendancy: 28,
+        },
+        {
+          Id: "AscendancyDruid1Notable2",
+          Name: "The Unseen Path",
+          PassiveSkillGraphId: 200,
+          Ascendancy: 28,
+          IsNotable: true,
+        },
+        {
+          Id: "normal_notable",
+          Name: "Normal Notable",
+          PassiveSkillGraphId: 102,
+          Stats: [2],
+          Stat1Value: 10,
+          IsNotable: true,
+        },
+      ],
+      ascendancies: [
+        {
+          _index: 28,
+          Id: "Druid1",
+          Name: "Oracle",
+        },
+      ],
+    });
+
+    expect(graph.nodes["101"]).toMatchObject({
+      name: "Comradery",
+      stats: ["stat:1=30"],
+      flags: { notable: true },
+      visibility: {
+        requiredAscendancy: {
+          id: "Druid1",
+          name: "Oracle",
+          className: "Druid",
+        },
+        unlockNodeId: "200",
+        unlockNodeName: "The Unseen Path",
+      },
+    });
+    expect(graph.nodes["102"]).toMatchObject({
+      name: "Normal Notable",
+      stats: ["stat:2=10"],
+      flags: { notable: true },
+    });
+    expect(graph.groups["0"].nodeIds).toEqual(["100", "101", "102"]);
+    expect(graph.edges).toEqual([
+      { from: "100", to: "101", connectionOrbit: 3 },
+      { from: "100", to: "102", connectionOrbit: 3 },
+      { from: "101", to: "102", connectionOrbit: 0 },
+    ]);
+  });
+
   it("attaches canonical ascendancy metadata from the Ascendancy table", () => {
     const graph = normalizePoe2PassiveTreeData({
       gameVersion: "fixture-version",
