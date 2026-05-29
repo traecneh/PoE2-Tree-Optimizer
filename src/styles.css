@@ -19,6 +19,35 @@ button {
   color: #eef2f7;
   border-radius: 6px;
   padding: 6px 10px;
+  cursor: pointer;
+  transition:
+    border-color 45ms ease-out,
+    box-shadow 45ms ease-out,
+    color 45ms ease-out,
+    background 45ms ease-out,
+    transform 35ms linear;
+}
+
+.tool-button:hover:not(:disabled),
+.tool-button:focus-visible,
+.control-tooltip:hover > .tool-button:not(:disabled),
+.control-tooltip:focus-within > .tool-button:not(:disabled) {
+  border-color: #d7b85b;
+  box-shadow: 0 0 0 1px rgba(215, 184, 91, 0.18);
+  color: #fff1bf;
+  outline: none;
+}
+
+.tool-button:active:not(:disabled),
+.control-tooltip:active > .tool-button:not(:disabled) {
+  background: #192230;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.42);
+  transform: translateY(1px);
+}
+
+.tool-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .app-shell {
@@ -67,14 +96,28 @@ button {
   font-size: 12px;
   font-weight: 700;
   line-height: 1.2;
+  cursor: pointer;
+  transition:
+    border-color 45ms ease-out,
+    box-shadow 45ms ease-out,
+    color 45ms ease-out,
+    background 45ms ease-out,
+    transform 35ms linear;
   white-space: nowrap;
 }
 
 .site-help-trigger:hover,
 .site-help-trigger:focus-visible {
   border-color: #d7b85b;
+  box-shadow: 0 0 0 1px rgba(215, 184, 91, 0.18);
   color: #fff1bf;
   outline: none;
+}
+
+.site-help-trigger:active {
+  background: #192230;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.42);
+  transform: translateY(1px);
 }
 
 .site-help-tooltip {
@@ -296,6 +339,7 @@ button {
 
 .saved-build-status {
   min-width: 90px;
+  animation: saved-build-feedback-flash 520ms ease;
   color: #9edecb;
   font-size: 12px;
   font-weight: 700;
@@ -326,6 +370,33 @@ button {
   padding: 4px 7px;
   font-size: 12px;
   line-height: 1.2;
+  transition:
+    border-color 45ms ease-out,
+    box-shadow 45ms ease-out,
+    color 45ms ease-out,
+    background 45ms ease-out;
+}
+
+.control-tooltip:hover > select,
+.control-tooltip:focus-within > select,
+.control-tooltip:hover > input,
+.control-tooltip:focus-within > input {
+  border-color: #d7b85b;
+  box-shadow: 0 0 0 1px rgba(215, 184, 91, 0.18);
+  color: #fff1bf;
+  outline: none;
+}
+
+@keyframes saved-build-feedback-flash {
+  0% {
+    color: #fff1bf;
+    text-shadow: 0 0 12px rgba(241, 199, 95, 0.55);
+  }
+
+  100% {
+    color: #9edecb;
+    text-shadow: none;
+  }
 }
 
 .path-start-control select {

@@ -94,6 +94,7 @@ export default function App() {
   const [selectedSavedBuildId, setSelectedSavedBuildId] = useState("");
   const [savedBuildName, setSavedBuildName] = useState("");
   const [savedBuildStatus, setSavedBuildStatus] = useState("");
+  const [savedBuildStatusFeedbackKey, setSavedBuildStatusFeedbackKey] = useState(0);
   const optimizerRun = useRef<BuildGoalsOptimizationRun | undefined>(undefined);
   const selectedNode = useMemo(
     () => (selectedNodeId ? graph.nodes[selectedNodeId] : undefined),
@@ -313,6 +314,15 @@ export default function App() {
     storeSavedBuilds(nextBuilds);
   }
 
+  function showSavedBuildStatus(nextStatus: string) {
+    setSavedBuildStatus(nextStatus);
+    setSavedBuildStatusFeedbackKey((currentKey) => currentKey + 1);
+  }
+
+  function clearSavedBuildStatus() {
+    setSavedBuildStatus("");
+  }
+
   function currentSavedBuildState(): SavedBuildState {
     return {
       selectedClassStartId,
@@ -351,7 +361,7 @@ export default function App() {
     updateSavedBuilds(nextBuilds);
     setSelectedSavedBuildId(nextBuild.id);
     setSavedBuildName(nextBuild.name);
-    setSavedBuildStatus(`Saved ${nextBuild.name}`);
+    showSavedBuildStatus(`Saved ${nextBuild.name}`);
   }
 
   function loadSavedBuild(buildId: string) {
@@ -359,7 +369,7 @@ export default function App() {
     const build = savedBuilds.find((currentBuild) => currentBuild.id === buildId);
     if (!build) {
       setSavedBuildName("");
-      setSavedBuildStatus("");
+      clearSavedBuildStatus();
       return;
     }
 
@@ -387,7 +397,7 @@ export default function App() {
       return node && canAddBuildGoal(node, { allowAnyPassive: true });
     }));
     setSavedBuildName(build.name);
-    setSavedBuildStatus(`Loaded ${build.name}`);
+    showSavedBuildStatus(`Loaded ${build.name}`);
   }
 
   function newUnsavedBuild(nextStatus = "New unsaved build") {
@@ -403,7 +413,7 @@ export default function App() {
     setAllocationPlan(emptyAllocationPlanForStart(pathStartNodeId));
     setSelectedSavedBuildId("");
     setSavedBuildName("");
-    setSavedBuildStatus(nextStatus);
+    showSavedBuildStatus(nextStatus);
   }
 
   function deleteSelectedBuild() {
@@ -916,7 +926,14 @@ export default function App() {
               </button>
             </ControlTooltip>
             {savedBuildStatus ? (
-              <span className="saved-build-status" role="status">{savedBuildStatus}</span>
+              <span
+                key={savedBuildStatusFeedbackKey}
+                className="saved-build-status"
+                role="status"
+                data-feedback-key={savedBuildStatusFeedbackKey}
+              >
+                {savedBuildStatus}
+              </span>
             ) : null}
           </div>
           <div className="header-control-group tree-setup-control" role="group" aria-label="Tree setup">

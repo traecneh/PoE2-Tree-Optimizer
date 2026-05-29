@@ -692,6 +692,25 @@ describe("App", () => {
     expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("Crit starter");
   });
 
+  it("refreshes saved build feedback when saving the same build again", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    saveCurrentBuildAs("Crit starter");
+
+    const firstStatus = screen.getByRole("status");
+    const firstFeedbackKey = firstStatus.getAttribute("data-feedback-key");
+    expect(firstStatus.textContent).toBe("Saved Crit starter");
+    expect(firstFeedbackKey).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save build" }));
+
+    const secondStatus = screen.getByRole("status");
+    expect(secondStatus.textContent).toBe("Saved Crit starter");
+    expect(secondStatus.getAttribute("data-feedback-key")).not.toBe(firstFeedbackKey);
+  });
+
   it("updates, deletes, and persists saved builds across remounts", () => {
     stubTreeFetch();
 
