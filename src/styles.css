@@ -51,9 +51,10 @@ button {
 }
 
 .app-shell {
-  display: grid;
-  grid-template-rows: auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
 }
 
@@ -504,6 +505,7 @@ button {
 }
 
 .workspace {
+  flex: 1 1 0;
   min-height: 0;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr) 380px;
