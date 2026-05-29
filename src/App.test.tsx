@@ -40,6 +40,23 @@ describe("App", () => {
     expect(screen.queryByText(/nodes, .*links, version/i)).toBeNull();
   });
 
+  it("renders header help text with the main site actions", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const helpButton = screen.getByRole("button", { name: "How to use the site" });
+    const tooltip = screen.getByRole("tooltip", { name: "Site usage help" });
+
+    expect(helpButton.getAttribute("aria-describedby")).toBe("site-help-tooltip");
+    expect(tooltip.textContent).toContain("Ctrl + left click");
+    expect(tooltip.textContent).toContain("Hover path preview");
+    expect(tooltip.textContent).toContain("Optimize route");
+    expect(tooltip.textContent).toContain("New build");
+    expect(tooltip.textContent).toContain("Reset allocation");
+    expect(tooltip.textContent).toContain("PoB");
+  });
+
   function endpointFixtureGraph(): TreeGraph {
     return {
       ...sampleGraph,

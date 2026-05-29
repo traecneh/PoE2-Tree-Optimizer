@@ -802,8 +802,35 @@ export default function App() {
   return (
     <main className="app-shell">
       <header className="top-bar">
-        <div>
+        <div className="top-brand">
           <h1>PoE2 Tree Optimizer for Boomslang</h1>
+          <div className="site-help">
+            <button
+              className="site-help-trigger"
+              type="button"
+              aria-describedby="site-help-tooltip"
+            >
+              How to use the site
+            </button>
+            <div
+              id="site-help-tooltip"
+              className="site-help-tooltip"
+              role="tooltip"
+              aria-label="Site usage help"
+            >
+              <strong>Quick controls</strong>
+              <ul>
+                <li>Ctrl + left click a node to add or remove it from Build goals.</li>
+                <li>Click nodes on the tree to preview allocation paths, then apply the path from the node inspector.</li>
+                <li>Use Passive search to find passives, add one result, or add all matching nodes with the same effect.</li>
+                <li>Import PoB goals to pull build goals from a Path of Building code.</li>
+                <li>Optimize route previews the shortest route through current Build goals; Apply optimized route commits it.</li>
+                <li>Check Hover path preview to see routes while hovering unallocated nodes.</li>
+                <li>Use Path start for class or ascendancy start, Node size for visibility, and Reset allocation to clear selected nodes.</li>
+                <li>Use New build, Save build, the build dropdown, and Delete build to manage saved trees in this browser.</li>
+              </ul>
+            </div>
+          </div>
         </div>
         <div className="top-controls">
           <div className="saved-build-control" aria-label="Saved builds">
