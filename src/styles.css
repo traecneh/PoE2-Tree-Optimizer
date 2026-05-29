@@ -329,10 +329,34 @@ button {
   color: #aab4c4;
 }
 
+.tree-viewer-shell {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tree-viewer-shell-loading .tree-viewer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tree-loading-state {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at center, #1a2230 0, #0d1118 68%);
+  color: #aab4c4;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
 .tree-viewer {
   position: relative;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   touch-action: none;
 }
 

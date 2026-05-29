@@ -993,28 +993,40 @@ export default function App() {
       ) : null}
       <section className="workspace">
         <BuildSummaryPanel summary={buildSummaryData} />
-        <TreeViewer
-          graph={graph}
-          selectedNodeId={selectedNodeId}
-          pathStartNodeId={pathStartNodeId}
-          pathStartClassName={selectedClassStartOption?.className}
-          activeAscendancyId={selectedAscendancy?.id}
-          noAllocationPathNodeId={noAllocationPathNodeId}
-          nodeVisualScale={nodeVisualScale}
-          searchMatchNodeIds={searchMatchNodeIds}
-          searchFocusedNodeId={searchFocusedNodeId}
-          buildGoalNodeIds={buildGoalNodeIdSet}
-          allocatedNodeIds={displayAllocatedNodeIds}
-          allocatedEdgeKeys={displayAllocatedEdgeKeys}
-          allocationPathNodeIds={allocationPathNodeIds}
-          allocationPathEdgeKeys={allocationPathEdgeKeys}
-          hoverAllocationPathNodeIds={hoverAllocationPathNodeIds}
-          hoverAllocationPathEdgeKeys={hoverAllocationPathEdgeKeys}
-          onSelectNode={selectTreeNode}
-          onAddBuildGoal={toggleMapBuildGoal}
-          onHoverNode={updateHoverPreviewTarget}
-          debug={debugOverlayOff}
-        />
+        <section
+          className={`tree-viewer-shell${graphLoadStatus === "loading" ? " tree-viewer-shell-loading" : ""}`}
+          role="region"
+          aria-label="Passive tree viewer"
+          aria-busy={graphLoadStatus === "loading"}
+        >
+          {graphLoadStatus === "loading" ? (
+            <div className="tree-loading-state">
+              Loading passive tree...
+            </div>
+          ) : null}
+          <TreeViewer
+            graph={graph}
+            selectedNodeId={selectedNodeId}
+            pathStartNodeId={pathStartNodeId}
+            pathStartClassName={selectedClassStartOption?.className}
+            activeAscendancyId={selectedAscendancy?.id}
+            noAllocationPathNodeId={noAllocationPathNodeId}
+            nodeVisualScale={nodeVisualScale}
+            searchMatchNodeIds={searchMatchNodeIds}
+            searchFocusedNodeId={searchFocusedNodeId}
+            buildGoalNodeIds={buildGoalNodeIdSet}
+            allocatedNodeIds={displayAllocatedNodeIds}
+            allocatedEdgeKeys={displayAllocatedEdgeKeys}
+            allocationPathNodeIds={allocationPathNodeIds}
+            allocationPathEdgeKeys={allocationPathEdgeKeys}
+            hoverAllocationPathNodeIds={hoverAllocationPathNodeIds}
+            hoverAllocationPathEdgeKeys={hoverAllocationPathEdgeKeys}
+            onSelectNode={selectTreeNode}
+            onAddBuildGoal={toggleMapBuildGoal}
+            onHoverNode={updateHoverPreviewTarget}
+            debug={debugOverlayOff}
+          />
+        </section>
         <div className="side-panel">
           <PassiveSearchPanel
             query={searchQuery}

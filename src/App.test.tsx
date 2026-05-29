@@ -206,6 +206,17 @@ describe("App", () => {
     expect(screen.getByText(/run npm run prepare-data/i)).not.toBeNull();
   });
 
+  it("marks the passive tree viewer as loading before the real graph is ready", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const viewer = screen.getByRole("region", { name: "Passive tree viewer" });
+    expect(viewer.getAttribute("aria-busy")).toBe("true");
+    expect(viewer.classList.contains("tree-viewer-shell-loading")).toBe(true);
+    expect(screen.getByText("Loading passive tree...")).not.toBeNull();
+  });
+
   function pobImportFixtureGraph(): TreeGraph {
     return {
       schemaVersion: 1,
