@@ -1,5 +1,6 @@
 import type { AllocationPath } from "../tree/pathAllocation";
 import type { TreeEdge, TreeNode } from "../tree/types";
+import { ControlTooltip } from "./ControlTooltip";
 
 export function NodeInspector({
   node,
@@ -41,14 +42,20 @@ export function NodeInspector({
     <aside className="inspector">
       <h2>{node.name ?? node.id}</h2>
       {canAddBuildGoal ? (
-        <button
-          className="tool-button inspector-goal-action"
-          type="button"
-          onClick={onAddBuildGoal}
-          disabled={isBuildGoal}
+        <ControlTooltip
+          id="inspector-add-build-goal-tooltip"
+          text="Add the selected node to Build goals."
         >
-          {isBuildGoal ? "Build goal added" : "Add build goal"}
-        </button>
+          <button
+            className="tool-button inspector-goal-action"
+            type="button"
+            aria-describedby="inspector-add-build-goal-tooltip"
+            onClick={onAddBuildGoal}
+            disabled={isBuildGoal}
+          >
+            {isBuildGoal ? "Build goal added" : "Add build goal"}
+          </button>
+        </ControlTooltip>
       ) : null}
       <dl>
         <dt>ID</dt>
@@ -107,14 +114,20 @@ function AllocationPathDetails({
       <h3>Allocation path</h3>
       <p className="allocation-path-cost">{formatPointCost(path.pointCost)}</p>
       <p className="allocation-path-route">{nodeNames.join(" -> ")}</p>
-      <button
-        className="tool-button allocation-path-action"
-        type="button"
-        onClick={onAllocatePath}
-        disabled={!canAllocatePath}
+      <ControlTooltip
+        id="allocate-path-tooltip"
+        text="Commit this preview path to the current allocation."
       >
-        Allocate path
-      </button>
+        <button
+          className="tool-button allocation-path-action"
+          type="button"
+          aria-describedby="allocate-path-tooltip"
+          onClick={onAllocatePath}
+          disabled={!canAllocatePath}
+        >
+          Allocate path
+        </button>
+      </ControlTooltip>
     </section>
   );
 }

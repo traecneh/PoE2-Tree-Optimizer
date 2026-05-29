@@ -1,4 +1,5 @@
 import type { TreeNode } from "../tree/types";
+import { ControlTooltip } from "./ControlTooltip";
 
 export type BuildGoalsPanelGoal = {
   node: TreeNode;
@@ -82,32 +83,51 @@ export function BuildGoalsPanel({
     <section className="build-goals-panel" aria-label="Build goals">
       <div className="build-goals-header">
         <h2>Build goals</h2>
-        <button
-          className="tool-button build-goals-clear"
-          type="button"
-          onClick={onClearGoals}
-          disabled={goals.length === 0 || running}
+        <ControlTooltip
+          id="clear-build-goals-tooltip"
+          text="Remove every selected build goal from the optimizer list."
         >
-          Clear goals
-        </button>
+          <button
+            className="tool-button build-goals-clear"
+            type="button"
+            aria-describedby="clear-build-goals-tooltip"
+            onClick={onClearGoals}
+            disabled={goals.length === 0 || running}
+          >
+            Clear goals
+          </button>
+        </ControlTooltip>
       </div>
       <div className="pob-import-control">
         <label className="pob-import-label" htmlFor="pob-build-code-input">PoB build code</label>
-        <textarea
-          id="pob-build-code-input"
-          className="pob-import-input"
-          value={pobImportCode}
-          onChange={(event) => onPobImportCodeChange(event.currentTarget.value)}
-          rows={3}
-        />
-        <button
-          className="tool-button pob-import-action"
-          type="button"
-          onClick={onImportPobBuildGoals}
-          disabled={pobImportCode.trim().length === 0 || running}
+        <ControlTooltip
+          id="pob-build-code-tooltip"
+          text="Paste a Path of Building code to import eligible goals and path start."
+          block
         >
-          Import PoB goals
-        </button>
+          <textarea
+            id="pob-build-code-input"
+            className="pob-import-input"
+            aria-describedby="pob-build-code-tooltip"
+            value={pobImportCode}
+            onChange={(event) => onPobImportCodeChange(event.currentTarget.value)}
+            rows={3}
+          />
+        </ControlTooltip>
+        <ControlTooltip
+          id="import-pob-goals-tooltip"
+          text="Decode the pasted PoB code and add eligible passives as Build goals."
+        >
+          <button
+            className="tool-button pob-import-action"
+            type="button"
+            aria-describedby="import-pob-goals-tooltip"
+            onClick={onImportPobBuildGoals}
+            disabled={pobImportCode.trim().length === 0 || running}
+          >
+            Import PoB goals
+          </button>
+        </ControlTooltip>
         <PobImportStatusMessage status={pobImportStatus} />
       </div>
       {goals.length > 0 ? (
@@ -118,15 +138,21 @@ export function BuildGoalsPanel({
                 <span className="build-goal-name">{node.name ?? node.id}</span>
                 <span className="build-goal-meta">{formatGoalMeta(node, allocationDistance, reached)}</span>
               </span>
-              <button
-                className="tool-button build-goal-remove"
-                type="button"
-                aria-label={`Remove ${node.name ?? node.id} build goal`}
-                onClick={() => onRemoveGoal(node.id)}
-                disabled={running}
+              <ControlTooltip
+                id={tooltipId("remove-build-goal-tooltip", node.id)}
+                text="Remove this goal from the optimizer target list."
               >
-                Remove
-              </button>
+                <button
+                  className="tool-button build-goal-remove"
+                  type="button"
+                  aria-label={`Remove ${node.name ?? node.id} build goal`}
+                  aria-describedby={tooltipId("remove-build-goal-tooltip", node.id)}
+                  onClick={() => onRemoveGoal(node.id)}
+                  disabled={running}
+                >
+                  Remove
+                </button>
+              </ControlTooltip>
             </li>
           ))}
         </ol>
@@ -134,57 +160,93 @@ export function BuildGoalsPanel({
         <p className="build-goals-empty">No build goals selected.</p>
       )}
       <div className="build-goals-actions">
-        <button
-          className="tool-button"
-          type="button"
-          onClick={onOptimize}
-          disabled={goals.length === 0 || running}
+        <ControlTooltip
+          id="optimize-route-tooltip"
+          text="Preview the shortest route through current goals from the visible allocation."
         >
-          Optimize route
-        </button>
-        <button
-          className="tool-button"
-          type="button"
-          onClick={onCancel}
-          disabled={!running}
+          <button
+            className="tool-button"
+            type="button"
+            aria-describedby="optimize-route-tooltip"
+            onClick={onOptimize}
+            disabled={goals.length === 0 || running}
+          >
+            Optimize route
+          </button>
+        </ControlTooltip>
+        <ControlTooltip
+          id="cancel-optimization-tooltip"
+          text="Stop the running optimizer worker."
         >
-          Cancel
-        </button>
-        <button
-          className="tool-button optimized-route-action"
-          type="button"
-          onClick={onApplyOptimizedRoute}
-          disabled={!canApplyOptimizedRoute}
+          <button
+            className="tool-button"
+            type="button"
+            aria-describedby="cancel-optimization-tooltip"
+            onClick={onCancel}
+            disabled={!running}
+          >
+            Cancel
+          </button>
+        </ControlTooltip>
+        <ControlTooltip
+          id="apply-optimized-route-tooltip"
+          text="Commit the optimized preview to the current allocation."
+          block
+          className="optimized-route-action-tooltip"
         >
-          Apply optimized route
-        </button>
+          <button
+            className="tool-button optimized-route-action"
+            type="button"
+            aria-describedby="apply-optimized-route-tooltip"
+            onClick={onApplyOptimizedRoute}
+            disabled={!canApplyOptimizedRoute}
+          >
+            Apply optimized route
+          </button>
+        </ControlTooltip>
       </div>
       {hasRouteCandidates ? (
         <div className="optimized-route-nav" aria-label="Optimized route candidates">
-          <button
-            className="tool-button optimized-route-nav-button"
-            type="button"
-            aria-label="Previous optimized route"
-            onClick={onPreviousRoute}
-            disabled={!onPreviousRoute}
+          <ControlTooltip
+            id="previous-optimized-route-tooltip"
+            text="Preview the previous optimized route candidate."
           >
-            {"<"}
-          </button>
+            <button
+              className="tool-button optimized-route-nav-button"
+              type="button"
+              aria-label="Previous optimized route"
+              aria-describedby="previous-optimized-route-tooltip"
+              onClick={onPreviousRoute}
+              disabled={!onPreviousRoute}
+            >
+              {"<"}
+            </button>
+          </ControlTooltip>
           <span>{`Route ${selectedRouteIndex + 1} of ${routeCandidateCount}`}</span>
-          <button
-            className="tool-button optimized-route-nav-button"
-            type="button"
-            aria-label="Next optimized route"
-            onClick={onNextRoute}
-            disabled={!onNextRoute}
+          <ControlTooltip
+            id="next-optimized-route-tooltip"
+            text="Preview the next optimized route candidate."
           >
-            {">"}
-          </button>
+            <button
+              className="tool-button optimized-route-nav-button"
+              type="button"
+              aria-label="Next optimized route"
+              aria-describedby="next-optimized-route-tooltip"
+              onClick={onNextRoute}
+              disabled={!onNextRoute}
+            >
+              {">"}
+            </button>
+          </ControlTooltip>
         </div>
       ) : null}
       <BuildGoalStatusMessage status={status} />
     </section>
   );
+}
+
+function tooltipId(prefix: string, value: string): string {
+  return `${prefix}-${value.replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
 }
 
 function PobImportStatusMessage({ status }: { status: PobBuildImportStatus }) {

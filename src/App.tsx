@@ -34,6 +34,7 @@ import {
   type PobBuildImportStatus,
 } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
+import { ControlTooltip } from "./viewer/ControlTooltip";
 import { NodeInspector } from "./viewer/NodeInspector";
 import { PassiveSearchPanel, type PassiveSearchPanelResult } from "./viewer/PassiveSearchPanel";
 import { TreeViewer, type DebugOverlayState } from "./viewer/TreeViewer";
@@ -850,93 +851,137 @@ export default function App() {
           </div>
         </div>
         <div className="top-controls">
-          <div className="saved-build-control" aria-label="Saved builds">
+          <div className="header-control-group saved-build-control" role="group" aria-label="Build management">
             <label className="saved-build-select-control">
               Build{" "}
-              <select
-                aria-label="Saved build"
-                value={selectedSavedBuildId}
-                onChange={(event) => loadSavedBuild(event.currentTarget.value)}
-              >
-                <option value="">Unsaved build</option>
-                {savedBuilds.map((build) => (
-                  <option key={build.id} value={build.id}>{build.name}</option>
-                ))}
-              </select>
+              <ControlTooltip id="saved-build-tooltip" text="Load a saved build stored in this browser.">
+                <select
+                  aria-label="Saved build"
+                  aria-describedby="saved-build-tooltip"
+                  value={selectedSavedBuildId}
+                  onChange={(event) => loadSavedBuild(event.currentTarget.value)}
+                >
+                  <option value="">Unsaved build</option>
+                  {savedBuilds.map((build) => (
+                    <option key={build.id} value={build.id}>{build.name}</option>
+                  ))}
+                </select>
+              </ControlTooltip>
             </label>
             <label className="saved-build-name-control">
               Name{" "}
-              <input
-                aria-label="Build name"
-                value={savedBuildName}
-                onChange={(event) => setSavedBuildName(event.currentTarget.value)}
-                placeholder="Build name"
-              />
+              <ControlTooltip id="build-name-tooltip" text="Name used when saving the current build.">
+                <input
+                  aria-label="Build name"
+                  aria-describedby="build-name-tooltip"
+                  value={savedBuildName}
+                  onChange={(event) => setSavedBuildName(event.currentTarget.value)}
+                  placeholder="Build name"
+                />
+              </ControlTooltip>
             </label>
-            <button className="tool-button saved-build-button" type="button" onClick={() => newUnsavedBuild()}>
-              New build
-            </button>
-            <button
-              className="tool-button saved-build-button"
-              type="button"
-              onClick={saveCurrentBuild}
-              disabled={!canSaveCurrentBuild}
-            >
-              Save build
-            </button>
-            <button
-              className="tool-button saved-build-button"
-              type="button"
-              onClick={deleteSelectedBuild}
-              disabled={!selectedSavedBuild}
-            >
-              Delete build
-            </button>
-            <span className="saved-build-status" role="status">{savedBuildStatus}</span>
+            <ControlTooltip id="new-build-tooltip" text="Start a new unsaved build without deleting saved builds.">
+              <button
+                className="tool-button saved-build-button"
+                type="button"
+                aria-label="New build"
+                aria-describedby="new-build-tooltip"
+                onClick={() => newUnsavedBuild()}
+              >
+                New
+              </button>
+            </ControlTooltip>
+            <ControlTooltip id="save-build-tooltip" text="Save the current build name, path, goals, and settings.">
+              <button
+                className="tool-button saved-build-button"
+                type="button"
+                aria-label="Save build"
+                aria-describedby="save-build-tooltip"
+                onClick={saveCurrentBuild}
+                disabled={!canSaveCurrentBuild}
+              >
+                Save
+              </button>
+            </ControlTooltip>
+            <ControlTooltip id="delete-build-tooltip" text="Delete the selected saved build from this browser.">
+              <button
+                className="tool-button saved-build-button"
+                type="button"
+                aria-label="Delete build"
+                aria-describedby="delete-build-tooltip"
+                onClick={deleteSelectedBuild}
+                disabled={!selectedSavedBuild}
+              >
+                Delete
+              </button>
+            </ControlTooltip>
+            {savedBuildStatus ? (
+              <span className="saved-build-status" role="status">{savedBuildStatus}</span>
+            ) : null}
           </div>
-          <label className="path-start-control">
-            Path start{" "}
-            <select
-              value={selectedClassStartId ?? ""}
-              onChange={(event) => changeSelectedClassStart(event.currentTarget.value)}
-            >
-              {classStartOptions.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="node-size-control">
-            Node size{" "}
-            <select
-              value={nodeVisualScale}
-              onChange={(event) => setNodeVisualScale(Number(event.currentTarget.value))}
-            >
-              {nodeVisualScaleOptions.map((scale) => (
-                <option key={scale} value={scale}>{scale}x</option>
-              ))}
-            </select>
-          </label>
-          <label className="hover-preview-control">
-            <input
-              type="checkbox"
-              checked={hoverPathPreviewEnabled}
-              onChange={(event) => toggleHoverPathPreview(event.currentTarget.checked)}
-            />
-            Hover path preview
-          </label>
-          <div className="allocation-control" aria-label="Allocation summary">
-            <span>{formatAllocatedPointCount(allocatedPointCount)}</span>
+          <div className="header-control-group tree-setup-control" role="group" aria-label="Tree setup">
+            <label className="path-start-control">
+              Path start{" "}
+              <ControlTooltip id="path-start-tooltip" text="Choose the class or ascendancy start used for pathing.">
+                <select
+                  aria-label="Path start"
+                  aria-describedby="path-start-tooltip"
+                  value={selectedClassStartId ?? ""}
+                  onChange={(event) => changeSelectedClassStart(event.currentTarget.value)}
+                >
+                  {classStartOptions.map((option) => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+              </ControlTooltip>
+            </label>
+            <label className="node-size-control">
+              Node size{" "}
+              <ControlTooltip id="node-size-tooltip" text="Scale passive node icons in the tree viewer.">
+                <select
+                  aria-label="Node size"
+                  aria-describedby="node-size-tooltip"
+                  value={nodeVisualScale}
+                  onChange={(event) => setNodeVisualScale(Number(event.currentTarget.value))}
+                >
+                  {nodeVisualScaleOptions.map((scale) => (
+                    <option key={scale} value={scale}>{scale}x</option>
+                  ))}
+                </select>
+              </ControlTooltip>
+            </label>
+            <label className="hover-preview-control">
+              <ControlTooltip id="hover-preview-tooltip" text="Show a temporary path preview while hovering unallocated nodes.">
+                <input
+                  type="checkbox"
+                  aria-label="Hover path preview"
+                  aria-describedby="hover-preview-tooltip"
+                  checked={hoverPathPreviewEnabled}
+                  onChange={(event) => toggleHoverPathPreview(event.currentTarget.checked)}
+                />
+              </ControlTooltip>
+              Hover preview
+            </label>
+          </div>
+          <div className="header-control-group allocation-control" role="group" aria-label="Allocation summary">
+            <ControlTooltip id="allocated-count-tooltip" text="Current committed passive points in this build.">
+              <span aria-describedby="allocated-count-tooltip">{formatAllocatedPointCount(allocatedPointCount)}</span>
+            </ControlTooltip>
             {selectedAscendancy ? (
               <span>{formatAscendancyPointCount(activeAscendancyPointCount)}</span>
             ) : null}
-            <button
-              className="tool-button"
-              type="button"
-              onClick={resetAllocation}
-              disabled={!canResetAllocation}
-            >
-              Reset allocation
-            </button>
+            <ControlTooltip id="reset-allocation-tooltip" text="Clear committed allocation and the current preview path.">
+              <button
+                className="tool-button"
+                type="button"
+                aria-label="Reset allocation"
+                aria-describedby="reset-allocation-tooltip"
+                onClick={resetAllocation}
+                disabled={!canResetAllocation}
+              >
+                Reset
+              </button>
+            </ControlTooltip>
           </div>
         </div>
       </header>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PassiveSearchResult } from "../tree/passiveSearch";
 import type { TreeNode } from "../tree/types";
+import { ControlTooltip } from "./ControlTooltip";
 
 export type PassiveSearchPanelResult = PassiveSearchResult & {
   allocationDistance?: number;
@@ -65,14 +66,21 @@ export function PassiveSearchPanel({
   return (
     <section className="passive-search-panel" aria-label="Passive search panel">
       <label className="passive-search-label" htmlFor="passive-search-input">Passive search</label>
-      <input
-        id="passive-search-input"
-        className="passive-search-input"
-        type="search"
-        value={draftQuery}
-        onChange={(event) => setDraftQuery(event.currentTarget.value)}
-        placeholder="Name, stat, effect, socket"
-      />
+      <ControlTooltip
+        id="passive-search-tooltip"
+        text="Search by node name, stat text, quoted phrases, or exclusions like -Minion."
+        block
+      >
+        <input
+          id="passive-search-input"
+          className="passive-search-input"
+          type="search"
+          aria-describedby="passive-search-tooltip"
+          value={draftQuery}
+          onChange={(event) => setDraftQuery(event.currentTarget.value)}
+          placeholder="Name, stat, effect, socket"
+        />
+      </ControlTooltip>
       {trimmedQuery ? (
         <>
           <div className="search-summary">{formatMatchCount(results.length)}</div>
@@ -86,47 +94,66 @@ export function PassiveSearchPanel({
 
                 return (
                 <li key={node.id} className="search-result-row">
-                  <button
-                    className={`search-result${node.id === selectedNodeId ? " selected" : ""}`}
-                    type="button"
-                    aria-label={formatResultLabel(node)}
-                    onClick={() => {
-                      onHoverNode?.(node.id);
-                      onSelectNode(node.id);
-                    }}
-                    onMouseEnter={() => onHoverNode?.(node.id)}
-                    onMouseLeave={() => onHoverNode?.(undefined)}
-                    onFocus={() => onHoverNode?.(node.id)}
-                    onBlur={() => onHoverNode?.(undefined)}
+                  <ControlTooltip
+                    id={tooltipId("search-result-tooltip", node.id)}
+                    text="Select this passive on the tree and focus its details."
+                    block
                   >
-                    <span className="search-result-name">{node.name ?? node.id}</span>
-                    <span className="search-result-meta">{formatResultMeta(node, allocationDistance, allocated)}</span>
-                    <span className="search-result-match">{matchedText}</span>
-                  </button>
+                    <button
+                      className={`search-result${node.id === selectedNodeId ? " selected" : ""}`}
+                      type="button"
+                      aria-label={formatResultLabel(node)}
+                      aria-describedby={tooltipId("search-result-tooltip", node.id)}
+                      onClick={() => {
+                        onHoverNode?.(node.id);
+                        onSelectNode(node.id);
+                      }}
+                      onMouseEnter={() => onHoverNode?.(node.id)}
+                      onMouseLeave={() => onHoverNode?.(undefined)}
+                      onFocus={() => onHoverNode?.(node.id)}
+                      onBlur={() => onHoverNode?.(undefined)}
+                    >
+                      <span className="search-result-name">{node.name ?? node.id}</span>
+                      <span className="search-result-meta">{formatResultMeta(node, allocationDistance, allocated)}</span>
+                      <span className="search-result-match">{matchedText}</span>
+                    </button>
+                  </ControlTooltip>
                   {goalable || canAddMatchingGroup ? (
                     <div className="search-result-actions">
                       {goalable ? (
-                        <button
-                          className="tool-button search-result-goal-action"
-                          type="button"
-                          aria-label={alreadyBuildGoal
-                            ? `${node.name ?? node.id} build goal added`
-                            : `Add ${node.name ?? node.id} to build goals`}
-                          onClick={() => onAddBuildGoal?.(node.id)}
-                          disabled={alreadyBuildGoal}
+                        <ControlTooltip
+                          id={tooltipId("search-goal-tooltip", node.id)}
+                          text="Add this passive to Build goals."
                         >
-                          {alreadyBuildGoal ? "Added" : "Goal"}
-                        </button>
+                          <button
+                            className="tool-button search-result-goal-action"
+                            type="button"
+                            aria-describedby={tooltipId("search-goal-tooltip", node.id)}
+                            aria-label={alreadyBuildGoal
+                              ? `${node.name ?? node.id} build goal added`
+                              : `Add ${node.name ?? node.id} to build goals`}
+                            onClick={() => onAddBuildGoal?.(node.id)}
+                            disabled={alreadyBuildGoal}
+                          >
+                            {alreadyBuildGoal ? "Added" : "Goal"}
+                          </button>
+                        </ControlTooltip>
                       ) : null}
                       {matchingGroup && onAddMatchingBuildGoals ? (
-                        <button
-                          className="tool-button search-result-goal-action"
-                          type="button"
-                          aria-label={`Add all ${matchingGroup.totalCount} nodes matching ${matchedText} to build goals`}
-                          onClick={() => onAddMatchingBuildGoals?.(matchingGroup.addableNodeIds)}
+                        <ControlTooltip
+                          id={tooltipId("search-all-tooltip", node.id)}
+                          text="Add every current result with this same matched effect to Build goals."
                         >
-                          All
-                        </button>
+                          <button
+                            className="tool-button search-result-goal-action"
+                            type="button"
+                            aria-describedby={tooltipId("search-all-tooltip", node.id)}
+                            aria-label={`Add all ${matchingGroup.totalCount} nodes matching ${matchedText} to build goals`}
+                            onClick={() => onAddMatchingBuildGoals?.(matchingGroup.addableNodeIds)}
+                          >
+                            All
+                          </button>
+                        </ControlTooltip>
                       ) : null}
                     </div>
                   ) : null}
@@ -139,6 +166,10 @@ export function PassiveSearchPanel({
       ) : null}
     </section>
   );
+}
+
+function tooltipId(prefix: string, value: string): string {
+  return `${prefix}-${value.replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
 }
 
 type MatchingBuildGoalGroup = {

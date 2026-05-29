@@ -57,6 +57,30 @@ describe("App", () => {
     expect(tooltip.textContent).toContain("PoB");
   });
 
+  it("groups header controls by build, tree setup, and allocation tasks", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const buildGroup = screen.getByRole("group", { name: "Build management" });
+    const savedBuildSelect = within(buildGroup).getByLabelText("Saved build");
+    expect(savedBuildSelect).not.toBeNull();
+    expectTooltipText(savedBuildSelect, "Load a saved build");
+    expectTooltipText(within(buildGroup).getByLabelText("Build name"), "Name used when saving");
+    expectTooltipText(within(buildGroup).getByRole("button", { name: "New build" }), "Start a new unsaved build");
+    expectTooltipText(within(buildGroup).getByRole("button", { name: "Save build" }), "Save the current build");
+    expectTooltipText(within(buildGroup).getByRole("button", { name: "Delete build" }), "Delete the selected saved build");
+
+    const treeSetupGroup = screen.getByRole("group", { name: "Tree setup" });
+    expectTooltipText(within(treeSetupGroup).getByLabelText("Path start"), "class or ascendancy start");
+    expectTooltipText(within(treeSetupGroup).getByLabelText("Node size"), "Scale passive node icons");
+    expectTooltipText(within(treeSetupGroup).getByLabelText("Hover path preview"), "temporary path preview");
+
+    const allocationGroup = screen.getByRole("group", { name: "Allocation summary" });
+    expect(within(allocationGroup).getByText("Allocated 0 points")).not.toBeNull();
+    expectTooltipText(within(allocationGroup).getByRole("button", { name: "Reset allocation" }), "Clear committed allocation");
+  });
+
   function endpointFixtureGraph(): TreeGraph {
     return {
       ...sampleGraph,
@@ -1374,6 +1398,12 @@ describe("App", () => {
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
   });
 });
+
+function expectTooltipText(element: HTMLElement, expectedText: string) {
+  const tooltipId = element.getAttribute("aria-describedby");
+  expect(tooltipId).toBeTruthy();
+  expect(document.getElementById(tooltipId ?? "")?.textContent).toContain(expectedText);
+}
 
 function encodePobXml(xml: string): string {
   return deflateSync(xml).toString("base64").replaceAll("+", "-").replaceAll("/", "_");

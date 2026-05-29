@@ -105,7 +105,41 @@ describe("PassiveSearchPanel", () => {
 
     expect(handleAddMatchingBuildGoals).toHaveBeenCalledWith(["minion_two", "minion_three"]);
   });
+
+  it("describes search field and result actions with custom tooltips", () => {
+    const minionOne = testNode("minion_one", "Minion Damage One", ["15% increased Minion Damage"]);
+    const minionTwo = testNode("minion_two", "Minion Damage Two", ["15% increased Minion Damage"]);
+
+    render(
+      <PassiveSearchPanel
+        query="minion damage"
+        results={[
+          { node: minionOne, matchedText: "15% increased Minion Damage" },
+          { node: minionTwo, matchedText: "15% increased Minion Damage" },
+        ]}
+        onQueryChange={() => undefined}
+        onSelectNode={() => undefined}
+        canAddBuildGoal={() => true}
+        onAddBuildGoal={() => undefined}
+        canAddMatchingBuildGoal={() => true}
+        onAddMatchingBuildGoals={() => undefined}
+      />,
+    );
+
+    expectTooltipText(screen.getByLabelText("Passive search"), "quoted phrases");
+    expectTooltipText(screen.getAllByRole("button", { name: "Minion Damage One 15% increased Minion Damage" })[0], "Select this passive");
+    expectTooltipText(screen.getByRole("button", { name: "Add Minion Damage One to build goals" }), "Add this passive");
+    expectTooltipText(screen.getAllByRole("button", {
+      name: "Add all 2 nodes matching 15% increased Minion Damage to build goals",
+    })[0], "same matched effect");
+  });
 });
+
+function expectTooltipText(element: HTMLElement, expectedText: string) {
+  const tooltipId = element.getAttribute("aria-describedby");
+  expect(tooltipId).toBeTruthy();
+  expect(document.getElementById(tooltipId ?? "")?.textContent).toContain(expectedText);
+}
 
 function testNode(id: string, name: string, stats: string[], flags: TreeNode["flags"] = { small: true }): TreeNode {
   return {
