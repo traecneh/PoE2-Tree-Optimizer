@@ -2,7 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { buildSummary } from "./tree/buildSummary";
 import type { BuildGoalsOptimizeResult, BuildGoalsRouteCandidate } from "./tree/buildGoalsOptimizer";
 import { runBuildGoalsOptimization, type BuildGoalsOptimizationRun } from "./tree/buildGoalsOptimizerClient";
-import { buildClassStartOptions, type ClassStartOption } from "./tree/classStartAliases";
+import {
+  buildClassStartOptions,
+  resolveClassStartOptionFromPobMetadata,
+  type ClassStartOption,
+  type PobClassStartResolution,
+} from "./tree/classStartAliases";
 import {
   findAllocationDistancesFrom,
   findShortestAllocationPathFromAllocated,
@@ -25,6 +30,7 @@ import {
   BuildGoalsPanel,
   type BuildGoalsPanelGoal,
   type BuildGoalsPanelStatus,
+  type PobBuildImportPathStartStatus,
   type PobBuildImportStatus,
 } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
@@ -286,10 +292,7 @@ export default function App() {
     }
   }
 
-  function changeSelectedClassStart(classStartId: string) {
-    const option = classStartOptions.find((currentOption) => currentOption.id === classStartId);
-    if (!option) return;
-
+  function applyClassStartOption(option: ClassStartOption) {
     clearOptimizedRouteState();
     setSelectedNodeId(undefined);
     setHoverPreviewTargetNodeId(undefined);
@@ -297,6 +300,11 @@ export default function App() {
     setPathStartNodeId(option.nodeId);
     setAscendancyAllocationNodeIds([]);
     setAllocationPlan(emptyAllocationPlanForStart(option.nodeId));
+  }
+
+  function changeSelectedClassStart(classStartId: string) {
+    const option = classStartOptions.find((currentOption) => currentOption.id === classStartId);
+    if (option) applyClassStartOption(option);
   }
 
   function updateSavedBuilds(nextBuilds: SavedBuild[]) {
@@ -464,8 +472,16 @@ export default function App() {
       const result = importBuildGoalsFromPobCode(pobImportCode, graph);
       const currentGoalNodeIds = new Set(buildGoalNodeIds);
       const importedGoalNodeIds = result.goalNodeIds.filter((nodeId) => !currentGoalNodeIds.has(nodeId));
+      const pathStartResolution = resolveClassStartOptionFromPobMetadata(classStartOptions, {
+        className: result.className,
+        ascendClassName: result.ascendClassName,
+        allocatedNodeIds: result.allocatedNodeIds,
+      });
 
       clearOptimizedRouteState();
+      if (pathStartResolution.kind === "matched") {
+        applyClassStartOption(pathStartResolution.option);
+      }
       setBuildGoalNodeIds((current) => mergeNodeIds(current, importedGoalNodeIds));
       setPobImportStatus({
         kind: "success",
@@ -473,6 +489,7 @@ export default function App() {
         allocatedNodeCount: result.allocatedNodeIds.length,
         alreadySelectedGoalCount: result.goalNodeIds.length - importedGoalNodeIds.length,
         missingNodeCount: result.missingNodeIds.length,
+        pathStart: pobPathStartStatus(pathStartResolution),
       });
     } catch (error) {
       clearOptimizedRouteState();
@@ -1032,6 +1049,33 @@ function resolveSavedClassStartOption(
       ? options.find((option) => option.nodeId === state.pathStartNodeId)
       : undefined)
     ?? options[0];
+}
+
+function pobPathStartStatus(
+  resolution: PobClassStartResolution,
+): PobBuildImportPathStartStatus | undefined {
+  if (resolution.kind === "matched") {
+    return {
+      kind: "matched",
+      source: resolution.source,
+      label: resolution.option.label,
+    };
+  }
+  if (resolution.kind === "ambiguous") {
+    return {
+      kind: "ambiguous",
+      labels: resolution.labels,
+    };
+  }
+  if (resolution.kind === "not-found") {
+    return {
+      kind: "not-found",
+      label: resolution.ascendClassName
+        ? `${resolution.className ?? "PoB class"} - ${resolution.ascendClassName}`
+        : resolution.className ?? "the PoB class",
+    };
+  }
+  return undefined;
 }
 
 function cloneAllocationPlan(allocationPlan: AllocationPlan): AllocationPlan {

@@ -29,8 +29,14 @@ export type PobBuildImportStatus =
     allocatedNodeCount: number;
     alreadySelectedGoalCount: number;
     missingNodeCount: number;
+    pathStart?: PobBuildImportPathStartStatus;
   }
   | { kind: "error"; message: string };
+
+export type PobBuildImportPathStartStatus =
+  | { kind: "matched"; label: string; source: "metadata" | "allocated-start" }
+  | { kind: "ambiguous"; labels: string[] }
+  | { kind: "not-found"; label: string };
 
 type BuildGoalsPanelProps = {
   goals: BuildGoalsPanelGoal[];
@@ -196,8 +202,24 @@ function PobImportStatusMessage({ status }: { status: PobBuildImportStatus }) {
       {status.missingNodeCount > 0 ? (
         <span>{` ${formatPassiveCount(status.missingNodeCount)} not found in this tree.`}</span>
       ) : null}
+      {status.pathStart ? (
+        <span>{` ${formatPobPathStartStatus(status.pathStart)}`}</span>
+      ) : null}
     </p>
   );
+}
+
+function formatPobPathStartStatus(status: PobBuildImportPathStartStatus): string {
+  if (status.kind === "matched" && status.source === "metadata") {
+    return `Path start set to ${status.label} from PoB.`;
+  }
+  if (status.kind === "matched") {
+    return `Path start inferred as ${status.label} from allocated start.`;
+  }
+  if (status.kind === "ambiguous") {
+    return `Path start unchanged because the allocated start is shared by ${status.labels.join(", ")}.`;
+  }
+  return `Path start unchanged because ${status.label} was not found in this tree.`;
 }
 
 function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {

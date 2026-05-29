@@ -4,6 +4,8 @@ import type { NodeId, TreeGraph, TreeNode } from "./types";
 
 export type PobBuildGoalImportResult = {
   activeSpecTitle?: string;
+  className?: string;
+  ascendClassName?: string;
   allocatedNodeIds: NodeId[];
   goalNodeIds: NodeId[];
   ignoredNodeIds: NodeId[];
@@ -28,6 +30,7 @@ export function decodePobBuildCode(code: string): string {
 
 export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): PobBuildGoalImportResult {
   const spec = findActiveTreeSpec(xmlText);
+  const metadata = findBuildMetadata(xmlText);
   const allocatedNodeIds = uniqueNodeIds(spec.getAttribute("nodes") ?? "");
   const goalNodeIds: NodeId[] = [];
   const ignoredNodeIds: NodeId[] = [];
@@ -48,11 +51,59 @@ export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): P
 
   return {
     activeSpecTitle: spec.getAttribute("title") ?? undefined,
+    className: metadata.className,
+    ascendClassName: metadata.ascendClassName,
     allocatedNodeIds,
     goalNodeIds,
     ignoredNodeIds,
     missingNodeIds,
   };
+}
+
+function findBuildMetadata(xmlText: string): { className?: string; ascendClassName?: string } {
+  if (typeof DOMParser === "function") {
+    const document = new DOMParser().parseFromString(xmlText, "application/xml");
+    if (!document.querySelector("parsererror") && document.documentElement.nodeName === "PathOfBuilding2") {
+      const build = document.querySelector("Build");
+      return {
+        className: firstMeaningfulAttribute(build, document.documentElement, "className"),
+        ascendClassName: firstMeaningfulAttribute(build, document.documentElement, "ascendClassName"),
+      };
+    }
+  }
+
+  const rootMatch = xmlText.match(/<PathOfBuilding2\b([^>]*)>/);
+  const buildMatch = xmlText.match(/<Build\b([^>]*)>/);
+  const rootAttributes = parseXmlAttributes(rootMatch?.[1] ?? "");
+  const buildAttributes = parseXmlAttributes(buildMatch?.[1] ?? "");
+  return {
+    className: firstMeaningfulParsedAttribute(buildAttributes, rootAttributes, "className"),
+    ascendClassName: firstMeaningfulParsedAttribute(buildAttributes, rootAttributes, "ascendClassName"),
+  };
+}
+
+function firstMeaningfulAttribute(
+  primary: Element | null,
+  fallback: Element,
+  name: string,
+): string | undefined {
+  return meaningfulValue(primary?.getAttribute(name))
+    ?? meaningfulValue(fallback.getAttribute(name));
+}
+
+function firstMeaningfulParsedAttribute(
+  primary: Map<string, string>,
+  fallback: Map<string, string>,
+  name: string,
+): string | undefined {
+  return meaningfulValue(primary.get(name))
+    ?? meaningfulValue(fallback.get(name));
+}
+
+function meaningfulValue(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "None" || trimmed === "NONE") return undefined;
+  return trimmed;
 }
 
 function findActiveTreeSpec(xmlText: string): PobSpecElement {

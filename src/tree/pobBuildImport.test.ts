@@ -11,7 +11,7 @@ describe("PoB build import", () => {
   it("decodes a PoB build code and extracts eligible goals from the active tree spec", () => {
     const code = encodePobXml(`
       <PathOfBuilding2>
-        <Build />
+        <Build className="Huntress" ascendClassName="Amazon" />
         <Tree activeSpec="2">
           <Spec title="Ignored" nodes="101" />
           <Spec title="Active" nodes="100,101,102,103,999" />
@@ -26,6 +26,8 @@ describe("PoB build import", () => {
     expect(result.goalNodeIds).toEqual(["101", "103"]);
     expect(result.ignoredNodeIds).toEqual(["100", "102"]);
     expect(result.missingNodeIds).toEqual(["999"]);
+    expect(result.className).toBe("Huntress");
+    expect(result.ascendClassName).toBe("Amazon");
   });
 
   it("ignores ascendancy and disconnected goalable nodes", () => {
@@ -71,7 +73,7 @@ describe("PoB build import", () => {
     vi.stubGlobal("DOMParser", undefined);
 
     const result = importBuildGoalsFromPobXml(`
-      <PathOfBuilding2>
+      <PathOfBuilding2 className="Ranger" ascendClassName="Deadeye">
         <Tree activeSpec="2">
           <Spec title="Ignored" nodes="101" />
           <Spec title="Fallback Parser" nodes="100,101,102,103,104" />
@@ -81,6 +83,8 @@ describe("PoB build import", () => {
 
     expect(result.activeSpecTitle).toBe("Fallback Parser");
     expect(result.goalNodeIds).toEqual(["101", "103", "104"]);
+    expect(result.className).toBe("Ranger");
+    expect(result.ascendClassName).toBe("Deadeye");
   });
 
   it("rejects invalid build codes with a useful error", () => {

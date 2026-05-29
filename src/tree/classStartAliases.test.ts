@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClassStartOptions } from "./classStartAliases";
+import { buildClassStartOptions, resolveClassStartOptionFromPobMetadata } from "./classStartAliases";
 import type { TreeGraph } from "./types";
 
 describe("buildClassStartOptions", () => {
@@ -88,6 +88,100 @@ describe("buildClassStartOptions", () => {
         id: "Mercenary3",
         name: "Gemling Legionnaire",
         startNodeId: "gemling_start",
+      },
+    });
+  });
+
+  it("resolves explicit PoB class metadata before shared physical starts", () => {
+    const options = buildClassStartOptions(fixtureGraph({
+      RANGER: "ranger_start",
+    }));
+
+    const result = resolveClassStartOptionFromPobMetadata(options, {
+      className: "Huntress",
+      allocatedNodeIds: ["ranger_start"],
+    });
+
+    expect(result).toMatchObject({
+      kind: "matched",
+      source: "metadata",
+      option: {
+        id: "huntress",
+        label: "Huntress",
+        nodeId: "ranger_start",
+      },
+    });
+  });
+
+  it("resolves explicit PoB ascendancy metadata when a matching option exists", () => {
+    const options = buildClassStartOptions(fixtureGraph(
+      { RANGER: "ranger_start" },
+      {
+        amazon_start: {
+          id: "amazon_start",
+          name: "Amazon",
+          stats: [],
+          position: { x: 1000, y: 1000 },
+          flags: { classStart: true, ascendancy: true },
+          ascendancy: {
+            id: "Huntress1",
+            name: "Amazon",
+            className: "Huntress",
+            disabled: false,
+            startNode: true,
+          },
+        },
+      },
+    ));
+
+    const result = resolveClassStartOptionFromPobMetadata(options, {
+      className: "Huntress",
+      ascendClassName: "Amazon",
+      allocatedNodeIds: ["ranger_start"],
+    });
+
+    expect(result).toMatchObject({
+      kind: "matched",
+      source: "metadata",
+      option: {
+        id: "huntress:Huntress1",
+        label: "Huntress - Amazon",
+        nodeId: "ranger_start",
+      },
+    });
+  });
+
+  it("does not guess between shared-start classes without explicit PoB metadata", () => {
+    const options = buildClassStartOptions(fixtureGraph({
+      RANGER: "ranger_start",
+    }));
+
+    const result = resolveClassStartOptionFromPobMetadata(options, {
+      allocatedNodeIds: ["ranger_start"],
+    });
+
+    expect(result).toMatchObject({
+      kind: "ambiguous",
+      source: "allocated-start",
+    });
+  });
+
+  it("falls back to the allocated start node when it maps to one class", () => {
+    const options = buildClassStartOptions(fixtureGraph({
+      TEMPLAR: "templar_start",
+    }));
+
+    const result = resolveClassStartOptionFromPobMetadata(options, {
+      allocatedNodeIds: ["templar_start"],
+    });
+
+    expect(result).toMatchObject({
+      kind: "matched",
+      source: "allocated-start",
+      option: {
+        id: "druid",
+        label: "Druid",
+        nodeId: "templar_start",
       },
     });
   });

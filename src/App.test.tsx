@@ -237,6 +237,79 @@ describe("App", () => {
     };
   }
 
+  function pobClassStartImportFixtureGraph(): TreeGraph {
+    return {
+      schemaVersion: 1,
+      gameVersion: "pob-class-start-import-fixture",
+      extractedAt: "2026-05-28T00:00:00.000Z",
+      source: { kind: "fixture", path: "src/App.test.tsx" },
+      nodes: {
+        "100": {
+          id: "100",
+          name: "WITCH",
+          stats: ["Starting point"],
+          position: { x: 0, y: -100 },
+          flags: { classStart: true },
+        },
+        "200": {
+          id: "200",
+          name: "RANGER",
+          stats: ["Starting point"],
+          position: { x: 100, y: 0 },
+          flags: { classStart: true },
+        },
+        "201": {
+          id: "201",
+          name: "Required Huntress Notable",
+          stats: ["20% increased Spear Damage"],
+          position: { x: 200, y: 0 },
+          flags: { notable: true },
+        },
+        "300": {
+          id: "300",
+          name: "MARAUDER",
+          stats: ["Starting point"],
+          position: { x: -100, y: 0 },
+          flags: { classStart: true },
+        },
+        "400": {
+          id: "400",
+          name: "DUELIST",
+          stats: ["Starting point"],
+          position: { x: 0, y: 100 },
+          flags: { classStart: true },
+        },
+        "500": {
+          id: "500",
+          name: "SIX",
+          stats: ["Starting point"],
+          position: { x: 100, y: -100 },
+          flags: { classStart: true },
+        },
+        "600": {
+          id: "600",
+          name: "TEMPLAR",
+          stats: ["Starting point"],
+          position: { x: -100, y: -100 },
+          flags: { classStart: true },
+        },
+      },
+      groups: {},
+      edges: [
+        { from: "200", to: "201" },
+      ],
+      classStarts: {
+        WITCH: "100",
+        RANGER: "200",
+        MARAUDER: "300",
+        DUELIST: "400",
+        SIX: "500",
+        TEMPLAR: "600",
+      },
+      bounds: { minX: -100, maxX: 200, minY: -100, maxY: 100 },
+    };
+  }
+
   function poe2ClassStartFixtureGraph(): TreeGraph {
     return {
       schemaVersion: 1,
@@ -966,6 +1039,35 @@ describe("App", () => {
     expect(within(goalsPanel).getByText("Imported Jewel")).not.toBeNull();
     expect(within(goalsPanel).queryByText("Pathing")).toBeNull();
     expect(within(goalsPanel).queryByText("Unused Keystone")).toBeNull();
+  });
+
+  it("sets Path start from explicit PoB class metadata when importing goals", async () => {
+    stubTreeFetchWithGraph(pobClassStartImportFixtureGraph());
+    const code = encodePobXml(`
+      <PathOfBuilding2>
+        <Build className="Huntress" />
+        <Tree activeSpec="1">
+          <Spec title="Huntress Tree" nodes="200,201" />
+        </Tree>
+      </PathOfBuilding2>
+    `);
+
+    render(<App />);
+
+    const pathStartSelect = screen.getByLabelText("Path start") as HTMLSelectElement;
+    await waitFor(() => {
+      expect(Array.from(pathStartSelect.options).map((option) => option.textContent)).toContain("Huntress");
+    });
+
+    expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Witch");
+
+    fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
+    fireEvent.click(screen.getByRole("button", { name: "Import PoB goals" }));
+
+    expect(await screen.findByText(/Path start set to Huntress from PoB/i)).not.toBeNull();
+    expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Huntress");
+    expect(screen.getByRole("button", { name: "RANGER" }).classList.contains("path-start")).toBe(true);
+    expect(screen.getByRole("button", { name: "Required Huntress Notable" }).classList.contains("build-goal")).toBe(true);
   });
 
   it("optimizes build goals into a preview without applying the route", async () => {

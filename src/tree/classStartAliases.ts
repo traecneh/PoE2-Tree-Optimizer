@@ -13,6 +13,18 @@ export type ClassStartOption = {
   };
 };
 
+export type PobClassStartMetadata = {
+  className?: string;
+  ascendClassName?: string;
+  allocatedNodeIds?: NodeId[];
+};
+
+export type PobClassStartResolution =
+  | { kind: "matched"; source: "metadata" | "allocated-start"; option: ClassStartOption }
+  | { kind: "ambiguous"; source: "allocated-start"; labels: string[] }
+  | { kind: "not-found"; source: "metadata"; className?: string; ascendClassName?: string }
+  | { kind: "none" };
+
 const poe2ClassStartAliases: Array<Omit<ClassStartOption, "nodeId" | "ascendancy">> = [
   { id: "witch", label: "Witch", className: "Witch", rootClassId: "WITCH" },
   { id: "ranger", label: "Ranger", className: "Ranger", rootClassId: "RANGER" },
@@ -52,6 +64,109 @@ export function buildClassStartOptions(graph: TreeGraph): ClassStartOption[] {
       nodeId,
     }));
 }
+
+export function resolveClassStartOptionFromPobMetadata(
+  options: ClassStartOption[],
+  metadata: PobClassStartMetadata,
+): PobClassStartResolution {
+  const className = normalizePobClassName(metadata.className);
+  const ascendClassName = normalizePobName(metadata.ascendClassName);
+
+  if (className) {
+    const classOptions = options.filter((option) => normalizePobClassName(option.className) === className);
+    if (classOptions.length === 0) {
+      return {
+        kind: "not-found",
+        source: "metadata",
+        className: metadata.className,
+        ascendClassName: metadata.ascendClassName,
+      };
+    }
+
+    if (ascendClassName) {
+      const ascendancyOption = classOptions.find((option) => (
+        option.ascendancy
+        && (
+          normalizePobName(option.ascendancy.name) === ascendClassName
+          || normalizePobName(option.ascendancy.id) === ascendClassName
+        )
+      ));
+      if (ascendancyOption) {
+        return { kind: "matched", source: "metadata", option: ascendancyOption };
+      }
+    }
+
+    return {
+      kind: "matched",
+      source: "metadata",
+      option: classOptions.find((option) => !option.ascendancy) ?? classOptions[0],
+    };
+  }
+
+  return resolveClassStartOptionFromAllocatedNodeIds(options, metadata.allocatedNodeIds ?? []);
+}
+
+function resolveClassStartOptionFromAllocatedNodeIds(
+  options: ClassStartOption[],
+  allocatedNodeIds: NodeId[],
+): PobClassStartResolution {
+  const allocatedNodeIdSet = new Set(allocatedNodeIds);
+  const optionsByNodeId = new Map<NodeId, ClassStartOption[]>();
+  for (const option of options) {
+    const existing = optionsByNodeId.get(option.nodeId);
+    if (existing) existing.push(option);
+    else optionsByNodeId.set(option.nodeId, [option]);
+  }
+
+  const candidateGroups = Array.from(optionsByNodeId.entries())
+    .filter(([nodeId]) => allocatedNodeIdSet.has(nodeId))
+    .map(([, nodeOptions]) => nodeOptions);
+
+  if (candidateGroups.length === 0) return { kind: "none" };
+
+  const classNames = new Map<string, ClassStartOption[]>();
+  for (const nodeOptions of candidateGroups) {
+    for (const option of nodeOptions) {
+      const key = normalizePobClassName(option.className);
+      const existing = classNames.get(key);
+      if (existing) existing.push(option);
+      else classNames.set(key, [option]);
+    }
+  }
+
+  if (classNames.size !== 1) {
+    return {
+      kind: "ambiguous",
+      source: "allocated-start",
+      labels: Array.from(classNames.values(), (classOptions) => (
+        classOptions.find((option) => !option.ascendancy) ?? classOptions[0]
+      ).label),
+    };
+  }
+
+  const classOptions = Array.from(classNames.values())[0];
+  return {
+    kind: "matched",
+    source: "allocated-start",
+    option: classOptions.find((option) => !option.ascendancy) ?? classOptions[0],
+  };
+}
+
+function normalizePobClassName(value: string | undefined): string {
+  const normalized = normalizePobName(value);
+  return classNameAliases.get(normalized) ?? normalized;
+}
+
+function normalizePobName(value: string | undefined): string {
+  return value?.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() ?? "";
+}
+
+const classNameAliases = new Map<string, string>([
+  ["marauder", "warrior"],
+  ["duelist", "mercenary"],
+  ["six", "monk"],
+  ["templar", "druid"],
+]);
 
 function activeAscendancyStartsForClass(
   graph: TreeGraph,
