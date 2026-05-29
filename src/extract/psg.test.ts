@@ -164,7 +164,128 @@ description
     expect(graph.nodes["100"].stats).toEqual(["15% increased chance to Shock"]);
   });
 
-  it("attaches mastery choices without treating every choice as an active stat", () => {
+  it("adds granted active skill details for passives with empty direct stats", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+        },
+        {
+          Id: "ascendancy_active_skill",
+          Name: "Unbound Encore",
+          PassiveSkillGraphId: 101,
+          Stats: [],
+          IsNotable: true,
+          GrantedSkill: 20,
+        },
+      ],
+      grantedEffects: [{ _index: 20, Id: "RainOfBladesPlayer", ActiveSkill: 7, StatSet: 30 }],
+      grantedEffectStatSets: [{ _index: 30, Id: "RainOfBladesPlayer", ConstantStats: [99], ConstantStatsValues: [5000] }],
+      activeSkills: [
+        {
+          _index: 7,
+          Id: "rain_of_blades",
+          DisplayedName: "Rain of Blades",
+          Description: "Pour your [Ward|Runic Ward] into conjuring blades.",
+        },
+      ],
+      statFormatter: (statId, value) => {
+        if (statId === 99 && value === 5000) return "5000 Base Skill Effect Duration";
+        return undefined;
+      },
+    } as Parameters<typeof normalizePoe2PassiveTreeData>[0] & {
+      grantedEffects: unknown[];
+      grantedEffectStatSets: unknown[];
+      activeSkills: unknown[];
+    });
+
+    expect(graph.nodes["101"].stats).toEqual([
+      "Grants Skill: Rain of Blades",
+      "Pour your Runic Ward into conjuring blades.",
+    ]);
+  });
+
+  it("adds granted effect stat set lines for support-style passives", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+        },
+        {
+          Id: "ascendancy_support",
+          Name: "Mirage Deadeye",
+          PassiveSkillGraphId: 101,
+          Stats: [],
+          IsNotable: true,
+          GrantedSkill: 20,
+        },
+      ],
+      grantedEffects: [{ _index: 20, Id: "SupportProjectileAccelerationPlayer", StatSet: 30 }],
+      grantedEffectStatSets: [
+        {
+          _index: 30,
+          Id: "SupportProjectileAccelerationPlayer",
+          ImplicitStats: [3, 99],
+          ConstantStats: [2, 4],
+          ConstantStatsValues: [40, -20],
+        },
+      ],
+      statFormatter: (statId, value) => {
+        if (statId === 2 && value === 40) return "Supported Skills have 40% more Projectile Speed";
+        if (statId === 3) return "Projectiles can Chain";
+        if (statId === 4 && value === -20) return "Supported Skills have 20% less Skill Speed";
+        return undefined;
+      },
+    } as Parameters<typeof normalizePoe2PassiveTreeData>[0] & {
+      grantedEffects: unknown[];
+      grantedEffectStatSets: unknown[];
+    });
+
+    expect(graph.nodes["101"].stats).toEqual([
+      "Projectiles can Chain",
+      "Supported Skills have 40% more Projectile Speed",
+      "Supported Skills have 20% less Skill Speed",
+    ]);
+  });
+
+  it("adds useful passive metadata lines when ascendancy passives have no stat rows", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [
+        {
+          Id: "weapon_master",
+          Name: "Weapon Master",
+          PassiveSkillGraphId: 100,
+          Stats: [],
+          WeaponPointsGranted: 100,
+        },
+        {
+          Id: "path_seeker",
+          Name: "Path Seeker",
+          PassiveSkillGraphId: 101,
+          Stats: [],
+          IsMultipleChoice: true,
+        },
+      ],
+    });
+
+    expect(graph.nodes["100"].stats).toEqual(["+100 Weapon Set Passive Skill Points"]);
+    expect(graph.nodes["101"].stats).toEqual(["Choose one connected Ascendancy passive"]);
+  });
+
+  it("does not attach removed mastery choices to normal passives tagged with a mastery group", () => {
     const graph = normalizePoe2PassiveTreeData({
       gameVersion: "fixture-version",
       sourcePath: "fixture.psg",
@@ -210,11 +331,107 @@ description
     });
 
     expect(graph.nodes["101"].stats).toEqual([]);
-    expect(graph.nodes["101"].flags.mastery).toBe(true);
-    expect(graph.nodes["101"].masteryEffects).toEqual([
-      { id: "Attack1", stats: ["stat:11=12"] },
-      { id: "Attack2", stats: ["stat:12=20", "stat:13=5"] },
-    ]);
+    expect(graph.nodes["101"].flags.mastery).toBe(false);
+    expect(graph.nodes["101"].masteryEffects).toBeUndefined();
+  });
+
+  it("filters removed icon-only mastery nodes from the normalized graph", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: {
+        version: 3,
+        type: 0,
+        orbits: [1, 4],
+        rootNodeIds: [100],
+        groups: [
+          {
+            id: "0",
+            position: { x: 100, y: 200 },
+            groupAssociationKey: 7,
+            groupBackgroundOverride: 0,
+            isJewelPositionReference: false,
+            nodes: [
+              {
+                id: 100,
+                orbit: 0,
+                orbitIndex: 0,
+                connections: [
+                  { nodeId: 101, orbit: 3 },
+                  { nodeId: 102, orbit: 3 },
+                ],
+              },
+              {
+                id: 101,
+                orbit: 1,
+                orbitIndex: 0,
+                connections: [
+                  { nodeId: 100, orbit: 0 },
+                  { nodeId: 102, orbit: 0 },
+                ],
+              },
+              {
+                id: 102,
+                orbit: 1,
+                orbitIndex: 1,
+                connections: [
+                  { nodeId: 100, orbit: 0 },
+                  { nodeId: 101, orbit: 0 },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      passiveSkills: [
+        {
+          Id: "start",
+          Name: "Class Start",
+          PassiveSkillGraphId: 100,
+        },
+        {
+          Id: "attack_mastery",
+          Name: "Attack Mastery",
+          PassiveSkillGraphId: 101,
+          Stats: [],
+          MasteryGroup: 4,
+          IsJustIcon: true,
+        },
+        {
+          Id: "attack_notable",
+          Name: "Attack Notable",
+          PassiveSkillGraphId: 102,
+          Stats: [1],
+          Stat1Value: 10,
+          IsNotable: true,
+          MasteryGroup: 4,
+        },
+      ],
+      masteryGroups: [
+        {
+          _index: 4,
+          Id: "Attack",
+          MasteryEffects: [24],
+        },
+      ],
+      masteryEffects: [
+        {
+          _index: 24,
+          Id: "Attack1",
+          Stats: [11],
+          Stat1Value: 12,
+        },
+      ],
+    });
+
+    expect(graph.nodes["101"]).toBeUndefined();
+    expect(graph.nodes["102"]).toMatchObject({
+      name: "Attack Notable",
+      stats: ["stat:1=10"],
+      flags: { notable: true, mastery: false },
+    });
+    expect(graph.groups["0"].nodeIds).toEqual(["100", "102"]);
+    expect(graph.edges).toEqual([{ from: "100", to: "102", connectionOrbit: 3 }]);
   });
 
   it("attaches canonical ascendancy metadata from the Ascendancy table", () => {

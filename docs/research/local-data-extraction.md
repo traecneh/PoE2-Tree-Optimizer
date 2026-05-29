@@ -15,9 +15,9 @@ C:\Program Files (x86)\Steam\steamapps\common\Path of Exile 2
 Generated normalized graph for PoE2 0.5.0:
 
 ```text
-nodes: 5079
-edges: 6014
-groups: 1550
+nodes: 4720
+edges: 5380
+groups: 1473
 class starts: 6
 missing coordinates: 0
 dangling edges: 0
@@ -25,7 +25,7 @@ orphan nodes: 0
 missing stat lines: 0
 ```
 
-The 0.5.0 PSG includes 22 isolated non-start passive rows. The normalizer filters those before writing the app graph because they cannot be routed, optimized, or allocated from the main tree. Structural graph errors remain fatal.
+The 0.5.0 PSG includes 22 isolated non-start passive rows. It also still contains 359 removed mastery icon artifacts marked by `PassiveSkills.IsJustIcon`. The normalizer filters those before writing the app graph because they cannot be routed, optimized, or allocated from the main tree. Structural graph errors remain fatal.
 
 ## Source Files
 
@@ -35,8 +35,14 @@ The extracted graph uses:
 metadata/passiveskillgraph.psg
 data/balance/passiveskills.datc64
 data/balance/stats.datc64
+data/balance/grantedeffects.datc64
+data/balance/activeskills.datc64
+data/balance/grantedeffectstatsets.datc64
 Data/StatDescriptions/stat_descriptions.csd
 Data/StatDescriptions/passive_skill_stat_descriptions.csd
+Data/StatDescriptions/gem_stat_descriptions.csd
+Data/StatDescriptions/active_skill_gem_stat_descriptions.csd
+Data/StatDescriptions/skill_stat_descriptions.csd
 ```
 
 `PassiveSkillTrees.datc64` identifies the default tree graph path as `Metadata/PassiveSkillGraph`. The bundle index path listing shows the concrete asset as `metadata/passiveskillgraph.psg`.
@@ -71,12 +77,24 @@ Use `pathofexile-dat` from the ignored working directory `var/pathofexile-dat`. 
         "Stat5Value",
         "PassiveSkillGraphId",
         "Characters",
+        "FlavourText",
         "MasteryGroup",
         "Ascendancy",
         "IsKeystone",
         "IsNotable",
         "IsJewelSocket",
         "IsAscendancyStartingNode",
+        "IsJustIcon",
+        "ReminderStrings",
+        "SkillPointsGranted",
+        "IsMultipleChoice",
+        "IsMultipleChoiceOption",
+        "PassiveSkillBuffs",
+        "SkillType",
+        "GrantedSkill",
+        "WeaponPointsGranted",
+        "IsFree",
+        "VisibleForAscendancy",
         "IsAttribute",
         "NodeFrameArt"
       ]
@@ -96,12 +114,36 @@ Use `pathofexile-dat` from the ignored working directory `var/pathofexile-dat`. 
     {
       "name": "Ascendancy",
       "columns": ["Id", "Name", "Disabled"]
+    },
+    {
+      "name": "GrantedEffects",
+      "columns": ["Id", "ActiveSkill", "StatSet", "AdditionalStatSets"]
+    },
+    {
+      "name": "ActiveSkills",
+      "columns": [
+        "Id",
+        "DisplayedName",
+        "Description",
+        "WebsiteDescription",
+        "ShortDescription",
+        "GrantedEffect",
+        "StatDescription",
+        "StatDescriptionType"
+      ]
+    },
+    {
+      "name": "GrantedEffectStatSets",
+      "columns": ["Id", "ImplicitStats", "ConstantStats", "ConstantStatsValues"]
     }
   ],
   "translations": ["English"],
   "files": [
     "metadata/passiveskillgraph.psg",
     "metadata/passiveskillgraphguidesettings.json",
+    "Data/StatDescriptions/active_skill_gem_stat_descriptions.csd",
+    "Data/StatDescriptions/gem_stat_descriptions.csd",
+    "Data/StatDescriptions/skill_stat_descriptions.csd",
     "Data/StatDescriptions/stat_descriptions.csd",
     "Data/StatDescriptions/passive_skill_stat_descriptions.csd"
   ]
@@ -114,7 +156,7 @@ Then run:
 Set-Location var/pathofexile-dat
 npx --yes pathofexile-dat
 Set-Location ..\..
-npm run extract:graph -- --game-version "0.5.0" --psg "var/pathofexile-dat/files/metadata@passiveskillgraph.psg" --skills "var/pathofexile-dat/tables/English/PassiveSkills.json" --stats "var/pathofexile-dat/tables/English/Stats.json" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@stat_descriptions.csd" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@passive_skill_stat_descriptions.csd"
+npm run extract:graph -- --game-version "0.5.0" --psg "var/pathofexile-dat/files/metadata@passiveskillgraph.psg" --skills "var/pathofexile-dat/tables/English/PassiveSkills.json" --stats "var/pathofexile-dat/tables/English/Stats.json" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@stat_descriptions.csd" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@passive_skill_stat_descriptions.csd" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@gem_stat_descriptions.csd" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@active_skill_gem_stat_descriptions.csd" --stat-descriptions "var/pathofexile-dat/files/Data@StatDescriptions@skill_stat_descriptions.csd"
 npm run validate:graph
 ```
 

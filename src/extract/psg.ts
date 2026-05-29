@@ -49,6 +49,18 @@ export type Poe2PassiveSkillRow = {
   Ascendancy?: number | string | null;
   IsAscendancyStartingNode?: boolean;
   IsAttribute?: boolean;
+  IsJustIcon?: boolean;
+  FlavourText?: string;
+  ReminderStrings?: unknown[];
+  SkillPointsGranted?: number;
+  IsMultipleChoice?: boolean;
+  IsMultipleChoiceOption?: boolean;
+  PassiveSkillBuffs?: unknown[];
+  SkillType?: number | string | null;
+  GrantedSkill?: number | string | null;
+  WeaponPointsGranted?: number;
+  IsFree?: boolean;
+  VisibleForAscendancy?: number | string | null;
   MasteryGroup?: number | string | null;
   NodeFrameArt?: unknown;
 };
@@ -73,6 +85,34 @@ export type Poe2AscendancyRow = {
   Id?: string;
   Name?: string;
   Disabled?: boolean;
+};
+
+export type Poe2GrantedEffectRow = {
+  _index?: number;
+  Id?: string;
+  ActiveSkill?: number | string | null;
+  StatSet?: number | string | null;
+  AdditionalStatSets?: unknown[];
+};
+
+export type Poe2ActiveSkillRow = {
+  _index?: number;
+  Id?: string;
+  DisplayedName?: string;
+  Description?: string;
+  WebsiteDescription?: string;
+  ShortDescription?: string;
+  GrantedEffect?: number | string | null;
+  StatDescription?: string;
+  StatDescriptionType?: number | string | null;
+};
+
+export type Poe2GrantedEffectStatSetRow = {
+  _index?: number;
+  Id?: string;
+  ImplicitStats?: unknown[];
+  ConstantStats?: unknown[];
+  ConstantStatsValues?: unknown[];
 };
 
 type StatSource = {
@@ -118,6 +158,9 @@ export function normalizePoe2PassiveTreeData(input: {
   masteryGroups?: Poe2PassiveSkillMasteryGroupRow[];
   masteryEffects?: Poe2PassiveSkillMasteryEffectRow[];
   ascendancies?: Poe2AscendancyRow[];
+  grantedEffects?: Poe2GrantedEffectRow[];
+  activeSkills?: Poe2ActiveSkillRow[];
+  grantedEffectStatSets?: Poe2GrantedEffectStatSetRow[];
   statFormatter?: StatDescriptionFormatter;
 }): TreeGraph {
   const skillsByGraphId = new Map<string, Poe2PassiveSkillRow>();
@@ -129,6 +172,10 @@ export function normalizePoe2PassiveTreeData(input: {
   const masteryGroupsByIndex = indexRows(input.masteryGroups ?? []);
   const masteryEffectsByIndex = indexRows(input.masteryEffects ?? []);
   const ascendanciesByIndex = indexRows(input.ascendancies ?? []);
+  const grantedEffectsByIndex = indexRows(input.grantedEffects ?? []);
+  const activeSkillsByIndex = indexRows(input.activeSkills ?? []);
+  const activeSkillsByGrantedEffectId = indexActiveSkillsByGrantedEffectId(input.activeSkills ?? []);
+  const grantedEffectStatSetsByIndex = indexRows(input.grantedEffectStatSets ?? []);
 
   const rootNodeIds = new Set(input.graph.rootNodeIds.map(String));
   const nodes: TreeGraph["nodes"] = {};
@@ -145,6 +192,7 @@ export function normalizePoe2PassiveTreeData(input: {
 
     for (const nodeRef of group.nodes) {
       const skill = skillsByGraphId.get(String(nodeRef.id));
+      if (isRemovedIconOnlyPassive(skill)) continue;
       const node = normalizeNodeRef(
         nodeRef,
         group,
@@ -155,6 +203,10 @@ export function normalizePoe2PassiveTreeData(input: {
         masteryGroupsByIndex,
         masteryEffectsByIndex,
         ascendanciesByIndex,
+        grantedEffectsByIndex,
+        activeSkillsByIndex,
+        activeSkillsByGrantedEffectId,
+        grantedEffectStatSetsByIndex,
       );
       nodes[node.id] = node;
       for (const connection of nodeRef.connections) {
@@ -220,21 +272,38 @@ function normalizeNodeRef(
   masteryGroupsByIndex: Map<string, Poe2PassiveSkillMasteryGroupRow>,
   masteryEffectsByIndex: Map<string, Poe2PassiveSkillMasteryEffectRow>,
   ascendanciesByIndex: Map<string, Poe2AscendancyRow>,
+  grantedEffectsByIndex: Map<string, Poe2GrantedEffectRow>,
+  activeSkillsByIndex: Map<string, Poe2ActiveSkillRow>,
+  activeSkillsByGrantedEffectId: Map<string, Poe2ActiveSkillRow>,
+  grantedEffectStatSetsByIndex: Map<string, Poe2GrantedEffectStatSetRow>,
 ): TreeNode {
   const id = String(nodeRef.id);
   const classStart = rootNodeIds.has(id) || Boolean(skill?.IsAscendancyStartingNode);
   const keystone = Boolean(skill?.IsKeystone);
   const notable = Boolean(skill?.IsNotable);
   const jewelSocket = Boolean(skill?.IsJewelSocket);
-  const masteryEffects = formatMasteryEffects(skill, masteryGroupsByIndex, masteryEffectsByIndex, statFormatter);
-  const mastery = skill?.MasteryGroup !== undefined && skill.MasteryGroup !== null;
+  const masteryEffects = isMasterySkill(skill)
+    ? formatMasteryEffects(skill, masteryGroupsByIndex, masteryEffectsByIndex, statFormatter)
+    : [];
+  const mastery = isMasterySkill(skill);
   const ascendancy = isAscendancySkill(skill);
   const ascendancyMetadata = normalizeAscendancy(skill, ascendanciesByIndex);
+  const stats = uniqueLines([
+    ...formatStats(skill, statFormatter),
+    ...formatPassiveMetadataStats(
+      skill,
+      statFormatter,
+      grantedEffectsByIndex,
+      activeSkillsByIndex,
+      activeSkillsByGrantedEffectId,
+      grantedEffectStatSetsByIndex,
+    ),
+  ]);
   return {
     id,
     groupId: group.id,
     name: skill?.Name,
-    stats: formatStats(skill, statFormatter),
+    stats,
     layout: {
       orbit: nodeRef.orbit,
       orbitIndex: nodeRef.orbitIndex,
@@ -281,11 +350,96 @@ function formatStats(source: StatSource | undefined, statFormatter: StatDescript
   return source.Stats.flatMap((statId, index) => {
     if (statId === null || statId === undefined) return [];
     const value = values[index];
-    const fallback = typeof value === "number" ? `stat:${String(statId)}=${value}` : `stat:${String(statId)}`;
-    const formatted = statFormatter?.(statId, value);
-    if (formatted !== undefined) return formatted.trim() === "" ? [] : [formatted];
-    return [fallback];
+    const formatted = formatStatLine(statId, value, statFormatter);
+    return formatted === undefined ? [] : [formatted];
   });
+}
+
+function formatPassiveMetadataStats(
+  skill: Poe2PassiveSkillRow | undefined,
+  statFormatter: StatDescriptionFormatter | undefined,
+  grantedEffectsByIndex: Map<string, Poe2GrantedEffectRow>,
+  activeSkillsByIndex: Map<string, Poe2ActiveSkillRow>,
+  activeSkillsByGrantedEffectId: Map<string, Poe2ActiveSkillRow>,
+  grantedEffectStatSetsByIndex: Map<string, Poe2GrantedEffectStatSetRow>,
+): string[] {
+  if (!skill) return [];
+
+  const lines: string[] = [];
+  const grantedEffect = resolveRow(skill.GrantedSkill, grantedEffectsByIndex);
+  if (grantedEffect) {
+    const activeSkill = resolveActiveSkill(grantedEffect, activeSkillsByIndex, activeSkillsByGrantedEffectId);
+    const activeSkillName = cleanEffectText(activeSkill?.DisplayedName) || cleanEffectText(activeSkill?.Id);
+    if (activeSkillName) lines.push(`Grants Skill: ${activeSkillName}`);
+
+    const description =
+      cleanEffectText(activeSkill?.Description)
+      || cleanEffectText(activeSkill?.WebsiteDescription)
+      || cleanEffectText(activeSkill?.ShortDescription);
+    if (description) lines.push(description);
+
+    if (!description) {
+      const statSetRefs = [grantedEffect.StatSet, ...(grantedEffect.AdditionalStatSets ?? [])];
+      for (const statSetRef of statSetRefs) {
+        const statSet = resolveRow(statSetRef, grantedEffectStatSetsByIndex);
+        lines.push(...formatGrantedEffectStatSetStats(statSet, statFormatter));
+      }
+    }
+  }
+
+  if (isPositiveNumber(skill.WeaponPointsGranted)) {
+    lines.push(`+${skill.WeaponPointsGranted} Weapon Set Passive Skill Points`);
+  }
+  if (isPositiveNumber(skill.SkillPointsGranted)) {
+    lines.push(`+${skill.SkillPointsGranted} Passive Skill Points`);
+  }
+  if (skill.IsMultipleChoice) {
+    lines.push("Choose one connected Ascendancy passive");
+  }
+
+  const flavourText = cleanEffectText(skill.FlavourText);
+  if (lines.length === 0 && flavourText) lines.push(flavourText);
+
+  return uniqueLines(lines);
+}
+
+function formatGrantedEffectStatSetStats(
+  statSet: Poe2GrantedEffectStatSetRow | undefined,
+  statFormatter: StatDescriptionFormatter | undefined,
+): string[] {
+  if (!statSet) return [];
+
+  const implicitStats = Array.isArray(statSet.ImplicitStats) ? statSet.ImplicitStats : [];
+  const constantStats = Array.isArray(statSet.ConstantStats) ? statSet.ConstantStats : [];
+  const constantStatValues = Array.isArray(statSet.ConstantStatsValues) ? statSet.ConstantStatsValues : [];
+  const lines: string[] = [];
+
+  for (const statId of implicitStats) {
+    const formatted = formatStatLine(statId, undefined, statFormatter, { fallback: false });
+    if (formatted !== undefined) lines.push(formatted);
+  }
+  for (let index = 0; index < constantStats.length; index += 1) {
+    const statId = constantStats[index];
+    const valueRef = constantStatValues[index];
+    const value: number | undefined = typeof valueRef === "number" ? valueRef : undefined;
+    const formatted = formatStatLine(statId, value, statFormatter, { fallback: false });
+    if (formatted !== undefined) lines.push(formatted);
+  }
+
+  return uniqueLines(lines);
+}
+
+function formatStatLine(
+  statId: unknown,
+  value: number | undefined,
+  statFormatter: StatDescriptionFormatter | undefined,
+  options: { fallback?: boolean } = {},
+): string | undefined {
+  if (statId === null || statId === undefined) return undefined;
+  const fallback = typeof value === "number" ? `stat:${String(statId)}=${value}` : `stat:${String(statId)}`;
+  const formatted = statFormatter?.(statId, value);
+  if (formatted !== undefined) return formatted.trim() === "" ? undefined : formatted;
+  return options.fallback === false ? undefined : fallback;
 }
 
 function formatMasteryEffects(
@@ -314,6 +468,68 @@ function indexRows<T extends { _index?: number }>(rows: T[]): Map<string, T> {
     if (row._index !== undefined) rowsByIndex.set(String(row._index), row);
   }
   return rowsByIndex;
+}
+
+function isRemovedIconOnlyPassive(skill: Poe2PassiveSkillRow | undefined): boolean {
+  return Boolean(skill?.IsJustIcon);
+}
+
+function isMasterySkill(skill: Poe2PassiveSkillRow | undefined): boolean {
+  return Boolean(skill?.IsJustIcon && skill.MasteryGroup !== undefined && skill.MasteryGroup !== null);
+}
+
+function indexActiveSkillsByGrantedEffectId(rows: Poe2ActiveSkillRow[]): Map<string, Poe2ActiveSkillRow> {
+  const rowsByGrantedEffectId = new Map<string, Poe2ActiveSkillRow>();
+  for (const row of rows) {
+    if (row.GrantedEffect !== undefined && row.GrantedEffect !== null && String(row.GrantedEffect).trim() !== "") {
+      rowsByGrantedEffectId.set(String(row.GrantedEffect), row);
+    }
+  }
+  return rowsByGrantedEffectId;
+}
+
+function resolveRow<T>(ref: unknown, rowsByIndex: Map<string, T>): T | undefined {
+  if (ref === null || ref === undefined) return undefined;
+  return rowsByIndex.get(String(ref));
+}
+
+function resolveActiveSkill(
+  grantedEffect: Poe2GrantedEffectRow,
+  activeSkillsByIndex: Map<string, Poe2ActiveSkillRow>,
+  activeSkillsByGrantedEffectId: Map<string, Poe2ActiveSkillRow>,
+): Poe2ActiveSkillRow | undefined {
+  if (grantedEffect.ActiveSkill !== undefined && grantedEffect.ActiveSkill !== null) {
+    return activeSkillsByIndex.get(String(grantedEffect.ActiveSkill));
+  }
+  if (grantedEffect.Id !== undefined && grantedEffect.Id.trim() !== "") {
+    return activeSkillsByGrantedEffectId.get(grantedEffect.Id);
+  }
+  return undefined;
+}
+
+function cleanEffectText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const cleaned = value
+    .replace(/\[([^\]|]+)\|([^\]]+)\]/g, "$2")
+    .replace(/\[([^\]]+)\]/g, "$1")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
+function uniqueLines(lines: string[]): string[] {
+  const seen = new Set<string>();
+  return lines.filter((line) => {
+    const trimmed = line.trim();
+    if (trimmed === "" || seen.has(trimmed)) return false;
+    seen.add(trimmed);
+    return true;
+  });
+}
+
+function isPositiveNumber(value: unknown): value is number {
+  return typeof value === "number" && value > 0;
 }
 
 function isAscendancySkill(skill: Poe2PassiveSkillRow | undefined): boolean {
@@ -374,8 +590,10 @@ function filterDisconnectedNonStartNodes(
   groups: TreeGraph["groups"],
   edges: TreeEdge[],
 ): Pick<TreeGraph, "nodes" | "groups" | "edges"> {
+  const nodeIds = new Set(Object.keys(nodes));
+  const structurallyValidEdges = edges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to));
   const connectedNodeIds = new Set<string>();
-  for (const edge of edges) {
+  for (const edge of structurallyValidEdges) {
     connectedNodeIds.add(edge.from);
     connectedNodeIds.add(edge.to);
   }
@@ -395,7 +613,7 @@ function filterDisconnectedNonStartNodes(
       ] as const)
       .filter(([, group]) => group.nodeIds.length > 0),
   );
-  const filteredEdges = edges.filter((edge) => filteredNodeIds.has(edge.from) && filteredNodeIds.has(edge.to));
+  const filteredEdges = structurallyValidEdges.filter((edge) => filteredNodeIds.has(edge.from) && filteredNodeIds.has(edge.to));
 
   return { nodes: filteredNodes, groups: filteredGroups, edges: filteredEdges };
 }

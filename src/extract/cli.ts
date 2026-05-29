@@ -208,6 +208,15 @@ function normalizeFromPsg(input: {
   const ascendancies = readOptionalJsonArray(join(dirname(input.skillsPath), "Ascendancy.json")) as
     | Parameters<typeof normalizePoe2PassiveTreeData>[0]["ascendancies"]
     | undefined;
+  const grantedEffects = readOptionalJsonArray(join(dirname(input.skillsPath), "GrantedEffects.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["grantedEffects"]
+    | undefined;
+  const activeSkills = readOptionalJsonArray(join(dirname(input.skillsPath), "ActiveSkills.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["activeSkills"]
+    | undefined;
+  const grantedEffectStatSets = readOptionalJsonArray(join(dirname(input.skillsPath), "GrantedEffectStatSets.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["grantedEffectStatSets"]
+    | undefined;
 
   const statFormatter =
     input.statsPath && input.statDescriptionPaths?.length
@@ -225,6 +234,9 @@ function normalizeFromPsg(input: {
     masteryGroups,
     masteryEffects,
     ascendancies,
+    grantedEffects,
+    activeSkills,
+    grantedEffectStatSets,
     statFormatter,
   });
 }
