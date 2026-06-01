@@ -1242,7 +1242,6 @@ describe("App", () => {
 
     expect(within(goalsPanel).queryByText("Precise Shot")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Precise Shot" }));
     fireEvent.click(screen.getByRole("button", { name: "Add build goal" }));
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
     fireEvent.click(screen.getByRole("button", { name: "Add build goal" }));
@@ -1657,6 +1656,24 @@ describe("App", () => {
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(4);
   });
 
+  it("clicking the last preview path node removes that pending node", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+
+    expect(screen.getByText("3 points")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocation-path")).toBe(true);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(false);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("selected")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(2);
+  });
+
   it("clicking an allocated node prunes later allocated nodes", () => {
     stubTreeFetch();
 
@@ -1692,6 +1709,7 @@ describe("App", () => {
     expect(screen.getByText("Allocated 2/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(false);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("selected")).toBe(false);
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
   });
 });

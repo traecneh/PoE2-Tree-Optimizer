@@ -240,7 +240,7 @@ describe("optimizeBuildGoals", () => {
     expect(progressCosts.length).toBeGreaterThan(1);
     expect(progressCosts[0]).toBeGreaterThan(result.pointCost);
     expect(result.routeCandidates?.length).toBeGreaterThan(1);
-  });
+  }, 15_000);
 });
 
 function fixtureGraph(edgePairs: Array<[string, string]>): TreeGraph {

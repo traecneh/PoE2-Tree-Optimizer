@@ -675,45 +675,50 @@ export default function App() {
 
   function selectTreeNode(nodeId: string) {
     clearOptimizedRouteState();
-    setSelectedNodeId(nodeId);
     const node = visibleGraph.nodes[nodeId];
     if (!node) return;
     if (node?.flags.ascendancy) {
+      setSelectedNodeId(nodeId);
       setHoverPreviewTargetNodeId(undefined);
       toggleAscendancyAllocationNode(node);
       return;
     }
 
+    const committedNodeIndex = allocationPlan.committedNodePath.lastIndexOf(nodeId);
+    if (committedNodeIndex !== -1) {
+      const committedNodePath = pruneCommittedNodePathOnClick(allocationPlan.committedNodePath, nodeId);
+      setSelectedNodeId(committedNodePath.includes(nodeId) ? nodeId : undefined);
+      setAllocationPlan({
+        committedNodePath,
+        committedEdgeKeys: filterEdgeKeysToNodeIds(allocationPlan.committedEdgeKeys, committedNodePath),
+        previewNodePath: [],
+        previewEdgeKeys: [],
+        previewRouteNodePath: [],
+      });
+      return;
+    }
+
+    const previewNodeIndex = allocationPlan.previewNodePath.lastIndexOf(nodeId);
+    if (previewNodeIndex !== -1) {
+      const previewNodePath = pruneNodePathOnClick(allocationPlan.previewNodePath, nodeId);
+      const previewRouteNodePath = pruneNodePathOnClick(allocationPlan.previewRouteNodePath, nodeId);
+      setSelectedNodeId(previewNodePath.includes(nodeId) ? nodeId : undefined);
+      setAllocationPlan({
+        ...allocationPlan,
+        previewNodePath,
+        previewEdgeKeys: filterEdgeKeysToNodeIds(allocationPlan.previewEdgeKeys, previewNodePath),
+        previewRouteNodePath,
+        previewHighlightNodeIds: allocationPlan.previewHighlightNodeIds?.filter((highlightNodeId) => previewNodePath.includes(highlightNodeId)),
+        previewHighlightEdgeKeys: allocationPlan.previewHighlightEdgeKeys
+          ? filterEdgeKeysToNodeIds(allocationPlan.previewHighlightEdgeKeys, previewNodePath)
+          : undefined,
+        noAllocationPathNodeId: undefined,
+      });
+      return;
+    }
+
+    setSelectedNodeId(nodeId);
     setAllocationPlan((current) => {
-      const committedNodeIndex = current.committedNodePath.lastIndexOf(nodeId);
-      if (committedNodeIndex !== -1) {
-        const committedNodePath = pruneCommittedNodePathOnClick(current.committedNodePath, nodeId);
-        return {
-          committedNodePath,
-          committedEdgeKeys: filterEdgeKeysToNodeIds(current.committedEdgeKeys, committedNodePath),
-          previewNodePath: [],
-          previewEdgeKeys: [],
-          previewRouteNodePath: [],
-        };
-      }
-
-      const previewNodeIndex = current.previewNodePath.lastIndexOf(nodeId);
-      if (previewNodeIndex !== -1) {
-        const previewNodePath = current.previewNodePath.slice(0, previewNodeIndex + 1);
-        const previewRouteNodePath = sliceRouteToNode(current.previewRouteNodePath, nodeId);
-        return {
-          ...current,
-          previewNodePath,
-          previewEdgeKeys: filterEdgeKeysToNodeIds(current.previewEdgeKeys, previewNodePath),
-          previewRouteNodePath,
-          previewHighlightNodeIds: current.previewHighlightNodeIds?.filter((highlightNodeId) => previewNodePath.includes(highlightNodeId)),
-          previewHighlightEdgeKeys: current.previewHighlightEdgeKeys
-            ? filterEdgeKeysToNodeIds(current.previewHighlightEdgeKeys, previewNodePath)
-            : undefined,
-          noAllocationPathNodeId: undefined,
-        };
-      }
-
       const baseNodePath = current.previewNodePath.length > 0
         ? current.previewNodePath
         : current.committedNodePath;
@@ -1283,7 +1288,12 @@ function allocationPlanNodeIds(allocationPlan: AllocationPlan): string[] {
 }
 
 function pruneCommittedNodePathOnClick(nodePath: string[], nodeId: string): string[] {
+  return pruneNodePathOnClick(nodePath, nodeId);
+}
+
+function pruneNodePathOnClick(nodePath: string[], nodeId: string): string[] {
   const nodeIndex = nodePath.lastIndexOf(nodeId);
+  if (nodeIndex === -1) return [];
   if (nodeIndex <= 0) return nodePath.slice(0, 1);
   const clickedEndpoint = nodeIndex === nodePath.length - 1;
   return nodePath.slice(0, clickedEndpoint ? nodeIndex : nodeIndex + 1);
@@ -1654,11 +1664,6 @@ function filterEdgeKeysToNodeIds(edgeKeys: string[], nodePath: string[]): string
 function edgeKeyNodeIds(edgeKey: string): [string, string] {
   const [from, to] = edgeKey.split("::");
   return [from, to];
-}
-
-function sliceRouteToNode(routeNodePath: string[], nodeId: string): string[] {
-  const routeNodeIndex = routeNodePath.lastIndexOf(nodeId);
-  return routeNodeIndex === -1 ? [] : routeNodePath.slice(0, routeNodeIndex + 1);
 }
 
 function nodePathEndpoint(nodePath: string[]): string | undefined {
