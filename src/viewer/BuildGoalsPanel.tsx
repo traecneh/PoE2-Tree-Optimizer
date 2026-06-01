@@ -32,6 +32,7 @@ export type PobBuildImportStatus =
     alreadySelectedGoalCount: number;
     missingNodeCount: number;
     pathStart?: PobBuildImportPathStartStatus;
+    details?: PobBuildImportReportDetails;
   }
   | { kind: "error"; message: string };
 
@@ -39,6 +40,33 @@ export type PobBuildImportPathStartStatus =
   | { kind: "matched"; label: string; source: "metadata" | "allocated-start" }
   | { kind: "ambiguous"; labels: string[] }
   | { kind: "not-found"; label: string };
+
+export type PobBuildImportReportDetails = {
+  activeSpecTitle?: string;
+  importedGoalNodes: PobBuildImportNodeReference[];
+  alreadySelectedGoalNodes: PobBuildImportNodeReference[];
+  selectedAscendancyNodes: PobBuildImportNodeReference[];
+  missingNodeIds: string[];
+  weaponSetNodeIds: string[];
+  ignoredNodes: PobBuildImportIgnoredNodeReference[];
+};
+
+export type PobBuildImportNodeReference = {
+  nodeId: string;
+  label?: string;
+};
+
+export type PobBuildImportIgnoredReason =
+  | "class-start"
+  | "ascendancy"
+  | "hidden"
+  | "not-goalable"
+  | "not-main-tree"
+  | "not-connected";
+
+export type PobBuildImportIgnoredNodeReference = PobBuildImportNodeReference & {
+  reason: PobBuildImportIgnoredReason;
+};
 
 type BuildGoalsPanelProps = {
   goals: BuildGoalsPanelGoal[];
@@ -257,23 +285,136 @@ function PobImportStatusMessage({ status }: { status: PobBuildImportStatus }) {
   }
 
   return (
-    <p className="pob-import-status success" role="status">
-      <span>{`Imported ${formatGoalCount(status.importedGoalCount)}.`}</span>
-      <span>{` PoB base passives: ${status.pobBasePassivePointCount}.`}</span>
-      {status.selectedAscendancyNodeCount > 0 ? (
-        <span>{` Selected ${formatAscendancyPassiveCount(status.selectedAscendancyNodeCount)}.`}</span>
-      ) : null}
-      {status.alreadySelectedGoalCount > 0 ? (
-        <span>{` ${formatGoalCount(status.alreadySelectedGoalCount)} already selected.`}</span>
-      ) : null}
-      {status.missingNodeCount > 0 ? (
-        <span>{` ${formatPassiveCount(status.missingNodeCount)} not found in this tree.`}</span>
-      ) : null}
-      {status.pathStart ? (
-        <span>{` ${formatPobPathStartStatus(status.pathStart)}`}</span>
-      ) : null}
-    </p>
+    <>
+      <p className="pob-import-status success" role="status">
+        <span>{`Imported ${formatGoalCount(status.importedGoalCount)}.`}</span>
+        <span>{` PoB base passives: ${status.pobBasePassivePointCount}.`}</span>
+        {status.selectedAscendancyNodeCount > 0 ? (
+          <span>{` Selected ${formatAscendancyPassiveCount(status.selectedAscendancyNodeCount)}.`}</span>
+        ) : null}
+        {status.alreadySelectedGoalCount > 0 ? (
+          <span>{` ${formatGoalCount(status.alreadySelectedGoalCount)} already selected.`}</span>
+        ) : null}
+        {status.missingNodeCount > 0 ? (
+          <span>{` ${formatPassiveCount(status.missingNodeCount)} not found in this tree.`}</span>
+        ) : null}
+        {status.pathStart ? (
+          <span>{` ${formatPobPathStartStatus(status.pathStart)}`}</span>
+        ) : null}
+      </p>
+      <PobImportReport details={status.details} />
+    </>
   );
+}
+
+function PobImportReport({ details }: { details: PobBuildImportReportDetails | undefined }) {
+  if (!details || !hasPobImportReportDetails(details)) return null;
+  const ignoredGroups = groupIgnoredNodes(details.ignoredNodes);
+
+  return (
+    <details className="pob-import-report">
+      <summary>Import details</summary>
+      {details.activeSpecTitle ? (
+        <p className="pob-import-report-spec">{`PoB tree spec: ${details.activeSpecTitle}`}</p>
+      ) : null}
+      <PobImportNodeGroup title="New build goals" nodes={details.importedGoalNodes} />
+      <PobImportNodeGroup title="Already selected goals" nodes={details.alreadySelectedGoalNodes} />
+      <PobImportNodeGroup title="Selected ascendancy passives" nodes={details.selectedAscendancyNodes} />
+      <PobImportIdGroup title="Not found in current tree data" nodeIds={details.missingNodeIds} limit={24} />
+      <PobImportIdGroup title="Ignored weapon-set passives" nodeIds={details.weaponSetNodeIds} limit={16} />
+      {ignoredGroups.map((group) => (
+        <PobImportNodeGroup
+          key={group.reason}
+          title={formatIgnoredReasonLabel(group.reason)}
+          nodes={group.nodes}
+          limit={12}
+        />
+      ))}
+    </details>
+  );
+}
+
+function hasPobImportReportDetails(details: PobBuildImportReportDetails): boolean {
+  return Boolean(
+    details.activeSpecTitle
+    || details.importedGoalNodes.length > 0
+    || details.alreadySelectedGoalNodes.length > 0
+    || details.selectedAscendancyNodes.length > 0
+    || details.missingNodeIds.length > 0
+    || details.weaponSetNodeIds.length > 0
+    || details.ignoredNodes.length > 0
+  );
+}
+
+function PobImportNodeGroup({
+  title,
+  nodes,
+  limit = 16,
+}: {
+  title: string;
+  nodes: PobBuildImportNodeReference[];
+  limit?: number;
+}) {
+  if (nodes.length === 0) return null;
+  const visibleNodes = nodes.slice(0, limit);
+  const hiddenCount = nodes.length - visibleNodes.length;
+
+  return (
+    <section className="pob-import-report-group">
+      <h3>{`${title} (${nodes.length})`}</h3>
+      <ul>
+        {visibleNodes.map((node) => (
+          <li key={node.nodeId}>{formatImportNodeReference(node)}</li>
+        ))}
+      </ul>
+      {hiddenCount > 0 ? (
+        <p className="pob-import-report-more">{`and ${hiddenCount} more`}</p>
+      ) : null}
+    </section>
+  );
+}
+
+function PobImportIdGroup({
+  title,
+  nodeIds,
+  limit = 16,
+}: {
+  title: string;
+  nodeIds: string[];
+  limit?: number;
+}) {
+  if (nodeIds.length === 0) return null;
+  return (
+    <PobImportNodeGroup
+      title={title}
+      nodes={nodeIds.map((nodeId) => ({ nodeId }))}
+      limit={limit}
+    />
+  );
+}
+
+function groupIgnoredNodes(nodes: PobBuildImportIgnoredNodeReference[]) {
+  const groups = new Map<PobBuildImportIgnoredReason, PobBuildImportIgnoredNodeReference[]>();
+  for (const node of nodes) {
+    const group = groups.get(node.reason);
+    if (group) group.push(node);
+    else groups.set(node.reason, [node]);
+  }
+
+  return Array.from(groups, ([reason, groupNodes]) => ({ reason, nodes: groupNodes }));
+}
+
+function formatImportNodeReference(node: PobBuildImportNodeReference): string {
+  return node.label ? `${node.label} (${node.nodeId})` : node.nodeId;
+}
+
+function formatIgnoredReasonLabel(reason: PobBuildImportIgnoredReason): string {
+  if (reason === "class-start") return "Ignored class starts";
+  if (reason === "ascendancy") return "Ignored ascendancy passives";
+  if (reason === "hidden") return "Ignored gated or hidden passives";
+  if (reason === "not-goalable") return "Ignored pathing passives";
+  if (reason === "not-main-tree") return "Ignored non-main-tree passives";
+  return "Ignored disconnected build goals";
 }
 
 function formatPobPathStartStatus(status: PobBuildImportPathStartStatus): string {

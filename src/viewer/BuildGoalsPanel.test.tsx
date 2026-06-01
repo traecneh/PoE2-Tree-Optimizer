@@ -126,6 +126,58 @@ describe("BuildGoalsPanel", () => {
 
     expect(screen.getByText("Selected 8 ascendancy passives.")).not.toBeNull();
   });
+
+  it("shows expandable PoB import diagnostics", () => {
+    render(
+      <BuildGoalsPanel
+        goals={[]}
+        status={{ kind: "idle" }}
+        pobImportCode="example-code"
+        pobImportStatus={{
+          kind: "success",
+          importedGoalCount: 1,
+          pobBasePassivePointCount: 12,
+          selectedAscendancyNodeCount: 1,
+          alreadySelectedGoalCount: 1,
+          missingNodeCount: 1,
+          details: {
+            activeSpecTitle: "Bossing",
+            importedGoalNodes: [{ nodeId: "101", label: "Required Notable" }],
+            alreadySelectedGoalNodes: [{ nodeId: "102", label: "Existing Goal" }],
+            selectedAscendancyNodes: [{ nodeId: "201", label: "Ascendancy Notable" }],
+            missingNodeIds: ["999"],
+            weaponSetNodeIds: ["301", "302"],
+            ignoredNodes: [
+              { nodeId: "100", label: "Start", reason: "class-start" },
+              { nodeId: "103", label: "Pathing", reason: "not-goalable" },
+              { nodeId: "104", label: "Disconnected Keystone", reason: "not-connected" },
+            ],
+          },
+        }}
+        canApplyOptimizedRoute={false}
+        onPobImportCodeChange={vi.fn()}
+        onImportPobBuildGoals={vi.fn()}
+        onRemoveGoal={vi.fn()}
+        onClearGoals={vi.fn()}
+        onOptimize={vi.fn()}
+        onCancel={vi.fn()}
+        onApplyOptimizedRoute={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Import details")).not.toBeNull();
+    expect(screen.getByText("PoB tree spec: Bossing")).not.toBeNull();
+    expect(screen.getByText("New build goals (1)")).not.toBeNull();
+    expect(screen.getByText("Required Notable (101)")).not.toBeNull();
+    expect(screen.getByText("Already selected goals (1)")).not.toBeNull();
+    expect(screen.getByText("Selected ascendancy passives (1)")).not.toBeNull();
+    expect(screen.getByText("Not found in current tree data (1)")).not.toBeNull();
+    expect(screen.getByText("999")).not.toBeNull();
+    expect(screen.getByText("Ignored weapon-set passives (2)")).not.toBeNull();
+    expect(screen.getByText("Ignored class starts (1)")).not.toBeNull();
+    expect(screen.getByText("Ignored pathing passives (1)")).not.toBeNull();
+    expect(screen.getByText("Ignored disconnected build goals (1)")).not.toBeNull();
+  });
 });
 
 function expectTooltipText(element: HTMLElement, expectedText: string) {

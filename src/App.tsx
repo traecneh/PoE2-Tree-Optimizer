@@ -15,7 +15,7 @@ import {
   type AllocationPath,
 } from "./tree/pathAllocation";
 import { createPassiveSearchIndex, searchPassiveTree } from "./tree/passiveSearch";
-import { importBuildGoalsFromPobCode } from "./tree/pobBuildImport";
+import { importBuildGoalsFromPobCode, type PobBuildGoalImportResult } from "./tree/pobBuildImport";
 import { publicAssetPath } from "./tree/publicAssetPaths";
 import { sampleGraph } from "./tree/sampleGraph";
 import {
@@ -31,6 +31,7 @@ import {
   BuildGoalsPanel,
   type BuildGoalsPanelGoal,
   type BuildGoalsPanelStatus,
+  type PobBuildImportReportDetails,
   type PobBuildImportPathStartStatus,
   type PobBuildImportStatus,
 } from "./viewer/BuildGoalsPanel";
@@ -533,6 +534,12 @@ export default function App() {
         alreadySelectedGoalCount: result.goalNodeIds.length - importedGoalNodeIds.length,
         missingNodeCount: result.missingNodeIds.length,
         pathStart: pobPathStartStatus(pathStartResolution),
+        details: buildPobImportReportDetails(result, {
+          graph,
+          importedGoalNodeIds,
+          alreadySelectedGoalNodeIds: result.goalNodeIds.filter((nodeId) => currentGoalNodeIds.has(nodeId)),
+          selectedAscendancyNodeIds: importedAscendancyNodeIds,
+        }),
       });
     } catch (error) {
       clearOptimizedRouteState();
@@ -1219,6 +1226,34 @@ function pobPathStartStatus(
     };
   }
   return undefined;
+}
+
+function buildPobImportReportDetails(
+  result: PobBuildGoalImportResult,
+  state: {
+    graph: TreeGraph;
+    importedGoalNodeIds: string[];
+    alreadySelectedGoalNodeIds: string[];
+    selectedAscendancyNodeIds: string[];
+  },
+): PobBuildImportReportDetails {
+  return {
+    activeSpecTitle: result.activeSpecTitle,
+    importedGoalNodes: state.importedGoalNodeIds.map((nodeId) => pobImportNodeReference(state.graph, nodeId)),
+    alreadySelectedGoalNodes: state.alreadySelectedGoalNodeIds.map((nodeId) => pobImportNodeReference(state.graph, nodeId)),
+    selectedAscendancyNodes: state.selectedAscendancyNodeIds.map((nodeId) => pobImportNodeReference(state.graph, nodeId)),
+    missingNodeIds: result.missingNodeIds,
+    weaponSetNodeIds: result.weaponSetNodeIds,
+    ignoredNodes: result.ignoredNodeDetails.map((detail) => ({
+      ...pobImportNodeReference(state.graph, detail.nodeId),
+      reason: detail.reason,
+    })),
+  };
+}
+
+function pobImportNodeReference(graph: TreeGraph, nodeId: string): { nodeId: string; label?: string } {
+  const label = graph.nodes[nodeId]?.name?.trim();
+  return label ? { nodeId, label } : { nodeId };
 }
 
 function cloneAllocationPlan(allocationPlan: AllocationPlan): AllocationPlan {

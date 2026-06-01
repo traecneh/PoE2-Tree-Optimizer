@@ -1301,6 +1301,14 @@ describe("App", () => {
 
     expect(await screen.findByText("Imported 2 build goals.")).not.toBeNull();
     expect(screen.getByText("PoB base passives: 3.")).not.toBeNull();
+    expect(screen.getByText("Import details")).not.toBeNull();
+    expect(screen.getByText("PoB tree spec: Imported Tree")).not.toBeNull();
+    expect(screen.getByText("Not found in current tree data (1)")).not.toBeNull();
+    expect(screen.getByText("999")).not.toBeNull();
+    expect(screen.getByText("Ignored class starts (1)")).not.toBeNull();
+    expect(screen.getByText("Start (100)")).not.toBeNull();
+    expect(screen.getByText("Ignored pathing passives (1)")).not.toBeNull();
+    expect(screen.getByText("Pathing (102)")).not.toBeNull();
     const goalsPanel = screen.getByRole("region", { name: "Build goals" });
     expect(within(goalsPanel).getByText("Required Notable")).not.toBeNull();
     expect(within(goalsPanel).getByText("Imported Jewel")).not.toBeNull();

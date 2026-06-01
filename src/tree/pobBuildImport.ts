@@ -14,7 +14,21 @@ export type PobBuildGoalImportResult = {
   pobBasePassivePointCount: number;
   goalNodeIds: NodeId[];
   ignoredNodeIds: NodeId[];
+  ignoredNodeDetails: PobIgnoredNodeDetail[];
   missingNodeIds: NodeId[];
+};
+
+export type PobIgnoredNodeReason =
+  | "class-start"
+  | "ascendancy"
+  | "hidden"
+  | "not-goalable"
+  | "not-main-tree"
+  | "not-connected";
+
+export type PobIgnoredNodeDetail = {
+  nodeId: NodeId;
+  reason: PobIgnoredNodeReason;
 };
 
 type PobSpecElement = {
@@ -54,6 +68,7 @@ export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): P
   );
   const goalNodeIds: NodeId[] = [];
   const ignoredNodeIds: NodeId[] = [];
+  const ignoredNodeDetails: PobIgnoredNodeDetail[] = [];
   const missingNodeIds: NodeId[] = [];
   const mainTreeNodeIds = findMainTreeConnectedNodeIds(graph);
   const importedConnectedNodeIds = findImportedAllocatedConnectedNodeIds(graph, allocatedNodeIds);
@@ -66,6 +81,13 @@ export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): P
       goalNodeIds.push(nodeId);
     } else {
       ignoredNodeIds.push(nodeId);
+      ignoredNodeDetails.push({
+        nodeId,
+        reason: classifyIgnoredNode(node, {
+          mainTreeNodeIds,
+          importedConnectedNodeIds,
+        }),
+      });
     }
   }
 
@@ -81,8 +103,24 @@ export function importBuildGoalsFromPobXml(xmlText: string, graph: TreeGraph): P
     pobBasePassivePointCount,
     goalNodeIds,
     ignoredNodeIds,
+    ignoredNodeDetails,
     missingNodeIds,
   };
+}
+
+function classifyIgnoredNode(
+  node: TreeNode,
+  state: {
+    mainTreeNodeIds: ReadonlySet<NodeId>;
+    importedConnectedNodeIds: ReadonlySet<NodeId>;
+  },
+): PobIgnoredNodeReason {
+  if (node.flags.ascendancy) return "ascendancy";
+  if (node.visibility) return "hidden";
+  if (node.flags.classStart) return "class-start";
+  if (!state.mainTreeNodeIds.has(node.id)) return "not-main-tree";
+  if (isBuildGoalableNode(node) && !state.importedConnectedNodeIds.has(node.id)) return "not-connected";
+  return "not-goalable";
 }
 
 function countPobBasePassivePoints(

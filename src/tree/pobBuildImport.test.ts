@@ -25,6 +25,10 @@ describe("PoB build import", () => {
     expect(result.allocatedNodeIds).toEqual(["100", "101", "102", "103", "999"]);
     expect(result.goalNodeIds).toEqual(["101", "103"]);
     expect(result.ignoredNodeIds).toEqual(["100", "102"]);
+    expect(result.ignoredNodeDetails).toEqual([
+      { nodeId: "100", reason: "class-start" },
+      { nodeId: "102", reason: "not-goalable" },
+    ]);
     expect(result.missingNodeIds).toEqual(["999"]);
     expect(result.className).toBe("Huntress");
     expect(result.ascendClassName).toBe("Amazon");
@@ -41,6 +45,10 @@ describe("PoB build import", () => {
 
     expect(result.goalNodeIds).toEqual(["101"]);
     expect(result.ignoredNodeIds).toEqual(["105", "201"]);
+    expect(result.ignoredNodeDetails).toEqual([
+      { nodeId: "105", reason: "not-main-tree" },
+      { nodeId: "201", reason: "ascendancy" },
+    ]);
   });
 
   it("excludes weapon set passives from imported build goals", () => {
@@ -91,6 +99,10 @@ describe("PoB build import", () => {
 
     expect(result.goalNodeIds).toEqual(["101"]);
     expect(result.ignoredNodeIds).toEqual(["100", "106"]);
+    expect(result.ignoredNodeDetails).toEqual([
+      { nodeId: "100", reason: "class-start" },
+      { nodeId: "106", reason: "not-connected" },
+    ]);
   });
 
   it("falls back to the first spec when the saved active spec is not usable", () => {

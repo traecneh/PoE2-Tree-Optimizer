@@ -1442,6 +1442,58 @@ button {
   color: #ffb49f;
 }
 
+.pob-import-report {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(74, 92, 118, 0.8);
+  border-radius: 6px;
+  background: rgba(15, 20, 28, 0.72);
+  padding: 7px 9px;
+  color: #c6d0df;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pob-import-report > summary {
+  cursor: pointer;
+  color: #dce7f7;
+  font-weight: 700;
+}
+
+.pob-import-report[open] > summary {
+  margin-bottom: 2px;
+}
+
+.pob-import-report-spec,
+.pob-import-report-more {
+  margin: 0;
+  color: #8fa4bb;
+}
+
+.pob-import-report-group {
+  display: grid;
+  gap: 3px;
+}
+
+.pob-import-report-group h3 {
+  margin: 0;
+  color: #9edecb;
+  font-size: 12px;
+}
+
+.pob-import-report-group ul {
+  display: grid;
+  gap: 2px;
+  max-height: 122px;
+  margin: 0;
+  padding-left: 17px;
+  overflow: auto;
+}
+
+.pob-import-report-group li {
+  overflow-wrap: anywhere;
+}
+
 .build-goal-list {
   display: grid;
   gap: 8px;
