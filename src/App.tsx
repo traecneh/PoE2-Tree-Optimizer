@@ -18,9 +18,14 @@ import {
   sanitizeSavedAllocationPlan,
 } from "./app/allocationPlan";
 import {
+  maxAscendancyAllocationCount,
+  sanitizeAscendancyAllocationNodeIds,
+} from "./app/ascendancyAllocation";
+import {
   buildPobImportReportDetails,
   pobPathStartStatus,
 } from "./app/pobImportStatus";
+import { useAscendancyAllocationState } from "./app/useAscendancyAllocationState";
 import { useAllocationPlanState } from "./app/useAllocationPlanState";
 import { usePobImportState } from "./app/usePobImportState";
 import { buildSummary } from "./tree/buildSummary";
@@ -34,8 +39,6 @@ import {
 import {
   findAllocationDistancesFrom,
   findShortestAllocationPathFromAllocated,
-  treeEdgeKey,
-  type AllocationPath,
 } from "./tree/pathAllocation";
 import { createPassiveSearchIndex, searchPassiveTree } from "./tree/passiveSearch";
 import { importBuildGoalsFromPobCode } from "./tree/pobBuildImport";
@@ -63,7 +66,6 @@ import { TreeViewer, type DebugOverlayState } from "./viewer/TreeViewer";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
 const defaultNodeVisualScale = 3;
-const maxAscendancyAllocationCount = 8;
 const maxPassiveAllocationPointCount = 123;
 const treeDataVersionLabel = "PoE2 0.5.0";
 const savedBuildToastDurationMs = 3000;
@@ -75,8 +77,6 @@ const debugOverlayOff: DebugOverlayState = {
   showEdgeRouteLabels: false,
 };
 
-type SelectedAscendancy = ClassStartOption["ascendancy"];
-type ActiveAscendancy = NonNullable<SelectedAscendancy>;
 type GraphLoadStatus = "loading" | "loaded" | "fallback";
 
 export default function App() {
@@ -87,7 +87,6 @@ export default function App() {
   const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();
   const { allocationPlan, setAllocationPlan, resetAllocationPlan } = useAllocationPlanState();
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(defaultNodeVisualScale);
-  const [ascendancyAllocationNodeIds, setAscendancyAllocationNodeIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>();
   const [hoverPathPreviewEnabled, setHoverPathPreviewEnabled] = useState(false);
@@ -123,14 +122,19 @@ export default function App() {
     [classStartOptions, selectedClassStartId],
   );
   const selectedAscendancy = selectedClassStartOption?.ascendancy;
+  const {
+    setAscendancyAllocationNodeIds,
+    activeAscendancyAllocationNodeIds,
+    activeAscendancyPointCostByNodeId,
+    activeAscendancyPointCount,
+    activeAscendancyAllocationEdgeKeys,
+    resetAscendancyAllocation,
+    toggleAscendancyAllocationNode,
+  } = useAscendancyAllocationState(graph, selectedAscendancy);
   const allocatedNodePath = allocationPlan.committedNodePath;
   const allocatedNodeIds = useMemo(
     () => new Set(allocatedNodePath),
     [allocatedNodePath],
-  );
-  const activeAscendancyAllocationNodeIds = useMemo(
-    () => sanitizeAscendancyAllocationNodeIds(ascendancyAllocationNodeIds, graph, selectedAscendancy),
-    [ascendancyAllocationNodeIds, graph, selectedAscendancy],
   );
   const visibleGraph = useMemo(
     () => filterVisibleTreeGraph(graph, {
@@ -145,21 +149,9 @@ export default function App() {
   );
   const passiveSearchIndex = useMemo(() => createPassiveSearchIndex(visibleGraph), [visibleGraph]);
   const searchResults = useMemo(() => searchPassiveTree(passiveSearchIndex, searchQuery), [passiveSearchIndex, searchQuery]);
-  const activeAscendancyPointCostByNodeId = useMemo(
-    () => ascendancyPointCostByNodeId(graph, selectedAscendancy, activeAscendancyAllocationNodeIds),
-    [activeAscendancyAllocationNodeIds, graph, selectedAscendancy],
-  );
-  const activeAscendancyPointCount = useMemo(
-    () => ascendancyAllocatedPointCount(graph, selectedAscendancy, activeAscendancyAllocationNodeIds),
-    [activeAscendancyAllocationNodeIds, graph, selectedAscendancy],
-  );
   const displayAllocatedNodeIds = useMemo(
     () => new Set([...allocatedNodePath, ...activeAscendancyAllocationNodeIds]),
     [activeAscendancyAllocationNodeIds, allocatedNodePath],
-  );
-  const activeAscendancyAllocationEdgeKeys = useMemo(
-    () => ascendancyAllocationEdgeKeys(graph, selectedAscendancy, activeAscendancyAllocationNodeIds),
-    [activeAscendancyAllocationNodeIds, graph, selectedAscendancy],
   );
   const displayAllocatedEdgeKeys = useMemo(
     () => new Set([...allocationPlan.committedEdgeKeys, ...activeAscendancyAllocationEdgeKeys]),
@@ -297,7 +289,7 @@ export default function App() {
 
   function resetAllocation() {
     clearOptimizedRouteState();
-    setAscendancyAllocationNodeIds([]);
+    resetAscendancyAllocation();
     resetAllocationPlan(pathStartNodeId);
   }
 
@@ -323,7 +315,7 @@ export default function App() {
     setHoverPreviewTargetNodeId(undefined);
     setSelectedClassStartId(option.id);
     setPathStartNodeId(option.nodeId);
-    setAscendancyAllocationNodeIds([]);
+    resetAscendancyAllocation();
     resetAllocationPlan(option.nodeId);
   }
 
@@ -441,7 +433,7 @@ export default function App() {
     setSelectedNodeId(undefined);
     setHoverPreviewTargetNodeId(undefined);
     setBuildGoalNodeIds([]);
-    setAscendancyAllocationNodeIds([]);
+    resetAscendancyAllocation();
     resetAllocationPlan(pathStartNodeId);
     setSelectedSavedBuildId("");
     setSavedBuildName("");
@@ -765,33 +757,6 @@ export default function App() {
     });
   }
 
-  function toggleAscendancyAllocationNode(node: TreeNode) {
-    if (!isSelectableAscendancyNode(node, selectedAscendancy)) return;
-
-    setAscendancyAllocationNodeIds((current) => {
-      const validCurrent = sanitizeAscendancyAllocationNodeIds(current, graph, selectedAscendancy);
-      const allocatedNodeIndex = validCurrent.indexOf(node.id);
-      if (allocatedNodeIndex !== -1) {
-        return validCurrent.slice(0, allocatedNodeIndex + 1);
-      }
-
-      const nextPath = findAscendancyAllocationPath(graph, selectedAscendancy, validCurrent, node.id);
-      if (!nextPath) return validCurrent;
-
-      const nextNodeIds = applyAscendancyChoiceExclusivity(
-        graph,
-        selectedAscendancy,
-        appendUniqueNodePath(
-          validCurrent,
-          nextPath.nodeIds.filter((nodeId) => nodeId !== selectedAscendancy?.startNodeId),
-        ),
-        node.id,
-      );
-      if (ascendancyAllocatedPointCount(graph, selectedAscendancy, nextNodeIds) > maxAscendancyAllocationCount) return validCurrent;
-      return nextNodeIds;
-    });
-  }
-
   useLayoutEffect(() => {
     const currentOption = selectedClassStartId
       ? classStartOptions.find((option) => option.id === selectedClassStartId)
@@ -807,13 +772,6 @@ export default function App() {
       setPathStartNodeId(nextOption?.nodeId);
     }
   }, [classStartOptions, pathStartNodeId, selectedClassStartId]);
-
-  useEffect(() => {
-    setAscendancyAllocationNodeIds((current) => {
-      const next = sanitizeAscendancyAllocationNodeIds(current, graph, selectedAscendancy);
-      return sameNodeIds(next, current) ? current : next;
-    });
-  }, [graph, selectedAscendancy]);
 
   useEffect(() => {
     optimizerRun.current?.cancel();
@@ -1202,289 +1160,12 @@ function validNodeVisualScale(scale: number): number {
   return nodeVisualScaleOptions.some((option) => option === scale) ? scale : defaultNodeVisualScale;
 }
 
-function ascendancyPointCostByNodeId(
-  graph: TreeGraph,
-  selectedAscendancy: SelectedAscendancy,
-  nodeIds: string[],
-): ReadonlyMap<string, number> {
-  const costs = new Map<string, number>();
-  const seenPointKeys = new Set<string>();
-
-  for (const nodeId of nodeIds) {
-    const pointKey = ascendancyPointKey(graph, selectedAscendancy, nodeId);
-    if (!pointKey) continue;
-
-    costs.set(nodeId, seenPointKeys.has(pointKey) ? 0 : 1);
-    seenPointKeys.add(pointKey);
-  }
-
-  return costs;
-}
-
-function ascendancyAllocatedPointCount(
-  graph: TreeGraph,
-  selectedAscendancy: SelectedAscendancy,
-  nodeIds: string[],
-): number {
-  const pointKeys = new Set<string>();
-
-  for (const nodeId of nodeIds) {
-    const pointKey = ascendancyPointKey(graph, selectedAscendancy, nodeId);
-    if (pointKey) pointKeys.add(pointKey);
-  }
-
-  return pointKeys.size;
-}
-
-function ascendancyPointKey(
-  graph: TreeGraph,
-  selectedAscendancy: SelectedAscendancy,
-  nodeId: string,
-): string | undefined {
-  const node = graph.nodes[nodeId];
-  if (!node || !isSelectableAscendancyNode(node, selectedAscendancy)) return undefined;
-  return ascendancyChoiceParentId(graph, selectedAscendancy, nodeId) ?? nodeId;
-}
-
-function ascendancyChoiceParentId(
-  graph: TreeGraph,
-  selectedAscendancy: SelectedAscendancy,
-  nodeId: string,
-): string | undefined {
-  if (!selectedAscendancy) return undefined;
-  const node = graph.nodes[nodeId];
-  if (!node || !isSelectableAscendancyNode(node, selectedAscendancy)) return undefined;
-
-  const neighborIds = activeAscendancyNeighborIds(graph, selectedAscendancy, nodeId);
-  if (neighborIds.length !== 1) return undefined;
-
-  const parentId = neighborIds[0];
-  return isAscendancyChoiceParent(graph.nodes[parentId], selectedAscendancy) ? parentId : undefined;
-}
-
-function isAscendancyChoiceParent(
-  node: TreeNode | undefined,
-  selectedAscendancy: ActiveAscendancy,
-): node is TreeNode {
-  return Boolean(
-    node
-    && isSelectableAscendancyNode(node, selectedAscendancy)
-    && node.flags.notable
-    && node.stats.length === 0,
-  );
-}
-
-function activeAscendancyNeighborIds(
-  graph: TreeGraph,
-  selectedAscendancy: ActiveAscendancy,
-  nodeId: string,
-): string[] {
-  return graph.edges.flatMap((edge) => {
-    if (edge.from !== nodeId && edge.to !== nodeId) return [];
-    const neighborId = edge.from === nodeId ? edge.to : edge.from;
-    return isActiveAscendancyNode(graph.nodes[neighborId], selectedAscendancy) ? [neighborId] : [];
-  });
-}
-
-function applyAscendancyChoiceExclusivity(
-  graph: TreeGraph,
-  selectedAscendancy: SelectedAscendancy,
-  nodeIds: string[],
-  targetNodeId: string,
-): string[] {
-  if (!selectedAscendancy) return nodeIds;
-  const choiceParentId = ascendancyChoiceParentId(graph, selectedAscendancy, targetNodeId);
-  if (!choiceParentId) return nodeIds;
-
-  const siblingNodeIds = new Set(
-    activeAscendancyNeighborIds(graph, selectedAscendancy, choiceParentId)
-      .filter((nodeId) => (
-        nodeId !== targetNodeId
-        && ascendancyChoiceParentId(graph, selectedAscendancy, nodeId) === choiceParentId
-      )),
-  );
-
-  return nodeIds.filter((nodeId) => !siblingNodeIds.has(nodeId));
-}
-
-function sanitizeAscendancyAllocationNodeIds(
-  nodeIds: string[],
-  graph: TreeGraph,
-  selectedAscendancy: SelectedAscendancy,
-): string[] {
-  if (!selectedAscendancy) return [];
-  let sanitized: string[] = [];
-  const seen = new Set<string>();
-
-  for (const nodeId of nodeIds) {
-    const node = graph.nodes[nodeId];
-    if (
-      !node
-      || !isSelectableAscendancyNode(node, selectedAscendancy)
-      || seen.has(nodeId)
-    ) {
-      continue;
-    }
-
-    const candidate = applyAscendancyChoiceExclusivity(
-      graph,
-      selectedAscendancy,
-      [...sanitized, nodeId],
-      nodeId,
-    );
-    if (ascendancyAllocatedPointCount(graph, selectedAscendancy, candidate) > maxAscendancyAllocationCount) {
-      continue;
-    }
-
-    sanitized = candidate;
-    seen.clear();
-    for (const sanitizedNodeId of sanitized) {
-      seen.add(sanitizedNodeId);
-    }
-  }
-
-  return sanitized;
-}
-
-function ascendancyAllocationEdgeKeys(
-  graph: TreeGraph,
-  selectedAscendancy: SelectedAscendancy,
-  allocatedNodeIds: string[],
-): string[] {
-  if (!selectedAscendancy || allocatedNodeIds.length === 0) return [];
-  const allocatedNodeIdSet = new Set([selectedAscendancy.startNodeId, ...allocatedNodeIds]);
-  return graph.edges.flatMap((edge) => {
-    if (!allocatedNodeIdSet.has(edge.from) || !allocatedNodeIdSet.has(edge.to)) return [];
-    const from = graph.nodes[edge.from];
-    const to = graph.nodes[edge.to];
-    if (!from || !to) return [];
-    if (!isActiveAscendancyNode(from, selectedAscendancy) || !isActiveAscendancyNode(to, selectedAscendancy)) return [];
-    return [treeEdgeKey(edge.from, edge.to)];
-  });
-}
-
-function findAscendancyAllocationPath(
-  graph: TreeGraph,
-  selectedAscendancy: SelectedAscendancy,
-  allocatedNodeIds: string[],
-  targetNodeId: string,
-): AllocationPath | undefined {
-  if (!selectedAscendancy || !graph.nodes[targetNodeId]) return undefined;
-  const startNodeIds = [selectedAscendancy.startNodeId, ...allocatedNodeIds]
-    .filter((nodeId) => isActiveAscendancyNode(graph.nodes[nodeId], selectedAscendancy));
-  if (startNodeIds.length === 0) return undefined;
-
-  const startNodeIdSet = new Set(startNodeIds);
-  if (startNodeIdSet.has(targetNodeId)) {
-    return {
-      startNodeId: targetNodeId,
-      targetNodeId,
-      nodeIds: [targetNodeId],
-      edgeKeys: [],
-      pointCost: 0,
-    };
-  }
-
-  const adjacency = buildAscendancyAdjacency(graph, selectedAscendancy);
-  const queue = [...startNodeIds];
-  const previous = new Map<string, string | undefined>(
-    startNodeIds.map((nodeId) => [nodeId, undefined]),
-  );
-
-  for (let index = 0; index < queue.length; index += 1) {
-    const current = queue[index];
-    for (const next of adjacency.get(current) ?? []) {
-      if (previous.has(next)) continue;
-      previous.set(next, current);
-      if (next === targetNodeId) return buildAscendancyPath(resolvePathStart(targetNodeId, previous), targetNodeId, previous);
-      queue.push(next);
-    }
-  }
-
-  return undefined;
-}
-
-function buildAscendancyAdjacency(
-  graph: TreeGraph,
-  selectedAscendancy: ActiveAscendancy,
-): Map<string, string[]> {
-  const adjacency = new Map<string, string[]>();
-  for (const edge of graph.edges) {
-    const from = graph.nodes[edge.from];
-    const to = graph.nodes[edge.to];
-    if (!isActiveAscendancyNode(from, selectedAscendancy) || !isActiveAscendancyNode(to, selectedAscendancy)) continue;
-    appendNeighbor(adjacency, edge.from, edge.to);
-    appendNeighbor(adjacency, edge.to, edge.from);
-  }
-  return adjacency;
-}
-
-function appendNeighbor(adjacency: Map<string, string[]>, from: string, to: string) {
-  const neighbors = adjacency.get(from);
-  if (neighbors) neighbors.push(to);
-  else adjacency.set(from, [to]);
-}
-
-function buildAscendancyPath(
-  startNodeId: string,
-  targetNodeId: string,
-  previous: Map<string, string | undefined>,
-): AllocationPath {
-  const nodeIds: string[] = [];
-  let current: string | undefined = targetNodeId;
-  while (current) {
-    nodeIds.push(current);
-    current = previous.get(current);
-  }
-  nodeIds.reverse();
-
-  return {
-    startNodeId,
-    targetNodeId,
-    nodeIds,
-    edgeKeys: nodeIds.slice(1).map((nodeId, index) => treeEdgeKey(nodeIds[index], nodeId)),
-    pointCost: Math.max(0, nodeIds.length - 1),
-  };
-}
-
-function resolvePathStart(targetNodeId: string, previous: Map<string, string | undefined>): string {
-  let current = targetNodeId;
-  let parent = previous.get(current);
-  while (parent) {
-    current = parent;
-    parent = previous.get(current);
-  }
-  return current;
-}
-
-function isSelectableAscendancyNode(
-  node: TreeNode,
-  selectedAscendancy: SelectedAscendancy,
-): boolean {
-  return Boolean(
-    selectedAscendancy
-    && node.ascendancy?.id === selectedAscendancy.id
-    && !node.ascendancy.startNode
-  );
-}
-
-function isActiveAscendancyNode(
-  node: TreeNode | undefined,
-  selectedAscendancy: ActiveAscendancy,
-): node is TreeNode {
-  return Boolean(node?.flags.ascendancy && node.ascendancy?.id === selectedAscendancy.id);
-}
-
 function compareAllocationDistances(left: number | undefined, right: number | undefined): number {
   return allocationDistanceSortValue(left) - allocationDistanceSortValue(right);
 }
 
 function allocationDistanceSortValue(distance: number | undefined): number {
   return distance ?? Number.POSITIVE_INFINITY;
-}
-
-function sameNodeIds(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((nodeId, index) => nodeId === right[index]);
 }
 
 function optimizedRouteCandidate(result: BuildGoalsOptimizeResult, routeIndex: number): BuildGoalsRouteCandidate {
