@@ -1,4 +1,28 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  allocationPathFromNodePath,
+  allocationPlanHasVisibleState,
+  allocationPlanNodeIds,
+  appendUniqueNodePath,
+  cloneAllocationPlan,
+  edgeKeysFromNodePath,
+  emptyAllocationPlanForStart,
+  filterEdgeKeysToNodeIds,
+  mergeEdgeKeys,
+  mergeNodeIds,
+  nodePathEndpoint,
+  pendingAllocationEdgeKeys,
+  pendingAllocationNodeIds,
+  pruneCommittedNodePathOnClick,
+  pruneNodePathOnClick,
+  sanitizeSavedAllocationPlan,
+} from "./app/allocationPlan";
+import {
+  buildPobImportReportDetails,
+  pobPathStartStatus,
+} from "./app/pobImportStatus";
+import { useAllocationPlanState } from "./app/useAllocationPlanState";
+import { usePobImportState } from "./app/usePobImportState";
 import { buildSummary } from "./tree/buildSummary";
 import type { BuildGoalsOptimizeResult, BuildGoalsRouteCandidate } from "./tree/buildGoalsOptimizer";
 import { runBuildGoalsOptimization, type BuildGoalsOptimizationRun } from "./tree/buildGoalsOptimizerClient";
@@ -6,7 +30,6 @@ import {
   buildClassStartOptions,
   resolveClassStartOptionFromPobMetadata,
   type ClassStartOption,
-  type PobClassStartResolution,
 } from "./tree/classStartAliases";
 import {
   findAllocationDistancesFrom,
@@ -15,7 +38,7 @@ import {
   type AllocationPath,
 } from "./tree/pathAllocation";
 import { createPassiveSearchIndex, searchPassiveTree } from "./tree/passiveSearch";
-import { importBuildGoalsFromPobCode, type PobBuildGoalImportResult } from "./tree/pobBuildImport";
+import { importBuildGoalsFromPobCode } from "./tree/pobBuildImport";
 import { publicAssetPath } from "./tree/publicAssetPaths";
 import { sampleGraph } from "./tree/sampleGraph";
 import {
@@ -31,9 +54,6 @@ import {
   BuildGoalsPanel,
   type BuildGoalsPanelGoal,
   type BuildGoalsPanelStatus,
-  type PobBuildImportReportDetails,
-  type PobBuildImportPathStartStatus,
-  type PobBuildImportStatus,
 } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
 import { ControlTooltip } from "./viewer/ControlTooltip";
@@ -55,17 +75,6 @@ const debugOverlayOff: DebugOverlayState = {
   showEdgeRouteLabels: false,
 };
 
-type AllocationPlan = {
-  committedNodePath: string[];
-  committedEdgeKeys: string[];
-  previewNodePath: string[];
-  previewEdgeKeys: string[];
-  previewRouteNodePath: string[];
-  previewHighlightNodeIds?: string[];
-  previewHighlightEdgeKeys?: string[];
-  noAllocationPathNodeId?: string;
-};
-
 type SelectedAscendancy = ClassStartOption["ascendancy"];
 type ActiveAscendancy = NonNullable<SelectedAscendancy>;
 type GraphLoadStatus = "loading" | "loaded" | "fallback";
@@ -76,13 +85,7 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
   const [selectedClassStartId, setSelectedClassStartId] = useState<string | undefined>();
   const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();
-  const [allocationPlan, setAllocationPlan] = useState<AllocationPlan>({
-    committedNodePath: [],
-    committedEdgeKeys: [],
-    previewNodePath: [],
-    previewEdgeKeys: [],
-    previewRouteNodePath: [],
-  });
+  const { allocationPlan, setAllocationPlan, resetAllocationPlan } = useAllocationPlanState();
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(defaultNodeVisualScale);
   const [ascendancyAllocationNodeIds, setAscendancyAllocationNodeIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -92,8 +95,14 @@ export default function App() {
   const [goalShortcutActive, setGoalShortcutActive] = useState(false);
   const [buildGoalNodeIds, setBuildGoalNodeIds] = useState<string[]>([]);
   const [buildGoalStatus, setBuildGoalStatus] = useState<BuildGoalsPanelStatus>({ kind: "idle" });
-  const [pobImportCode, setPobImportCode] = useState("");
-  const [pobImportStatus, setPobImportStatus] = useState<PobBuildImportStatus>({ kind: "idle" });
+  const {
+    pobImportCode,
+    setPobImportCode,
+    pobImportStatus,
+    setPobImportStatus,
+    clearPobImport,
+    clearPobImportStatus,
+  } = usePobImportState();
   const [optimizedPreview, setOptimizedPreview] = useState<BuildGoalsOptimizeResult | undefined>();
   const [optimizedRouteIndex, setOptimizedRouteIndex] = useState(0);
   const [savedBuilds, setSavedBuilds] = useState<SavedBuild[]>(() => loadSavedBuilds());
@@ -289,7 +298,7 @@ export default function App() {
   function resetAllocation() {
     clearOptimizedRouteState();
     setAscendancyAllocationNodeIds([]);
-    setAllocationPlan(emptyAllocationPlanForStart(pathStartNodeId));
+    resetAllocationPlan(pathStartNodeId);
   }
 
   const updateSearchQuery = useCallback((query: string) => {
@@ -315,7 +324,7 @@ export default function App() {
     setSelectedClassStartId(option.id);
     setPathStartNodeId(option.nodeId);
     setAscendancyAllocationNodeIds([]);
-    setAllocationPlan(emptyAllocationPlanForStart(option.nodeId));
+    resetAllocationPlan(option.nodeId);
   }
 
   function changeSelectedClassStart(classStartId: string) {
@@ -399,8 +408,7 @@ export default function App() {
     }
 
     clearOptimizedRouteState();
-    setPobImportCode("");
-    setPobImportStatus({ kind: "idle" });
+    clearPobImport();
     setSearchQuery("");
     setSearchFocusedNodeId(undefined);
     setSelectedNodeId(undefined);
@@ -427,15 +435,14 @@ export default function App() {
 
   function newUnsavedBuild(nextStatus = "New unsaved build") {
     clearOptimizedRouteState();
-    setPobImportCode("");
-    setPobImportStatus({ kind: "idle" });
+    clearPobImport();
     setSearchQuery("");
     setSearchFocusedNodeId(undefined);
     setSelectedNodeId(undefined);
     setHoverPreviewTargetNodeId(undefined);
     setBuildGoalNodeIds([]);
     setAscendancyAllocationNodeIds([]);
-    setAllocationPlan(emptyAllocationPlanForStart(pathStartNodeId));
+    resetAllocationPlan(pathStartNodeId);
     setSelectedSavedBuildId("");
     setSavedBuildName("");
     showSavedBuildStatus(nextStatus);
@@ -464,7 +471,7 @@ export default function App() {
     const node = visibleGraph.nodes[nodeId];
     if (!node || !canAddBuildGoal(node, options)) return;
     clearOptimizedRouteState();
-    setPobImportStatus({ kind: "idle" });
+    clearPobImportStatus();
     setBuildGoalNodeIds((current) => (current.includes(nodeId) ? current : [...current, nodeId]));
   }
 
@@ -476,7 +483,7 @@ export default function App() {
     if (addableNodeIds.length === 0) return;
 
     clearOptimizedRouteState();
-    setPobImportStatus({ kind: "idle" });
+    clearPobImportStatus();
     setBuildGoalNodeIds((current) => mergeNodeIds(current, addableNodeIds));
   }
 
@@ -491,13 +498,13 @@ export default function App() {
 
   function removeBuildGoal(nodeId: string) {
     clearOptimizedRouteState();
-    setPobImportStatus({ kind: "idle" });
+    clearPobImportStatus();
     setBuildGoalNodeIds((current) => current.filter((currentNodeId) => currentNodeId !== nodeId));
   }
 
   function clearBuildGoals() {
     clearOptimizedRouteState();
-    setPobImportStatus({ kind: "idle" });
+    clearPobImportStatus();
     setBuildGoalNodeIds([]);
   }
 
@@ -1178,16 +1185,6 @@ function formatAscendancyPointCount(pointCount: number): string {
   return `Ascendancy ${pointCount}/${maxAscendancyAllocationCount}`;
 }
 
-function emptyAllocationPlanForStart(pathStartNodeId: string | undefined): AllocationPlan {
-  return {
-    committedNodePath: pathStartNodeId ? [pathStartNodeId] : [],
-    committedEdgeKeys: [],
-    previewNodePath: [],
-    previewEdgeKeys: [],
-    previewRouteNodePath: [],
-  };
-}
-
 function resolveSavedClassStartOption(
   state: SavedBuildState,
   options: ClassStartOption[],
@@ -1199,139 +1196,6 @@ function resolveSavedClassStartOption(
       ? options.find((option) => option.nodeId === state.pathStartNodeId)
       : undefined)
     ?? options[0];
-}
-
-function pobPathStartStatus(
-  resolution: PobClassStartResolution,
-): PobBuildImportPathStartStatus | undefined {
-  if (resolution.kind === "matched") {
-    return {
-      kind: "matched",
-      source: resolution.source,
-      label: resolution.option.label,
-    };
-  }
-  if (resolution.kind === "ambiguous") {
-    return {
-      kind: "ambiguous",
-      labels: resolution.labels,
-    };
-  }
-  if (resolution.kind === "not-found") {
-    return {
-      kind: "not-found",
-      label: resolution.ascendClassName
-        ? `${resolution.className ?? "PoB class"} - ${resolution.ascendClassName}`
-        : resolution.className ?? "the PoB class",
-    };
-  }
-  return undefined;
-}
-
-function buildPobImportReportDetails(
-  result: PobBuildGoalImportResult,
-  state: {
-    graph: TreeGraph;
-    importedGoalNodeIds: string[];
-    alreadySelectedGoalNodeIds: string[];
-    selectedAscendancyNodeIds: string[];
-  },
-): PobBuildImportReportDetails {
-  return {
-    activeSpecTitle: result.activeSpecTitle,
-    importedGoalNodes: state.importedGoalNodeIds.map((nodeId) => pobImportNodeReference(state.graph, nodeId)),
-    alreadySelectedGoalNodes: state.alreadySelectedGoalNodeIds.map((nodeId) => pobImportNodeReference(state.graph, nodeId)),
-    selectedAscendancyNodes: state.selectedAscendancyNodeIds.map((nodeId) => pobImportNodeReference(state.graph, nodeId)),
-    missingNodeIds: result.missingNodeIds,
-    weaponSetNodeIds: result.weaponSetNodeIds,
-    ignoredNodes: result.ignoredNodeDetails.map((detail) => ({
-      ...pobImportNodeReference(state.graph, detail.nodeId),
-      reason: detail.reason,
-    })),
-  };
-}
-
-function pobImportNodeReference(graph: TreeGraph, nodeId: string): { nodeId: string; label?: string } {
-  const label = graph.nodes[nodeId]?.name?.trim();
-  return label ? { nodeId, label } : { nodeId };
-}
-
-function cloneAllocationPlan(allocationPlan: AllocationPlan): AllocationPlan {
-  return {
-    committedNodePath: [...allocationPlan.committedNodePath],
-    committedEdgeKeys: [...allocationPlan.committedEdgeKeys],
-    previewNodePath: [...allocationPlan.previewNodePath],
-    previewEdgeKeys: [...allocationPlan.previewEdgeKeys],
-    previewRouteNodePath: [...allocationPlan.previewRouteNodePath],
-    previewHighlightNodeIds: allocationPlan.previewHighlightNodeIds
-      ? [...allocationPlan.previewHighlightNodeIds]
-      : undefined,
-    previewHighlightEdgeKeys: allocationPlan.previewHighlightEdgeKeys
-      ? [...allocationPlan.previewHighlightEdgeKeys]
-      : undefined,
-    noAllocationPathNodeId: allocationPlan.noAllocationPathNodeId,
-  };
-}
-
-function sanitizeSavedAllocationPlan(
-  allocationPlan: AllocationPlan,
-  graph: TreeGraph,
-  fallbackPathStartNodeId: string | undefined,
-): AllocationPlan {
-  const committedNodePath = allocationPlan.committedNodePath.filter((nodeId) => graph.nodes[nodeId]);
-  const previewNodePath = allocationPlan.previewNodePath.filter((nodeId) => graph.nodes[nodeId]);
-  const previewRouteNodePath = allocationPlan.previewRouteNodePath.filter((nodeId) => graph.nodes[nodeId]);
-  const availableNodePath = previewNodePath.length > 0 ? previewNodePath : committedNodePath;
-  const visibleNodePath = availableNodePath.length > 0
-    ? availableNodePath
-    : fallbackPathStartNodeId ? [fallbackPathStartNodeId] : [];
-
-  return {
-    committedNodePath: committedNodePath.length > 0
-      ? committedNodePath
-      : fallbackPathStartNodeId ? [fallbackPathStartNodeId] : [],
-    committedEdgeKeys: filterEdgeKeysToNodeIds(allocationPlan.committedEdgeKeys, committedNodePath),
-    previewNodePath,
-    previewEdgeKeys: filterEdgeKeysToNodeIds(allocationPlan.previewEdgeKeys, visibleNodePath),
-    previewRouteNodePath,
-    previewHighlightNodeIds: allocationPlan.previewHighlightNodeIds?.filter((nodeId) => graph.nodes[nodeId]),
-    previewHighlightEdgeKeys: allocationPlan.previewHighlightEdgeKeys
-      ? filterEdgeKeysToNodeIds(allocationPlan.previewHighlightEdgeKeys, visibleNodePath)
-      : undefined,
-    noAllocationPathNodeId: allocationPlan.noAllocationPathNodeId && graph.nodes[allocationPlan.noAllocationPathNodeId]
-      ? allocationPlan.noAllocationPathNodeId
-      : undefined,
-  };
-}
-
-function allocationPlanHasVisibleState(allocationPlan: AllocationPlan): boolean {
-  return allocationPlan.committedNodePath.length > 0
-    || allocationPlan.previewNodePath.length > 0
-    || allocationPlan.previewEdgeKeys.length > 0
-    || allocationPlan.previewRouteNodePath.length > 0
-    || Boolean(allocationPlan.noAllocationPathNodeId);
-}
-
-function allocationPlanNodeIds(allocationPlan: AllocationPlan): string[] {
-  return mergeNodeIds(
-    allocationPlan.committedNodePath,
-    allocationPlan.previewNodePath,
-    allocationPlan.previewRouteNodePath,
-    allocationPlan.previewHighlightNodeIds ?? [],
-    allocationPlan.noAllocationPathNodeId ? [allocationPlan.noAllocationPathNodeId] : [],
-  );
-}
-
-function pruneCommittedNodePathOnClick(nodePath: string[], nodeId: string): string[] {
-  return pruneNodePathOnClick(nodePath, nodeId);
-}
-
-function pruneNodePathOnClick(nodePath: string[], nodeId: string): string[] {
-  const nodeIndex = nodePath.lastIndexOf(nodeId);
-  if (nodeIndex === -1) return [];
-  if (nodeIndex <= 0) return nodePath.slice(0, 1);
-  const clickedEndpoint = nodeIndex === nodePath.length - 1;
-  return nodePath.slice(0, clickedEndpoint ? nodeIndex : nodeIndex + 1);
 }
 
 function validNodeVisualScale(scale: number): number {
@@ -1619,90 +1483,8 @@ function allocationDistanceSortValue(distance: number | undefined): number {
   return distance ?? Number.POSITIVE_INFINITY;
 }
 
-function allocationPathFromNodePath(nodePath: string[]): AllocationPath | undefined {
-  const startNodeId = nodePath[0];
-  const targetNodeId = nodePath[nodePath.length - 1];
-  if (!startNodeId || !targetNodeId) return undefined;
-
-  return {
-    startNodeId,
-    targetNodeId,
-    nodeIds: nodePath,
-    edgeKeys: Array.from(edgeKeysFromNodePath(nodePath)),
-    pointCost: Math.max(0, nodePath.length - 1),
-  };
-}
-
-function appendUniqueNodePath(currentNodePath: string[], routeNodePath: string[]): string[] {
-  const nodeIds = [...currentNodePath];
-  const seen = new Set(nodeIds);
-
-  for (const nodeId of routeNodePath) {
-    if (seen.has(nodeId)) continue;
-    seen.add(nodeId);
-    nodeIds.push(nodeId);
-  }
-
-  return nodeIds;
-}
-
-function edgeKeysFromNodePath(nodePath: string[]): Set<string> {
-  return new Set(nodePath.slice(1).map((nodeId, index) => treeEdgeKey(nodePath[index], nodeId)));
-}
-
-function mergeEdgeKeys(...edgeKeyGroups: string[][]): string[] {
-  return Array.from(new Set(edgeKeyGroups.flat()));
-}
-
-function mergeNodeIds(...nodeIdGroups: string[][]): string[] {
-  return Array.from(new Set(nodeIdGroups.flat()));
-}
-
 function sameNodeIds(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((nodeId, index) => nodeId === right[index]);
-}
-
-function pendingAllocationNodeIds(
-  previewNodePath: string[],
-  committedNodePath: string[],
-  previewRouteNodePath: string[],
-  previewHighlightNodeIds?: string[],
-): Set<string> {
-  if (previewHighlightNodeIds) return new Set(previewHighlightNodeIds);
-
-  const committedNodeIds = new Set(committedNodePath);
-  const nodeIds = new Set(previewNodePath.filter((nodeId) => !committedNodeIds.has(nodeId)));
-  const routeStartNodeId = previewRouteNodePath[0];
-  if (routeStartNodeId) nodeIds.add(routeStartNodeId);
-  return nodeIds;
-}
-
-function pendingAllocationEdgeKeys(
-  previewEdgeKeys: string[],
-  committedEdgeKeys: string[],
-  previewHighlightEdgeKeys?: string[],
-): Set<string> {
-  if (previewHighlightEdgeKeys) return new Set(previewHighlightEdgeKeys);
-
-  const committed = new Set(committedEdgeKeys);
-  return new Set(previewEdgeKeys.filter((edgeKey) => !committed.has(edgeKey)));
-}
-
-function filterEdgeKeysToNodeIds(edgeKeys: string[], nodePath: string[]): string[] {
-  const nodeIds = new Set(nodePath);
-  return edgeKeys.filter((edgeKey) => {
-    const [from, to] = edgeKeyNodeIds(edgeKey);
-    return nodeIds.has(from) && nodeIds.has(to);
-  });
-}
-
-function edgeKeyNodeIds(edgeKey: string): [string, string] {
-  const [from, to] = edgeKey.split("::");
-  return [from, to];
-}
-
-function nodePathEndpoint(nodePath: string[]): string | undefined {
-  return nodePath[nodePath.length - 1];
 }
 
 function optimizedRouteCandidate(result: BuildGoalsOptimizeResult, routeIndex: number): BuildGoalsRouteCandidate {
