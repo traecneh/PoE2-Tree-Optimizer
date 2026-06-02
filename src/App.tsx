@@ -16,6 +16,7 @@ import { useAscendancyAllocationState } from "./app/useAscendancyAllocationState
 import { useAllocationPlanState } from "./app/useAllocationPlanState";
 import { useBuildGoalsState } from "./app/useBuildGoalsState";
 import { useBuildWorkflowActions } from "./app/useBuildWorkflowActions";
+import { usePassiveGoalViewModel } from "./app/usePassiveGoalViewModel";
 import { usePobImportState } from "./app/usePobImportState";
 import { useSavedBuildState } from "./app/useSavedBuildState";
 import { useTreeInteractionState } from "./app/useTreeInteractionState";
@@ -23,22 +24,15 @@ import { buildSummary } from "./tree/buildSummary";
 import {
   buildClassStartOptions,
 } from "./tree/classStartAliases";
-import {
-  findAllocationDistancesFrom,
-} from "./tree/pathAllocation";
-import { createPassiveSearchIndex, searchPassiveTree } from "./tree/passiveSearch";
 import { publicAssetPath } from "./tree/publicAssetPaths";
 import { sampleGraph } from "./tree/sampleGraph";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
 import type { TreeGraph } from "./tree/types";
-import {
-  BuildGoalsPanel,
-  type BuildGoalsPanelGoal,
-} from "./viewer/BuildGoalsPanel";
+import { BuildGoalsPanel } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
 import { ControlTooltip } from "./viewer/ControlTooltip";
 import { NodeInspector } from "./viewer/NodeInspector";
-import { PassiveSearchPanel, type PassiveSearchPanelResult } from "./viewer/PassiveSearchPanel";
+import { PassiveSearchPanel } from "./viewer/PassiveSearchPanel";
 import { TreeViewer, type DebugOverlayState } from "./viewer/TreeViewer";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
@@ -136,8 +130,6 @@ export default function App() {
     allocationPlan,
     setAllocationPlan,
   });
-  const passiveSearchIndex = useMemo(() => createPassiveSearchIndex(visibleGraph), [visibleGraph]);
-  const searchResults = useMemo(() => searchPassiveTree(passiveSearchIndex, searchQuery), [passiveSearchIndex, searchQuery]);
   const displayAllocatedNodeIds = useMemo(
     () => new Set([...allocatedNodePath, ...activeAscendancyAllocationNodeIds]),
     [activeAscendancyAllocationNodeIds, allocatedNodePath],
@@ -187,46 +179,20 @@ export default function App() {
     clearOptimizedRouteState,
     toggleAscendancyAllocationNode,
   });
-  const allocationDistances = useMemo(
-    () => findAllocationDistancesFrom(visibleGraph, allocationDistanceNodeIds),
-    [allocationDistanceNodeIds, visibleGraph],
-  );
+  const {
+    buildGoalPanelGoals,
+    searchResultsWithAllocationDistance,
+    searchMatchNodeIds,
+  } = usePassiveGoalViewModel({
+    visibleGraph,
+    searchQuery,
+    buildGoalNodeIds,
+    allocationDistanceNodeIds,
+    displayAllocatedNodeIds,
+  });
   const buildSummaryData = useMemo(
     () => buildSummary(visibleGraph, buildSummaryNodeIds, { pointCostByNodeId: activeAscendancyPointCostByNodeId }),
     [activeAscendancyPointCostByNodeId, buildSummaryNodeIds, visibleGraph],
-  );
-  const buildGoalPanelGoals = useMemo<BuildGoalsPanelGoal[]>(
-    () => buildGoalNodeIds.flatMap((nodeId) => {
-      const node = visibleGraph.nodes[nodeId];
-      if (!node) return [];
-      return [{
-        node,
-        allocationDistance: allocationDistances.get(nodeId),
-        reached: allocationDistanceNodeIds.has(nodeId),
-      }];
-    }),
-    [allocationDistanceNodeIds, allocationDistances, buildGoalNodeIds, visibleGraph.nodes],
-  );
-  const searchResultsWithAllocationDistance = useMemo<PassiveSearchPanelResult[]>(
-    () => searchResults
-      .map((result, searchIndex) => ({
-        result: {
-          ...result,
-          allocationDistance: allocationDistances.get(result.node.id),
-          allocated: displayAllocatedNodeIds.has(result.node.id),
-        },
-        searchIndex,
-      }))
-      .sort((left, right) => (
-        compareAllocationDistances(left.result.allocationDistance, right.result.allocationDistance)
-        || left.searchIndex - right.searchIndex
-      ))
-      .map(({ result }) => result),
-    [allocationDistances, displayAllocatedNodeIds, searchResults],
-  );
-  const searchMatchNodeIds = useMemo(
-    () => new Set(searchResults.map(({ node }) => node.id)),
-    [searchResults],
   );
   const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);
   const {
@@ -630,12 +596,4 @@ function formatAllocatedPointCount(pointCount: number): string {
 
 function formatAscendancyPointCount(pointCount: number): string {
   return `Ascendancy ${pointCount}/${maxAscendancyAllocationCount}`;
-}
-
-function compareAllocationDistances(left: number | undefined, right: number | undefined): number {
-  return allocationDistanceSortValue(left) - allocationDistanceSortValue(right);
-}
-
-function allocationDistanceSortValue(distance: number | undefined): number {
-  return distance ?? Number.POSITIVE_INFINITY;
 }
