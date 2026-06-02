@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   allocationPathFromNodePath,
   allocationPlanHasVisibleState,
@@ -27,10 +27,10 @@ import {
 } from "./app/pobImportStatus";
 import { useAscendancyAllocationState } from "./app/useAscendancyAllocationState";
 import { useAllocationPlanState } from "./app/useAllocationPlanState";
+import { useBuildGoalsState } from "./app/useBuildGoalsState";
 import { usePobImportState } from "./app/usePobImportState";
+import { useSavedBuildState } from "./app/useSavedBuildState";
 import { buildSummary } from "./tree/buildSummary";
-import type { BuildGoalsOptimizeResult, BuildGoalsRouteCandidate } from "./tree/buildGoalsOptimizer";
-import { runBuildGoalsOptimization, type BuildGoalsOptimizationRun } from "./tree/buildGoalsOptimizerClient";
 import {
   buildClassStartOptions,
   resolveClassStartOptionFromPobMetadata,
@@ -44,19 +44,12 @@ import { createPassiveSearchIndex, searchPassiveTree } from "./tree/passiveSearc
 import { importBuildGoalsFromPobCode } from "./tree/pobBuildImport";
 import { publicAssetPath } from "./tree/publicAssetPaths";
 import { sampleGraph } from "./tree/sampleGraph";
-import {
-  createSavedBuildId,
-  loadSavedBuilds,
-  storeSavedBuilds,
-  type SavedBuild,
-  type SavedBuildState,
-} from "./tree/savedBuilds";
+import type { SavedBuildState } from "./tree/savedBuilds";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
 import type { TreeGraph, TreeNode } from "./tree/types";
 import {
   BuildGoalsPanel,
   type BuildGoalsPanelGoal,
-  type BuildGoalsPanelStatus,
 } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
 import { ControlTooltip } from "./viewer/ControlTooltip";
@@ -68,7 +61,6 @@ const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
 const defaultNodeVisualScale = 3;
 const maxPassiveAllocationPointCount = 123;
 const treeDataVersionLabel = "PoE2 0.5.0";
-const savedBuildToastDurationMs = 3000;
 const debugOverlayOff: DebugOverlayState = {
   showNodeIds: false,
   highlightMissingStats: false,
@@ -92,8 +84,6 @@ export default function App() {
   const [hoverPathPreviewEnabled, setHoverPathPreviewEnabled] = useState(false);
   const [hoverPreviewTargetNodeId, setHoverPreviewTargetNodeId] = useState<string | undefined>();
   const [goalShortcutActive, setGoalShortcutActive] = useState(false);
-  const [buildGoalNodeIds, setBuildGoalNodeIds] = useState<string[]>([]);
-  const [buildGoalStatus, setBuildGoalStatus] = useState<BuildGoalsPanelStatus>({ kind: "idle" });
   const {
     pobImportCode,
     setPobImportCode,
@@ -102,15 +92,6 @@ export default function App() {
     clearPobImport,
     clearPobImportStatus,
   } = usePobImportState();
-  const [optimizedPreview, setOptimizedPreview] = useState<BuildGoalsOptimizeResult | undefined>();
-  const [optimizedRouteIndex, setOptimizedRouteIndex] = useState(0);
-  const [savedBuilds, setSavedBuilds] = useState<SavedBuild[]>(() => loadSavedBuilds());
-  const [selectedSavedBuildId, setSelectedSavedBuildId] = useState("");
-  const [savedBuildName, setSavedBuildName] = useState("");
-  const [savedBuildStatus, setSavedBuildStatus] = useState("");
-  const [savedBuildStatusFeedbackKey, setSavedBuildStatusFeedbackKey] = useState(0);
-  const optimizerRun = useRef<BuildGoalsOptimizationRun | undefined>(undefined);
-  const savedBuildStatusTimeoutId = useRef<number | undefined>(undefined);
   const classStartOptions = useMemo(
     () => buildClassStartOptions(graph),
     [graph],
@@ -131,6 +112,20 @@ export default function App() {
     resetAscendancyAllocation,
     toggleAscendancyAllocationNode,
   } = useAscendancyAllocationState(graph, selectedAscendancy);
+  const {
+    savedBuilds,
+    selectedSavedBuild,
+    selectedSavedBuildId,
+    savedBuildName,
+    setSavedBuildName,
+    savedBuildStatus,
+    savedBuildStatusFeedbackKey,
+    canSaveCurrentBuild,
+    saveCurrentBuild,
+    loadSavedBuild: selectSavedBuild,
+    newUnsavedBuild: markNewUnsavedBuild,
+    deleteSelectedBuild: deleteSelectedSavedBuild,
+  } = useSavedBuildState({ getCurrentState: currentSavedBuildState });
   const allocatedNodePath = allocationPlan.committedNodePath;
   const allocatedNodeIds = useMemo(
     () => new Set(allocatedNodePath),
@@ -143,6 +138,28 @@ export default function App() {
     }),
     [activeAscendancyAllocationNodeIds, graph, selectedAscendancy?.id],
   );
+  const {
+    buildGoalNodeIds,
+    setBuildGoalNodeIds,
+    buildGoalNodeIdSet,
+    buildGoalStatus,
+    optimizedRouteIndex,
+    routeCandidateCount,
+    canApplyOptimizedRoute,
+    clearOptimizedRouteState,
+    addBuildGoal: addBuildGoalNodeId,
+    addBuildGoals: addBuildGoalNodeIds,
+    removeBuildGoal: removeBuildGoalNodeId,
+    clearBuildGoals: clearBuildGoalNodeIds,
+    optimizeBuildGoalsRoute,
+    cancelBuildGoalsOptimization,
+    selectOptimizedRoute,
+    applyOptimizedRoute,
+  } = useBuildGoalsState({
+    visibleGraph,
+    allocationPlan,
+    setAllocationPlan,
+  });
   const selectedNode = useMemo(
     () => (selectedNodeId ? visibleGraph.nodes[selectedNodeId] : undefined),
     [selectedNodeId, visibleGraph.nodes],
@@ -178,10 +195,6 @@ export default function App() {
   const buildSummaryData = useMemo(
     () => buildSummary(visibleGraph, buildSummaryNodeIds, { pointCostByNodeId: activeAscendancyPointCostByNodeId }),
     [activeAscendancyPointCostByNodeId, buildSummaryNodeIds, visibleGraph],
-  );
-  const buildGoalNodeIdSet = useMemo(
-    () => new Set(buildGoalNodeIds),
-    [buildGoalNodeIds],
   );
   const buildGoalPanelGoals = useMemo<BuildGoalsPanelGoal[]>(
     () => buildGoalNodeIds.flatMap((nodeId) => {
@@ -273,20 +286,6 @@ export default function App() {
     () => allocationPath?.nodeIds.map((nodeId) => visibleGraph.nodes[nodeId]?.name ?? nodeId) ?? [],
     [allocationPath, visibleGraph.nodes],
   );
-  const selectedSavedBuild = useMemo(
-    () => savedBuilds.find((build) => build.id === selectedSavedBuildId),
-    [savedBuilds, selectedSavedBuildId],
-  );
-  const canSaveCurrentBuild = savedBuildName.trim().length > 0;
-
-  function clearOptimizedRouteState(nextStatus: BuildGoalsPanelStatus = { kind: "idle" }) {
-    optimizerRun.current?.cancel();
-    optimizerRun.current = undefined;
-    setOptimizedPreview(undefined);
-    setOptimizedRouteIndex(0);
-    setBuildGoalStatus(nextStatus);
-  }
-
   function resetAllocation() {
     clearOptimizedRouteState();
     resetAscendancyAllocation();
@@ -324,31 +323,6 @@ export default function App() {
     if (option) applyClassStartOption(option);
   }
 
-  function updateSavedBuilds(nextBuilds: SavedBuild[]) {
-    setSavedBuilds(nextBuilds);
-    storeSavedBuilds(nextBuilds);
-  }
-
-  function showSavedBuildStatus(nextStatus: string) {
-    if (savedBuildStatusTimeoutId.current !== undefined) {
-      window.clearTimeout(savedBuildStatusTimeoutId.current);
-    }
-    setSavedBuildStatus(nextStatus);
-    setSavedBuildStatusFeedbackKey((currentKey) => currentKey + 1);
-    savedBuildStatusTimeoutId.current = window.setTimeout(() => {
-      setSavedBuildStatus("");
-      savedBuildStatusTimeoutId.current = undefined;
-    }, savedBuildToastDurationMs);
-  }
-
-  function clearSavedBuildStatus() {
-    if (savedBuildStatusTimeoutId.current !== undefined) {
-      window.clearTimeout(savedBuildStatusTimeoutId.current);
-      savedBuildStatusTimeoutId.current = undefined;
-    }
-    setSavedBuildStatus("");
-  }
-
   function currentSavedBuildState(): SavedBuildState {
     return {
       selectedClassStartId,
@@ -360,44 +334,9 @@ export default function App() {
     };
   }
 
-  function saveCurrentBuild() {
-    const name = savedBuildName.trim();
-    if (!name) return;
-
-    const now = new Date().toISOString();
-    const existingBuild = savedBuilds.find((build) => build.id === selectedSavedBuildId);
-    const nextBuild: SavedBuild = existingBuild
-      ? {
-        ...existingBuild,
-        name,
-        updatedAt: now,
-        state: currentSavedBuildState(),
-      }
-      : {
-        id: createSavedBuildId(),
-        name,
-        createdAt: now,
-        updatedAt: now,
-        state: currentSavedBuildState(),
-      };
-    const nextBuilds = existingBuild
-      ? savedBuilds.map((build) => (build.id === existingBuild.id ? nextBuild : build))
-      : [...savedBuilds, nextBuild];
-
-    updateSavedBuilds(nextBuilds);
-    setSelectedSavedBuildId(nextBuild.id);
-    setSavedBuildName(nextBuild.name);
-    showSavedBuildStatus(`Saved ${nextBuild.name}`);
-  }
-
   function loadSavedBuild(buildId: string) {
-    setSelectedSavedBuildId(buildId);
-    const build = savedBuilds.find((currentBuild) => currentBuild.id === buildId);
-    if (!build) {
-      setSavedBuildName("");
-      clearSavedBuildStatus();
-      return;
-    }
+    const build = selectSavedBuild(buildId);
+    if (!build) return;
 
     clearOptimizedRouteState();
     clearPobImport();
@@ -421,11 +360,9 @@ export default function App() {
       const node = graph.nodes[nodeId];
       return node && canAddBuildGoal(node, { allowAnyPassive: true });
     }));
-    setSavedBuildName(build.name);
-    showSavedBuildStatus(`Loaded ${build.name}`);
   }
 
-  function newUnsavedBuild(nextStatus = "New unsaved build") {
+  function clearWorkingBuildState() {
     clearOptimizedRouteState();
     clearPobImport();
     setSearchQuery("");
@@ -435,16 +372,17 @@ export default function App() {
     setBuildGoalNodeIds([]);
     resetAscendancyAllocation();
     resetAllocationPlan(pathStartNodeId);
-    setSelectedSavedBuildId("");
-    setSavedBuildName("");
-    showSavedBuildStatus(nextStatus);
+  }
+
+  function newUnsavedBuild(nextStatus = "New unsaved build") {
+    clearWorkingBuildState();
+    markNewUnsavedBuild(nextStatus);
   }
 
   function deleteSelectedBuild() {
-    if (!selectedSavedBuild) return;
-    const deletedBuildName = selectedSavedBuild.name;
-    updateSavedBuilds(savedBuilds.filter((build) => build.id !== selectedSavedBuild.id));
-    newUnsavedBuild(`Deleted ${deletedBuildName}`);
+    const deletedBuild = deleteSelectedSavedBuild();
+    if (!deletedBuild) return;
+    clearWorkingBuildState();
   }
 
   function allocatePreviewPath() {
@@ -462,9 +400,8 @@ export default function App() {
   function addBuildGoal(nodeId: string, options: { allowAnyPassive?: boolean } = {}) {
     const node = visibleGraph.nodes[nodeId];
     if (!node || !canAddBuildGoal(node, options)) return;
-    clearOptimizedRouteState();
     clearPobImportStatus();
-    setBuildGoalNodeIds((current) => (current.includes(nodeId) ? current : [...current, nodeId]));
+    addBuildGoalNodeId(nodeId);
   }
 
   function addMatchingBuildGoals(nodeIds: string[]) {
@@ -474,9 +411,8 @@ export default function App() {
     });
     if (addableNodeIds.length === 0) return;
 
-    clearOptimizedRouteState();
     clearPobImportStatus();
-    setBuildGoalNodeIds((current) => mergeNodeIds(current, addableNodeIds));
+    addBuildGoalNodeIds(addableNodeIds);
   }
 
   function toggleMapBuildGoal(nodeId: string) {
@@ -489,15 +425,13 @@ export default function App() {
   }
 
   function removeBuildGoal(nodeId: string) {
-    clearOptimizedRouteState();
     clearPobImportStatus();
-    setBuildGoalNodeIds((current) => current.filter((currentNodeId) => currentNodeId !== nodeId));
+    removeBuildGoalNodeId(nodeId);
   }
 
   function clearBuildGoals() {
-    clearOptimizedRouteState();
     clearPobImportStatus();
-    setBuildGoalNodeIds([]);
+    clearBuildGoalNodeIds();
   }
 
   function importPobBuildGoals() {
@@ -547,136 +481,6 @@ export default function App() {
         message: error instanceof Error ? error.message : "Could not import PoB build code.",
       });
     }
-  }
-
-  function optimizeBuildGoalsRoute() {
-    if (buildGoalNodeIds.length === 0) return;
-
-    optimizerRun.current?.cancel();
-    setOptimizedPreview(undefined);
-    setBuildGoalStatus({ kind: "running" });
-
-    const baseNodeIds = allocationPlan.previewNodePath.length > 0
-      ? allocationPlan.previewNodePath
-      : allocationPlan.committedNodePath;
-    const baseEdgeKeys = allocationPlan.previewEdgeKeys.length > 0
-      ? allocationPlan.previewEdgeKeys
-      : allocationPlan.committedEdgeKeys;
-    const run = runBuildGoalsOptimization({
-      graph: visibleGraph,
-      baseNodeIds,
-      baseEdgeKeys,
-      goalNodeIds: buildGoalNodeIds,
-      mode: "shortest",
-    }, {
-      onProgress: (result) => {
-        if (optimizerRun.current !== run) return;
-        handleOptimizedProgress(result);
-      },
-    });
-
-    optimizerRun.current = run;
-    run.promise.then((result) => {
-      if (optimizerRun.current !== run) return;
-      optimizerRun.current = undefined;
-      handleOptimizedResult(result);
-    });
-  }
-
-  function cancelBuildGoalsOptimization() {
-    if (!optimizerRun.current) return;
-    optimizerRun.current.cancel();
-    optimizerRun.current = undefined;
-    setBuildGoalStatus({ kind: "cancelled" });
-  }
-
-  function handleOptimizedResult(result: BuildGoalsOptimizeResult) {
-    if (result.status === "cancelled") {
-      setBuildGoalStatus({ kind: "cancelled" });
-      return;
-    }
-
-    if (result.status === "error") {
-      setBuildGoalStatus({ kind: "error", message: result.message ?? "Build goal optimization failed." });
-      return;
-    }
-
-    if (result.status === "unreachable") {
-      setBuildGoalStatus({
-        kind: "unreachable",
-        unreachableGoals: result.unreachableGoalNodeIds.flatMap((nodeId) => (
-          visibleGraph.nodes[nodeId] ? [visibleGraph.nodes[nodeId]] : []
-        )),
-      });
-      return;
-    }
-
-    if (result.pointCost === 0) {
-      setBuildGoalStatus({ kind: "already-reached" });
-      return;
-    }
-
-    showOptimizedRoutePreview(result, 0);
-    setOptimizedPreview(result);
-    setOptimizedRouteIndex(0);
-    setBuildGoalStatus({
-      kind: "success",
-      pointCost: result.pointCost,
-      searchType: result.searchType,
-      completeReason: result.completeReason,
-      improvementHistory: result.improvementHistory,
-    });
-  }
-
-  function handleOptimizedProgress(result: BuildGoalsOptimizeResult) {
-    if (result.status !== "success" || result.pointCost === 0) return;
-    showOptimizedRoutePreview(result, 0);
-    setOptimizedPreview(result);
-    setOptimizedRouteIndex(0);
-    setBuildGoalStatus({
-      kind: "running",
-      pointCost: result.pointCost,
-      improvementHistory: result.improvementHistory,
-    });
-  }
-
-  function showOptimizedRoutePreview(result: BuildGoalsOptimizeResult, routeIndex: number) {
-    const route = optimizedRouteCandidate(result, routeIndex);
-    setAllocationPlan((current) => ({
-      ...current,
-      previewNodePath: route.totalNodeIds,
-      previewEdgeKeys: route.totalEdgeKeys,
-      previewRouteNodePath: [],
-      previewHighlightNodeIds: route.addedNodeIds,
-      previewHighlightEdgeKeys: route.addedEdgeKeys,
-      noAllocationPathNodeId: undefined,
-    }));
-  }
-
-  function selectOptimizedRoute(routeIndex: number) {
-    if (!optimizedPreview) return;
-    const routeCount = optimizedPreview.routeCandidates?.length ?? 1;
-    const nextRouteIndex = (routeIndex + routeCount) % routeCount;
-    setOptimizedRouteIndex(nextRouteIndex);
-    showOptimizedRoutePreview(optimizedPreview, nextRouteIndex);
-  }
-
-  function applyOptimizedRoute() {
-    if (!optimizedPreview || optimizedPreview.pointCost === 0) return;
-    const route = optimizedRouteCandidate(optimizedPreview, optimizedRouteIndex);
-
-    optimizerRun.current?.cancel();
-    optimizerRun.current = undefined;
-    setAllocationPlan({
-      committedNodePath: route.orderedNodeIds,
-      committedEdgeKeys: route.totalEdgeKeys,
-      previewNodePath: [],
-      previewEdgeKeys: [],
-      previewRouteNodePath: [],
-    });
-    setOptimizedPreview(undefined);
-    setOptimizedRouteIndex(0);
-    setBuildGoalStatus({ kind: "already-reached" });
   }
 
   function selectTreeNode(nodeId: string) {
@@ -774,17 +578,14 @@ export default function App() {
   }, [classStartOptions, pathStartNodeId, selectedClassStartId]);
 
   useEffect(() => {
-    optimizerRun.current?.cancel();
-    optimizerRun.current = undefined;
-    setOptimizedPreview(undefined);
-    setBuildGoalStatus({ kind: "idle" });
+    clearOptimizedRouteState();
     setAllocationPlan((current) => {
       const currentPlanHasState = allocationPlanHasVisibleState(current);
       const currentPlanIsValid = allocationPlanNodeIds(current).every((nodeId) => visibleGraph.nodes[nodeId]);
       if (currentPlanHasState && currentPlanIsValid) return current;
       return emptyAllocationPlanForStart(pathStartNodeId && visibleGraph.nodes[pathStartNodeId] ? pathStartNodeId : undefined);
     });
-  }, [pathStartNodeId, visibleGraph.nodes]);
+  }, [clearOptimizedRouteState, pathStartNodeId, setAllocationPlan, visibleGraph.nodes]);
 
   useEffect(() => {
     setBuildGoalNodeIds((current) => {
@@ -794,7 +595,7 @@ export default function App() {
       });
       return next.length === current.length ? current : next;
     });
-  }, [visibleGraph.nodes]);
+  }, [setBuildGoalNodeIds, visibleGraph.nodes]);
 
   useEffect(() => {
     if (selectedNodeId && !visibleGraph.nodes[selectedNodeId]) {
@@ -832,16 +633,6 @@ export default function App() {
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("blur", handleWindowBlur);
     };
-  }, []);
-
-  useEffect(() => () => {
-    optimizerRun.current?.cancel();
-  }, []);
-
-  useEffect(() => () => {
-    if (savedBuildStatusTimeoutId.current !== undefined) {
-      window.clearTimeout(savedBuildStatusTimeoutId.current);
-    }
   }, []);
 
   useEffect(() => {
@@ -1104,8 +895,8 @@ export default function App() {
             status={buildGoalStatus}
             pobImportCode={pobImportCode}
             pobImportStatus={pobImportStatus}
-            canApplyOptimizedRoute={Boolean(optimizedPreview && optimizedPreview.pointCost > 0)}
-            routeCandidateCount={optimizedPreview?.routeCandidates?.length ?? 0}
+            canApplyOptimizedRoute={canApplyOptimizedRoute}
+            routeCandidateCount={routeCandidateCount}
             selectedRouteIndex={optimizedRouteIndex}
             onPobImportCodeChange={setPobImportCode}
             onImportPobBuildGoals={importPobBuildGoals}
@@ -1166,17 +957,6 @@ function compareAllocationDistances(left: number | undefined, right: number | un
 
 function allocationDistanceSortValue(distance: number | undefined): number {
   return distance ?? Number.POSITIVE_INFINITY;
-}
-
-function optimizedRouteCandidate(result: BuildGoalsOptimizeResult, routeIndex: number): BuildGoalsRouteCandidate {
-  return result.routeCandidates?.[routeIndex] ?? {
-    addedNodeIds: result.addedNodeIds,
-    addedEdgeKeys: result.addedEdgeKeys,
-    totalNodeIds: result.totalNodeIds,
-    totalEdgeKeys: result.totalEdgeKeys,
-    orderedNodeIds: result.orderedNodeIds,
-    pointCost: result.pointCost,
-  };
 }
 
 function isBuildGoalableNode(node: TreeNode): boolean {
