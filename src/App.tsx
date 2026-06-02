@@ -1,42 +1,36 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   allocationPlanHasVisibleState,
   allocationPlanNodeIds,
-  cloneAllocationPlan,
   emptyAllocationPlanForStart,
-  mergeNodeIds,
-  sanitizeSavedAllocationPlan,
 } from "./app/allocationPlan";
 import {
   maxAscendancyAllocationCount,
-  sanitizeAscendancyAllocationNodeIds,
 } from "./app/ascendancyAllocation";
 import {
-  buildPobImportReportDetails,
-  pobPathStartStatus,
-} from "./app/pobImportStatus";
+  canAddBuildGoal,
+  createSavedBuildState,
+  isBuildGoalableNode,
+} from "./app/buildWorkflow";
 import { useAscendancyAllocationState } from "./app/useAscendancyAllocationState";
 import { useAllocationPlanState } from "./app/useAllocationPlanState";
 import { useBuildGoalsState } from "./app/useBuildGoalsState";
+import { useBuildWorkflowActions } from "./app/useBuildWorkflowActions";
 import { usePobImportState } from "./app/usePobImportState";
 import { useSavedBuildState } from "./app/useSavedBuildState";
 import { useTreeInteractionState } from "./app/useTreeInteractionState";
 import { buildSummary } from "./tree/buildSummary";
 import {
   buildClassStartOptions,
-  resolveClassStartOptionFromPobMetadata,
-  type ClassStartOption,
 } from "./tree/classStartAliases";
 import {
   findAllocationDistancesFrom,
 } from "./tree/pathAllocation";
 import { createPassiveSearchIndex, searchPassiveTree } from "./tree/passiveSearch";
-import { importBuildGoalsFromPobCode } from "./tree/pobBuildImport";
 import { publicAssetPath } from "./tree/publicAssetPaths";
 import { sampleGraph } from "./tree/sampleGraph";
-import type { SavedBuildState } from "./tree/savedBuilds";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
-import type { TreeGraph, TreeNode } from "./tree/types";
+import type { TreeGraph } from "./tree/types";
 import {
   BuildGoalsPanel,
   type BuildGoalsPanelGoal,
@@ -235,181 +229,66 @@ export default function App() {
     [searchResults],
   );
   const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);
-  const canResetAllocation = allocatedPointCount > 0
-    || activeAscendancyAllocationNodeIds.length > 0
-    || allocationPlan.previewNodePath.length > 0
-    || allocationPlan.previewEdgeKeys.length > 0
-    || allocationPlan.previewRouteNodePath.length > 0
-    || Boolean(allocationPlan.noAllocationPathNodeId);
-  function resetAllocation() {
-    clearOptimizedRouteState();
-    resetAscendancyAllocation();
-    resetAllocationPlan(pathStartNodeId);
-  }
+  const {
+    canResetAllocation,
+    resetAllocation,
+    updateSearchQuery,
+    changeSelectedClassStart,
+    loadSavedBuild,
+    newUnsavedBuild,
+    deleteSelectedBuild,
+    addBuildGoal,
+    addMatchingBuildGoals,
+    toggleMapBuildGoal,
+    removeBuildGoal,
+    clearBuildGoals,
+    importPobBuildGoals,
+  } = useBuildWorkflowActions({
+    graph,
+    visibleGraph,
+    classStartOptions,
+    selectedClassStartOption,
+    setSelectedClassStartId,
+    pathStartNodeId,
+    setPathStartNodeId,
+    allocationPlan,
+    setAllocationPlan,
+    resetAllocationPlan,
+    nodeVisualScaleOptions,
+    defaultNodeVisualScale,
+    setNodeVisualScale,
+    buildGoalNodeIds,
+    buildGoalNodeIdSet,
+    setBuildGoalNodeIds,
+    addBuildGoalNodeId,
+    addBuildGoalNodeIds,
+    removeBuildGoalNodeId,
+    clearBuildGoalNodeIds,
+    activeAscendancyAllocationNodeIds,
+    setAscendancyAllocationNodeIds,
+    resetAscendancyAllocation,
+    clearOptimizedRouteState,
+    pobImportCode,
+    setPobImportStatus,
+    clearPobImport,
+    clearPobImportStatus,
+    selectSavedBuild,
+    markNewUnsavedBuild,
+    deleteSelectedSavedBuild,
+    setSearchQuery,
+    setSearchFocusedNodeId,
+    clearTreeInteractionState,
+  });
 
-  const updateSearchQuery = useCallback((query: string) => {
-    setSearchQuery(query);
-    setSearchFocusedNodeId(undefined);
-  }, []);
-
-  function applyClassStartOption(option: ClassStartOption) {
-    clearOptimizedRouteState();
-    clearTreeInteractionState();
-    setSelectedClassStartId(option.id);
-    setPathStartNodeId(option.nodeId);
-    resetAscendancyAllocation();
-    resetAllocationPlan(option.nodeId);
-  }
-
-  function changeSelectedClassStart(classStartId: string) {
-    const option = classStartOptions.find((currentOption) => currentOption.id === classStartId);
-    if (option) applyClassStartOption(option);
-  }
-
-  function currentSavedBuildState(): SavedBuildState {
-    return {
+  function currentSavedBuildState() {
+    return createSavedBuildState({
       selectedClassStartId,
       pathStartNodeId,
-      allocationPlan: cloneAllocationPlan(allocationPlan),
+      allocationPlan,
       nodeVisualScale,
-      buildGoalNodeIds: [...buildGoalNodeIds],
-      ascendancyAllocationNodeIds: [...activeAscendancyAllocationNodeIds],
-    };
-  }
-
-  function loadSavedBuild(buildId: string) {
-    const build = selectSavedBuild(buildId);
-    if (!build) return;
-
-    clearOptimizedRouteState();
-    clearPobImport();
-    setSearchQuery("");
-    setSearchFocusedNodeId(undefined);
-    clearTreeInteractionState();
-
-    const nextClassStartOption = resolveSavedClassStartOption(build.state, classStartOptions);
-    const nextPathStartNodeId = nextClassStartOption?.nodeId;
-    setSelectedClassStartId(nextClassStartOption?.id);
-    setPathStartNodeId(nextPathStartNodeId);
-    setAllocationPlan(sanitizeSavedAllocationPlan(build.state.allocationPlan, graph, nextPathStartNodeId));
-    setAscendancyAllocationNodeIds(sanitizeAscendancyAllocationNodeIds(
-      build.state.ascendancyAllocationNodeIds,
-      graph,
-      nextClassStartOption?.ascendancy,
-    ));
-    setNodeVisualScale(validNodeVisualScale(build.state.nodeVisualScale));
-    setBuildGoalNodeIds(build.state.buildGoalNodeIds.filter((nodeId) => {
-      const node = graph.nodes[nodeId];
-      return node && canAddBuildGoal(node, { allowAnyPassive: true });
-    }));
-  }
-
-  function clearWorkingBuildState() {
-    clearOptimizedRouteState();
-    clearPobImport();
-    setSearchQuery("");
-    setSearchFocusedNodeId(undefined);
-    clearTreeInteractionState();
-    setBuildGoalNodeIds([]);
-    resetAscendancyAllocation();
-    resetAllocationPlan(pathStartNodeId);
-  }
-
-  function newUnsavedBuild(nextStatus = "New unsaved build") {
-    clearWorkingBuildState();
-    markNewUnsavedBuild(nextStatus);
-  }
-
-  function deleteSelectedBuild() {
-    const deletedBuild = deleteSelectedSavedBuild();
-    if (!deletedBuild) return;
-    clearWorkingBuildState();
-  }
-
-  function addBuildGoal(nodeId: string, options: { allowAnyPassive?: boolean } = {}) {
-    const node = visibleGraph.nodes[nodeId];
-    if (!node || !canAddBuildGoal(node, options)) return;
-    clearPobImportStatus();
-    addBuildGoalNodeId(nodeId);
-  }
-
-  function addMatchingBuildGoals(nodeIds: string[]) {
-    const addableNodeIds = nodeIds.filter((nodeId) => {
-      const node = visibleGraph.nodes[nodeId];
-      return node && canAddBuildGoal(node, { allowAnyPassive: true });
+      buildGoalNodeIds,
+      ascendancyAllocationNodeIds: activeAscendancyAllocationNodeIds,
     });
-    if (addableNodeIds.length === 0) return;
-
-    clearPobImportStatus();
-    addBuildGoalNodeIds(addableNodeIds);
-  }
-
-  function toggleMapBuildGoal(nodeId: string) {
-    if (buildGoalNodeIdSet.has(nodeId)) {
-      removeBuildGoal(nodeId);
-      return;
-    }
-
-    addBuildGoal(nodeId, { allowAnyPassive: true });
-  }
-
-  function removeBuildGoal(nodeId: string) {
-    clearPobImportStatus();
-    removeBuildGoalNodeId(nodeId);
-  }
-
-  function clearBuildGoals() {
-    clearPobImportStatus();
-    clearBuildGoalNodeIds();
-  }
-
-  function importPobBuildGoals() {
-    if (pobImportCode.trim().length === 0) return;
-
-    try {
-      const result = importBuildGoalsFromPobCode(pobImportCode, graph);
-      const currentGoalNodeIds = new Set(buildGoalNodeIds);
-      const importedGoalNodeIds = result.goalNodeIds.filter((nodeId) => !currentGoalNodeIds.has(nodeId));
-      const pathStartResolution = resolveClassStartOptionFromPobMetadata(classStartOptions, {
-        className: result.className,
-        ascendClassName: result.ascendClassName,
-        allocatedNodeIds: result.allocatedNodeIds,
-      });
-      const nextClassStartOption = pathStartResolution.kind === "matched" ? pathStartResolution.option : selectedClassStartOption;
-      const importedAscendancyNodeIds = sanitizeAscendancyAllocationNodeIds(
-        result.ascendancyNodeIds,
-        graph,
-        nextClassStartOption?.ascendancy,
-      );
-
-      clearOptimizedRouteState();
-      if (pathStartResolution.kind === "matched") {
-        applyClassStartOption(pathStartResolution.option);
-      }
-      setAscendancyAllocationNodeIds(importedAscendancyNodeIds);
-      setBuildGoalNodeIds((current) => mergeNodeIds(current, importedGoalNodeIds));
-      setPobImportStatus({
-        kind: "success",
-        importedGoalCount: importedGoalNodeIds.length,
-        pobBasePassivePointCount: result.pobBasePassivePointCount,
-        selectedAscendancyNodeCount: importedAscendancyNodeIds.length,
-        alreadySelectedGoalCount: result.goalNodeIds.length - importedGoalNodeIds.length,
-        missingNodeCount: result.missingNodeIds.length,
-        pathStart: pobPathStartStatus(pathStartResolution),
-        details: buildPobImportReportDetails(result, {
-          graph,
-          importedGoalNodeIds,
-          alreadySelectedGoalNodeIds: result.goalNodeIds.filter((nodeId) => currentGoalNodeIds.has(nodeId)),
-          selectedAscendancyNodeIds: importedAscendancyNodeIds,
-        }),
-      });
-    } catch (error) {
-      clearOptimizedRouteState();
-      setPobImportStatus({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not import PoB build code.",
-      });
-    }
   }
 
   useLayoutEffect(() => {
@@ -753,38 +632,10 @@ function formatAscendancyPointCount(pointCount: number): string {
   return `Ascendancy ${pointCount}/${maxAscendancyAllocationCount}`;
 }
 
-function resolveSavedClassStartOption(
-  state: SavedBuildState,
-  options: ClassStartOption[],
-): ClassStartOption | undefined {
-  return (state.selectedClassStartId
-    ? options.find((option) => option.id === state.selectedClassStartId)
-    : undefined)
-    ?? (state.pathStartNodeId
-      ? options.find((option) => option.nodeId === state.pathStartNodeId)
-      : undefined)
-    ?? options[0];
-}
-
-function validNodeVisualScale(scale: number): number {
-  return nodeVisualScaleOptions.some((option) => option === scale) ? scale : defaultNodeVisualScale;
-}
-
 function compareAllocationDistances(left: number | undefined, right: number | undefined): number {
   return allocationDistanceSortValue(left) - allocationDistanceSortValue(right);
 }
 
 function allocationDistanceSortValue(distance: number | undefined): number {
   return distance ?? Number.POSITIVE_INFINITY;
-}
-
-function isBuildGoalableNode(node: TreeNode): boolean {
-  return Boolean(node.flags.notable || node.flags.keystone || node.flags.jewelSocket);
-}
-
-function canAddBuildGoal(node: TreeNode, options: { allowAnyPassive?: boolean }): boolean {
-  if (options.allowAnyPassive) {
-    return !node.flags.classStart;
-  }
-  return isBuildGoalableNode(node);
 }
