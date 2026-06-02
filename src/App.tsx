@@ -13,6 +13,7 @@ import {
   isBuildGoalableNode,
 } from "./app/buildWorkflow";
 import { useAscendancyAllocationState } from "./app/useAscendancyAllocationState";
+import { useAllocationDisplayViewModel } from "./app/useAllocationDisplayViewModel";
 import { useAllocationPlanState } from "./app/useAllocationPlanState";
 import { useBuildGoalsState } from "./app/useBuildGoalsState";
 import { useBuildWorkflowActions } from "./app/useBuildWorkflowActions";
@@ -21,7 +22,6 @@ import { usePassiveGoalViewModel } from "./app/usePassiveGoalViewModel";
 import { usePobImportState } from "./app/usePobImportState";
 import { useSavedBuildState } from "./app/useSavedBuildState";
 import { useTreeInteractionState } from "./app/useTreeInteractionState";
-import { buildSummary } from "./tree/buildSummary";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
 import { BuildGoalsPanel } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
@@ -89,7 +89,6 @@ export default function App() {
     newUnsavedBuild: markNewUnsavedBuild,
     deleteSelectedBuild: deleteSelectedSavedBuild,
   } = useSavedBuildState({ getCurrentState: currentSavedBuildState });
-  const allocatedNodePath = allocationPlan.committedNodePath;
   const visibleGraph = useMemo(
     () => filterVisibleTreeGraph(graph, {
       selectedAscendancyId: selectedAscendancy?.id,
@@ -119,28 +118,21 @@ export default function App() {
     allocationPlan,
     setAllocationPlan,
   });
-  const displayAllocatedNodeIds = useMemo(
-    () => new Set([...allocatedNodePath, ...activeAscendancyAllocationNodeIds]),
-    [activeAscendancyAllocationNodeIds, allocatedNodePath],
-  );
-  const displayAllocatedEdgeKeys = useMemo(
-    () => new Set([...allocationPlan.committedEdgeKeys, ...activeAscendancyAllocationEdgeKeys]),
-    [activeAscendancyAllocationEdgeKeys, allocationPlan.committedEdgeKeys],
-  );
-  const allocationDistanceNodeIds = useMemo(
-    () => new Set(allocationPlan.previewNodePath.length > 0 ? allocationPlan.previewNodePath : allocatedNodePath),
-    [allocatedNodePath, allocationPlan.previewNodePath],
-  );
-  const buildSummaryNodeIds = useMemo(
-    () => new Set([...allocationDistanceNodeIds, ...activeAscendancyAllocationNodeIds]),
-    [activeAscendancyAllocationNodeIds, allocationDistanceNodeIds],
-  );
-  const currentAllocationEdgeKeys = useMemo(
-    () => new Set(allocationPlan.previewEdgeKeys.length > 0
-      ? allocationPlan.previewEdgeKeys
-      : allocationPlan.committedEdgeKeys),
-    [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys],
-  );
+  const {
+    allocatedNodePath,
+    allocatedPointCount,
+    displayAllocatedNodeIds,
+    displayAllocatedEdgeKeys,
+    allocationDistanceNodeIds,
+    currentAllocationEdgeKeys,
+    buildSummaryData,
+  } = useAllocationDisplayViewModel({
+    visibleGraph,
+    allocationPlan,
+    activeAscendancyAllocationNodeIds,
+    activeAscendancyAllocationEdgeKeys,
+    activeAscendancyPointCostByNodeId,
+  });
   const {
     selectedNodeId,
     selectedNode,
@@ -179,11 +171,6 @@ export default function App() {
     allocationDistanceNodeIds,
     displayAllocatedNodeIds,
   });
-  const buildSummaryData = useMemo(
-    () => buildSummary(visibleGraph, buildSummaryNodeIds, { pointCostByNodeId: activeAscendancyPointCostByNodeId }),
-    [activeAscendancyPointCostByNodeId, buildSummaryNodeIds, visibleGraph],
-  );
-  const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);
   const {
     canResetAllocation,
     resetAllocation,
