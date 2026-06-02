@@ -16,11 +16,9 @@ import { useSavedBuildState } from "./app/useSavedBuildState";
 import { useTreeInteractionState } from "./app/useTreeInteractionState";
 import { useTreeStateCleanupEffects } from "./app/useTreeStateCleanupEffects";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
-import { BuildGoalsPanel } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
 import { AppHeader } from "./viewer/AppHeader";
-import { NodeInspector } from "./viewer/NodeInspector";
-import { PassiveSearchPanel } from "./viewer/PassiveSearchPanel";
+import { SidePanel } from "./viewer/SidePanel";
 import { TreeViewer, type DebugOverlayState } from "./viewer/TreeViewer";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
@@ -307,51 +305,43 @@ export default function App() {
             debug={debugOverlayOff}
           />
         </section>
-        <div className="side-panel">
-          <PassiveSearchPanel
-            query={searchQuery}
-            results={searchResultsWithAllocationDistance}
-            selectedNodeId={selectedNodeId}
-            buildGoalNodeIds={buildGoalNodeIdSet}
-            onQueryChange={updateSearchQuery}
-            onSelectNode={selectTreeNode}
-            onHoverNode={setSearchFocusedNodeId}
-            canAddBuildGoal={isBuildGoalableNode}
-            onAddBuildGoal={addBuildGoal}
-            canAddMatchingBuildGoal={(node) => canAddBuildGoal(node, { allowAnyPassive: true })}
-            onAddMatchingBuildGoals={addMatchingBuildGoals}
-          />
-          <BuildGoalsPanel
-            goals={buildGoalPanelGoals}
-            status={buildGoalStatus}
-            pobImportCode={pobImportCode}
-            pobImportStatus={pobImportStatus}
-            canApplyOptimizedRoute={canApplyOptimizedRoute}
-            routeCandidateCount={routeCandidateCount}
-            selectedRouteIndex={optimizedRouteIndex}
-            onPobImportCodeChange={setPobImportCode}
-            onImportPobBuildGoals={importPobBuildGoals}
-            onRemoveGoal={removeBuildGoal}
-            onClearGoals={clearBuildGoals}
-            onOptimize={optimizeBuildGoalsRoute}
-            onCancel={cancelBuildGoalsOptimization}
-            onApplyOptimizedRoute={applyOptimizedRoute}
-            onPreviousRoute={() => selectOptimizedRoute(optimizedRouteIndex - 1)}
-            onNextRoute={() => selectOptimizedRoute(optimizedRouteIndex + 1)}
-          />
-          <NodeInspector
-            node={selectedNode}
-            edges={visibleGraph.edges}
-            allocationPath={allocationPath}
-            allocationPathNodeNames={allocationPathNodeNames}
-            pathStartName={currentPathEndpointNodeId ? visibleGraph.nodes[currentPathEndpointNodeId]?.name : undefined}
-            canAllocatePath={allocationPlan.previewNodePath.length > 0 && (allocationPath?.pointCost ?? 0) > 0}
-            onAllocatePath={allocatePreviewPath}
-            canAddBuildGoal={selectedNode ? isBuildGoalableNode(selectedNode) : false}
-            isBuildGoal={selectedNodeId ? buildGoalNodeIdSet.has(selectedNodeId) : false}
-            onAddBuildGoal={selectedNodeId ? () => addBuildGoal(selectedNodeId) : undefined}
-          />
-        </div>
+        <SidePanel
+          searchQuery={searchQuery}
+          searchResults={searchResultsWithAllocationDistance}
+          selectedNodeId={selectedNodeId}
+          buildGoalNodeIds={buildGoalNodeIdSet}
+          onSearchQueryChange={updateSearchQuery}
+          onSelectNode={selectTreeNode}
+          onHoverSearchNode={setSearchFocusedNodeId}
+          canAddSearchBuildGoal={isBuildGoalableNode}
+          onAddBuildGoal={addBuildGoal}
+          canAddMatchingBuildGoal={(node) => canAddBuildGoal(node, { allowAnyPassive: true })}
+          onAddMatchingBuildGoals={addMatchingBuildGoals}
+          buildGoals={buildGoalPanelGoals}
+          buildGoalStatus={buildGoalStatus}
+          pobImportCode={pobImportCode}
+          pobImportStatus={pobImportStatus}
+          canApplyOptimizedRoute={canApplyOptimizedRoute}
+          routeCandidateCount={routeCandidateCount}
+          selectedRouteIndex={optimizedRouteIndex}
+          onPobImportCodeChange={setPobImportCode}
+          onImportPobBuildGoals={importPobBuildGoals}
+          onRemoveGoal={removeBuildGoal}
+          onClearGoals={clearBuildGoals}
+          onOptimize={optimizeBuildGoalsRoute}
+          onCancel={cancelBuildGoalsOptimization}
+          onApplyOptimizedRoute={applyOptimizedRoute}
+          onSelectOptimizedRoute={selectOptimizedRoute}
+          selectedNode={selectedNode}
+          visibleEdges={visibleGraph.edges}
+          allocationPath={allocationPath}
+          allocationPathNodeNames={allocationPathNodeNames}
+          pathStartName={currentPathEndpointNodeId ? visibleGraph.nodes[currentPathEndpointNodeId]?.name : undefined}
+          canAllocatePath={allocationPlan.previewNodePath.length > 0 && (allocationPath?.pointCost ?? 0) > 0}
+          onAllocatePath={allocatePreviewPath}
+          canAddSelectedBuildGoal={selectedNode ? isBuildGoalableNode(selectedNode) : false}
+          isSelectedNodeBuildGoal={selectedNodeId ? buildGoalNodeIdSet.has(selectedNodeId) : false}
+        />
       </section>
     </main>
   );
