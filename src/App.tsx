@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   allocationPlanHasVisibleState,
   allocationPlanNodeIds,
@@ -16,18 +16,13 @@ import { useAscendancyAllocationState } from "./app/useAscendancyAllocationState
 import { useAllocationPlanState } from "./app/useAllocationPlanState";
 import { useBuildGoalsState } from "./app/useBuildGoalsState";
 import { useBuildWorkflowActions } from "./app/useBuildWorkflowActions";
+import { useGraphPathStartState } from "./app/useGraphPathStartState";
 import { usePassiveGoalViewModel } from "./app/usePassiveGoalViewModel";
 import { usePobImportState } from "./app/usePobImportState";
 import { useSavedBuildState } from "./app/useSavedBuildState";
 import { useTreeInteractionState } from "./app/useTreeInteractionState";
 import { buildSummary } from "./tree/buildSummary";
-import {
-  buildClassStartOptions,
-} from "./tree/classStartAliases";
-import { publicAssetPath } from "./tree/publicAssetPaths";
-import { sampleGraph } from "./tree/sampleGraph";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
-import type { TreeGraph } from "./tree/types";
 import { BuildGoalsPanel } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
 import { ControlTooltip } from "./viewer/ControlTooltip";
@@ -47,13 +42,7 @@ const debugOverlayOff: DebugOverlayState = {
   showEdgeRouteLabels: false,
 };
 
-type GraphLoadStatus = "loading" | "loaded" | "fallback";
-
 export default function App() {
-  const [graph, setGraph] = useState<TreeGraph>(sampleGraph);
-  const [graphLoadStatus, setGraphLoadStatus] = useState<GraphLoadStatus>("loading");
-  const [selectedClassStartId, setSelectedClassStartId] = useState<string | undefined>();
-  const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();
   const { allocationPlan, setAllocationPlan, resetAllocationPlan } = useAllocationPlanState();
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(defaultNodeVisualScale);
   const [searchQuery, setSearchQuery] = useState("");
@@ -66,17 +55,17 @@ export default function App() {
     clearPobImport,
     clearPobImportStatus,
   } = usePobImportState();
-  const classStartOptions = useMemo(
-    () => buildClassStartOptions(graph),
-    [graph],
-  );
-  const selectedClassStartOption = useMemo(
-    () => (selectedClassStartId
-      ? classStartOptions.find((option) => option.id === selectedClassStartId)
-      : undefined),
-    [classStartOptions, selectedClassStartId],
-  );
-  const selectedAscendancy = selectedClassStartOption?.ascendancy;
+  const {
+    graph,
+    graphLoadStatus,
+    classStartOptions,
+    selectedClassStartId,
+    setSelectedClassStartId,
+    selectedClassStartOption,
+    selectedAscendancy,
+    pathStartNodeId,
+    setPathStartNodeId,
+  } = useGraphPathStartState();
   const {
     setAscendancyAllocationNodeIds,
     activeAscendancyAllocationNodeIds,
@@ -257,22 +246,6 @@ export default function App() {
     });
   }
 
-  useLayoutEffect(() => {
-    const currentOption = selectedClassStartId
-      ? classStartOptions.find((option) => option.id === selectedClassStartId)
-      : undefined;
-    const nextOption = currentOption
-      ?? (pathStartNodeId ? classStartOptions.find((option) => option.nodeId === pathStartNodeId) : undefined)
-      ?? classStartOptions[0];
-
-    if (nextOption?.id !== selectedClassStartId) {
-      setSelectedClassStartId(nextOption?.id);
-    }
-    if (nextOption?.nodeId !== pathStartNodeId) {
-      setPathStartNodeId(nextOption?.nodeId);
-    }
-  }, [classStartOptions, pathStartNodeId, selectedClassStartId]);
-
   useEffect(() => {
     clearOptimizedRouteState();
     setAllocationPlan((current) => {
@@ -298,19 +271,6 @@ export default function App() {
       setSearchFocusedNodeId(undefined);
     }
   }, [searchFocusedNodeId, visibleGraph.nodes]);
-
-  useEffect(() => {
-    fetch(publicAssetPath("tree-graph.json"))
-      .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((loaded: TreeGraph) => {
-        setGraph(loaded);
-        setGraphLoadStatus("loaded");
-      })
-      .catch(() => {
-        setGraph(sampleGraph);
-        setGraphLoadStatus("fallback");
-      });
-  }, []);
 
   return (
     <main className="app-shell">
