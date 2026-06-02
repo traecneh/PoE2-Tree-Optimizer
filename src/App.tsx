@@ -1,20 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
-  allocationPathFromNodePath,
   allocationPlanHasVisibleState,
   allocationPlanNodeIds,
-  appendUniqueNodePath,
   cloneAllocationPlan,
-  edgeKeysFromNodePath,
   emptyAllocationPlanForStart,
-  filterEdgeKeysToNodeIds,
-  mergeEdgeKeys,
   mergeNodeIds,
-  nodePathEndpoint,
-  pendingAllocationEdgeKeys,
-  pendingAllocationNodeIds,
-  pruneCommittedNodePathOnClick,
-  pruneNodePathOnClick,
   sanitizeSavedAllocationPlan,
 } from "./app/allocationPlan";
 import {
@@ -30,6 +20,7 @@ import { useAllocationPlanState } from "./app/useAllocationPlanState";
 import { useBuildGoalsState } from "./app/useBuildGoalsState";
 import { usePobImportState } from "./app/usePobImportState";
 import { useSavedBuildState } from "./app/useSavedBuildState";
+import { useTreeInteractionState } from "./app/useTreeInteractionState";
 import { buildSummary } from "./tree/buildSummary";
 import {
   buildClassStartOptions,
@@ -38,7 +29,6 @@ import {
 } from "./tree/classStartAliases";
 import {
   findAllocationDistancesFrom,
-  findShortestAllocationPathFromAllocated,
 } from "./tree/pathAllocation";
 import { createPassiveSearchIndex, searchPassiveTree } from "./tree/passiveSearch";
 import { importBuildGoalsFromPobCode } from "./tree/pobBuildImport";
@@ -74,16 +64,12 @@ type GraphLoadStatus = "loading" | "loaded" | "fallback";
 export default function App() {
   const [graph, setGraph] = useState<TreeGraph>(sampleGraph);
   const [graphLoadStatus, setGraphLoadStatus] = useState<GraphLoadStatus>("loading");
-  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
   const [selectedClassStartId, setSelectedClassStartId] = useState<string | undefined>();
   const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();
   const { allocationPlan, setAllocationPlan, resetAllocationPlan } = useAllocationPlanState();
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(defaultNodeVisualScale);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>();
-  const [hoverPathPreviewEnabled, setHoverPathPreviewEnabled] = useState(false);
-  const [hoverPreviewTargetNodeId, setHoverPreviewTargetNodeId] = useState<string | undefined>();
-  const [goalShortcutActive, setGoalShortcutActive] = useState(false);
   const {
     pobImportCode,
     setPobImportCode,
@@ -127,10 +113,6 @@ export default function App() {
     deleteSelectedBuild: deleteSelectedSavedBuild,
   } = useSavedBuildState({ getCurrentState: currentSavedBuildState });
   const allocatedNodePath = allocationPlan.committedNodePath;
-  const allocatedNodeIds = useMemo(
-    () => new Set(allocatedNodePath),
-    [allocatedNodePath],
-  );
   const visibleGraph = useMemo(
     () => filterVisibleTreeGraph(graph, {
       selectedAscendancyId: selectedAscendancy?.id,
@@ -160,10 +142,6 @@ export default function App() {
     allocationPlan,
     setAllocationPlan,
   });
-  const selectedNode = useMemo(
-    () => (selectedNodeId ? visibleGraph.nodes[selectedNodeId] : undefined),
-    [selectedNodeId, visibleGraph.nodes],
-  );
   const passiveSearchIndex = useMemo(() => createPassiveSearchIndex(visibleGraph), [visibleGraph]);
   const searchResults = useMemo(() => searchPassiveTree(passiveSearchIndex, searchQuery), [passiveSearchIndex, searchQuery]);
   const displayAllocatedNodeIds = useMemo(
@@ -188,6 +166,33 @@ export default function App() {
       : allocationPlan.committedEdgeKeys),
     [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys],
   );
+  const {
+    selectedNodeId,
+    selectedNode,
+    currentPathEndpointNodeId,
+    hoverPathPreviewEnabled,
+    allocationPath,
+    allocationPathNodeNames,
+    allocationPathNodeIds,
+    allocationPathEdgeKeys,
+    hoverAllocationPathNodeIds,
+    hoverAllocationPathEdgeKeys,
+    noAllocationPathNodeId,
+    clearTreeInteractionState,
+    updateHoverPreviewTarget,
+    toggleHoverPathPreview,
+    selectTreeNode,
+    allocatePreviewPath,
+  } = useTreeInteractionState({
+    visibleGraph,
+    allocationPlan,
+    setAllocationPlan,
+    pathStartNodeId,
+    allocationDistanceNodeIds,
+    currentAllocationEdgeKeys,
+    clearOptimizedRouteState,
+    toggleAscendancyAllocationNode,
+  });
   const allocationDistances = useMemo(
     () => findAllocationDistancesFrom(visibleGraph, allocationDistanceNodeIds),
     [allocationDistanceNodeIds, visibleGraph],
@@ -225,56 +230,10 @@ export default function App() {
       .map(({ result }) => result),
     [allocationDistances, displayAllocatedNodeIds, searchResults],
   );
-  const currentPathEndpointNodeId = nodePathEndpoint(allocationPlan.previewNodePath)
-    ?? nodePathEndpoint(allocatedNodePath)
-    ?? pathStartNodeId;
-  const previewRouteNodePath = allocationPlan.previewRouteNodePath;
-  const previewRouteEndpointNodeId = nodePathEndpoint(previewRouteNodePath);
-  const allocationPath = useMemo(
-    () => (selectedNodeId && selectedNodeId === previewRouteEndpointNodeId
-      ? allocationPathFromNodePath(previewRouteNodePath)
-      : undefined),
-    [previewRouteEndpointNodeId, previewRouteNodePath, selectedNodeId],
-  );
   const searchMatchNodeIds = useMemo(
     () => new Set(searchResults.map(({ node }) => node.id)),
     [searchResults],
   );
-  const allocationPathNodeIds = useMemo(
-    () => pendingAllocationNodeIds(
-      allocationPlan.previewNodePath,
-      allocatedNodePath,
-      previewRouteNodePath,
-      allocationPlan.previewHighlightNodeIds,
-    ),
-    [allocatedNodePath, allocationPlan.previewHighlightNodeIds, allocationPlan.previewNodePath, previewRouteNodePath],
-  );
-  const allocationPathEdgeKeys = useMemo(
-    () => pendingAllocationEdgeKeys(
-      allocationPlan.previewEdgeKeys,
-      allocationPlan.committedEdgeKeys,
-      allocationPlan.previewHighlightEdgeKeys,
-    ),
-    [allocationPlan.committedEdgeKeys, allocationPlan.previewEdgeKeys, allocationPlan.previewHighlightEdgeKeys],
-  );
-  const hoverAllocationPath = useMemo(
-    () => (hoverPathPreviewEnabled
-      && !goalShortcutActive
-      && hoverPreviewTargetNodeId
-      && !allocationDistanceNodeIds.has(hoverPreviewTargetNodeId)
-      ? findShortestAllocationPathFromAllocated(visibleGraph, allocationDistanceNodeIds, hoverPreviewTargetNodeId)
-      : undefined),
-    [allocationDistanceNodeIds, goalShortcutActive, hoverPathPreviewEnabled, hoverPreviewTargetNodeId, visibleGraph],
-  );
-  const hoverAllocationPathNodeIds = useMemo(
-    () => new Set((hoverAllocationPath?.nodeIds ?? []).filter((nodeId) => !allocationDistanceNodeIds.has(nodeId))),
-    [allocationDistanceNodeIds, hoverAllocationPath],
-  );
-  const hoverAllocationPathEdgeKeys = useMemo(
-    () => new Set((hoverAllocationPath?.edgeKeys ?? []).filter((edgeKey) => !currentAllocationEdgeKeys.has(edgeKey))),
-    [currentAllocationEdgeKeys, hoverAllocationPath],
-  );
-  const noAllocationPathNodeId = allocationPlan.noAllocationPathNodeId;
   const allocatedPointCount = Math.max(0, allocatedNodePath.length - 1);
   const canResetAllocation = allocatedPointCount > 0
     || activeAscendancyAllocationNodeIds.length > 0
@@ -282,10 +241,6 @@ export default function App() {
     || allocationPlan.previewEdgeKeys.length > 0
     || allocationPlan.previewRouteNodePath.length > 0
     || Boolean(allocationPlan.noAllocationPathNodeId);
-  const allocationPathNodeNames = useMemo(
-    () => allocationPath?.nodeIds.map((nodeId) => visibleGraph.nodes[nodeId]?.name ?? nodeId) ?? [],
-    [allocationPath, visibleGraph.nodes],
-  );
   function resetAllocation() {
     clearOptimizedRouteState();
     resetAscendancyAllocation();
@@ -297,21 +252,9 @@ export default function App() {
     setSearchFocusedNodeId(undefined);
   }, []);
 
-  function updateHoverPreviewTarget(nodeId: string | undefined) {
-    setHoverPreviewTargetNodeId(hoverPathPreviewEnabled && !goalShortcutActive ? nodeId : undefined);
-  }
-
-  function toggleHoverPathPreview(enabled: boolean) {
-    setHoverPathPreviewEnabled(enabled);
-    if (!enabled) {
-      setHoverPreviewTargetNodeId(undefined);
-    }
-  }
-
   function applyClassStartOption(option: ClassStartOption) {
     clearOptimizedRouteState();
-    setSelectedNodeId(undefined);
-    setHoverPreviewTargetNodeId(undefined);
+    clearTreeInteractionState();
     setSelectedClassStartId(option.id);
     setPathStartNodeId(option.nodeId);
     resetAscendancyAllocation();
@@ -342,8 +285,7 @@ export default function App() {
     clearPobImport();
     setSearchQuery("");
     setSearchFocusedNodeId(undefined);
-    setSelectedNodeId(undefined);
-    setHoverPreviewTargetNodeId(undefined);
+    clearTreeInteractionState();
 
     const nextClassStartOption = resolveSavedClassStartOption(build.state, classStartOptions);
     const nextPathStartNodeId = nextClassStartOption?.nodeId;
@@ -367,8 +309,7 @@ export default function App() {
     clearPobImport();
     setSearchQuery("");
     setSearchFocusedNodeId(undefined);
-    setSelectedNodeId(undefined);
-    setHoverPreviewTargetNodeId(undefined);
+    clearTreeInteractionState();
     setBuildGoalNodeIds([]);
     resetAscendancyAllocation();
     resetAllocationPlan(pathStartNodeId);
@@ -383,18 +324,6 @@ export default function App() {
     const deletedBuild = deleteSelectedSavedBuild();
     if (!deletedBuild) return;
     clearWorkingBuildState();
-  }
-
-  function allocatePreviewPath() {
-    if (!allocationPath || allocationPath.pointCost === 0) return;
-    clearOptimizedRouteState();
-    setAllocationPlan((current) => ({
-      committedNodePath: current.previewNodePath,
-      committedEdgeKeys: current.previewEdgeKeys,
-      previewNodePath: [],
-      previewEdgeKeys: [],
-      previewRouteNodePath: [],
-    }));
   }
 
   function addBuildGoal(nodeId: string, options: { allowAnyPassive?: boolean } = {}) {
@@ -483,84 +412,6 @@ export default function App() {
     }
   }
 
-  function selectTreeNode(nodeId: string) {
-    clearOptimizedRouteState();
-    const node = visibleGraph.nodes[nodeId];
-    if (!node) return;
-    if (node?.flags.ascendancy) {
-      setSelectedNodeId(nodeId);
-      setHoverPreviewTargetNodeId(undefined);
-      toggleAscendancyAllocationNode(node);
-      return;
-    }
-
-    const committedNodeIndex = allocationPlan.committedNodePath.lastIndexOf(nodeId);
-    if (committedNodeIndex !== -1) {
-      const committedNodePath = pruneCommittedNodePathOnClick(allocationPlan.committedNodePath, nodeId);
-      setSelectedNodeId(committedNodePath.includes(nodeId) ? nodeId : undefined);
-      setAllocationPlan({
-        committedNodePath,
-        committedEdgeKeys: filterEdgeKeysToNodeIds(allocationPlan.committedEdgeKeys, committedNodePath),
-        previewNodePath: [],
-        previewEdgeKeys: [],
-        previewRouteNodePath: [],
-      });
-      return;
-    }
-
-    const previewNodeIndex = allocationPlan.previewNodePath.lastIndexOf(nodeId);
-    if (previewNodeIndex !== -1) {
-      const previewNodePath = pruneNodePathOnClick(allocationPlan.previewNodePath, nodeId);
-      const previewRouteNodePath = pruneNodePathOnClick(allocationPlan.previewRouteNodePath, nodeId);
-      setSelectedNodeId(previewNodePath.includes(nodeId) ? nodeId : undefined);
-      setAllocationPlan({
-        ...allocationPlan,
-        previewNodePath,
-        previewEdgeKeys: filterEdgeKeysToNodeIds(allocationPlan.previewEdgeKeys, previewNodePath),
-        previewRouteNodePath,
-        previewHighlightNodeIds: allocationPlan.previewHighlightNodeIds?.filter((highlightNodeId) => previewNodePath.includes(highlightNodeId)),
-        previewHighlightEdgeKeys: allocationPlan.previewHighlightEdgeKeys
-          ? filterEdgeKeysToNodeIds(allocationPlan.previewHighlightEdgeKeys, previewNodePath)
-          : undefined,
-        noAllocationPathNodeId: undefined,
-      });
-      return;
-    }
-
-    setSelectedNodeId(nodeId);
-    setAllocationPlan((current) => {
-      const baseNodePath = current.previewNodePath.length > 0
-        ? current.previewNodePath
-        : current.committedNodePath;
-      const baseEdgeKeys = current.previewNodePath.length > 0
-        ? current.previewEdgeKeys
-        : current.committedEdgeKeys;
-      const pathStartNodePath = baseNodePath.length > 0
-        ? baseNodePath
-        : pathStartNodeId ? [pathStartNodeId] : [];
-      const nextPath = pathStartNodePath.length > 0
-        ? findShortestAllocationPathFromAllocated(visibleGraph, new Set(pathStartNodePath), nodeId)
-        : undefined;
-
-      if (!nextPath) {
-        return {
-          ...current,
-          noAllocationPathNodeId: nodeId,
-        };
-      }
-
-      return {
-        ...current,
-        previewNodePath: appendUniqueNodePath(pathStartNodePath, nextPath.nodeIds),
-        previewEdgeKeys: mergeEdgeKeys(baseEdgeKeys, Array.from(edgeKeysFromNodePath(nextPath.nodeIds))),
-        previewRouteNodePath: nextPath.nodeIds,
-        previewHighlightNodeIds: undefined,
-        previewHighlightEdgeKeys: undefined,
-        noAllocationPathNodeId: undefined,
-      };
-    });
-  }
-
   useLayoutEffect(() => {
     const currentOption = selectedClassStartId
       ? classStartOptions.find((option) => option.id === selectedClassStartId)
@@ -598,42 +449,10 @@ export default function App() {
   }, [setBuildGoalNodeIds, visibleGraph.nodes]);
 
   useEffect(() => {
-    if (selectedNodeId && !visibleGraph.nodes[selectedNodeId]) {
-      setSelectedNodeId(undefined);
-    }
     if (searchFocusedNodeId && !visibleGraph.nodes[searchFocusedNodeId]) {
       setSearchFocusedNodeId(undefined);
     }
-    if (hoverPreviewTargetNodeId && !visibleGraph.nodes[hoverPreviewTargetNodeId]) {
-      setHoverPreviewTargetNodeId(undefined);
-    }
-  }, [hoverPreviewTargetNodeId, searchFocusedNodeId, selectedNodeId, visibleGraph.nodes]);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Control") return;
-      setGoalShortcutActive(true);
-      setHoverPreviewTargetNodeId(undefined);
-    }
-
-    function handleKeyUp(event: KeyboardEvent) {
-      if (event.key !== "Control") return;
-      setGoalShortcutActive(false);
-    }
-
-    function handleWindowBlur() {
-      setGoalShortcutActive(false);
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    window.addEventListener("blur", handleWindowBlur);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-      window.removeEventListener("blur", handleWindowBlur);
-    };
-  }, []);
+  }, [searchFocusedNodeId, visibleGraph.nodes]);
 
   useEffect(() => {
     fetch(publicAssetPath("tree-graph.json"))
