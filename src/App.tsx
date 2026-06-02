@@ -1,9 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  allocationPlanHasVisibleState,
-  allocationPlanNodeIds,
-  emptyAllocationPlanForStart,
-} from "./app/allocationPlan";
+import { useMemo, useState } from "react";
 import {
   maxAscendancyAllocationCount,
 } from "./app/ascendancyAllocation";
@@ -22,6 +17,7 @@ import { usePassiveGoalViewModel } from "./app/usePassiveGoalViewModel";
 import { usePobImportState } from "./app/usePobImportState";
 import { useSavedBuildState } from "./app/useSavedBuildState";
 import { useTreeInteractionState } from "./app/useTreeInteractionState";
+import { useTreeStateCleanupEffects } from "./app/useTreeStateCleanupEffects";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
 import { BuildGoalsPanel } from "./viewer/BuildGoalsPanel";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
@@ -233,31 +229,15 @@ export default function App() {
     });
   }
 
-  useEffect(() => {
-    clearOptimizedRouteState();
-    setAllocationPlan((current) => {
-      const currentPlanHasState = allocationPlanHasVisibleState(current);
-      const currentPlanIsValid = allocationPlanNodeIds(current).every((nodeId) => visibleGraph.nodes[nodeId]);
-      if (currentPlanHasState && currentPlanIsValid) return current;
-      return emptyAllocationPlanForStart(pathStartNodeId && visibleGraph.nodes[pathStartNodeId] ? pathStartNodeId : undefined);
-    });
-  }, [clearOptimizedRouteState, pathStartNodeId, setAllocationPlan, visibleGraph.nodes]);
-
-  useEffect(() => {
-    setBuildGoalNodeIds((current) => {
-      const next = current.filter((nodeId) => {
-        const node = visibleGraph.nodes[nodeId];
-        return node && canAddBuildGoal(node, { allowAnyPassive: true });
-      });
-      return next.length === current.length ? current : next;
-    });
-  }, [setBuildGoalNodeIds, visibleGraph.nodes]);
-
-  useEffect(() => {
-    if (searchFocusedNodeId && !visibleGraph.nodes[searchFocusedNodeId]) {
-      setSearchFocusedNodeId(undefined);
-    }
-  }, [searchFocusedNodeId, visibleGraph.nodes]);
+  useTreeStateCleanupEffects({
+    visibleGraph,
+    pathStartNodeId,
+    setAllocationPlan,
+    clearOptimizedRouteState,
+    setBuildGoalNodeIds,
+    searchFocusedNodeId,
+    setSearchFocusedNodeId,
+  });
 
   return (
     <main className="app-shell">
