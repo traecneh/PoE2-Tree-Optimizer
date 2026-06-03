@@ -59,7 +59,7 @@ describe("TreeViewer", () => {
 
     fireEvent.wheel(svg, { deltaY: -100 });
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(1.1)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(1.5)");
 
     fireEvent.click(screen.getByRole("button", { name: "Fit tree" }));
 
@@ -76,7 +76,7 @@ describe("TreeViewer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(-34 -17) scale(1.1)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(-170 -85) scale(1.5)");
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom out" }));
 
@@ -84,7 +84,7 @@ describe("TreeViewer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(-34 -17) scale(1.1)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(-170 -85) scale(1.5)");
 
     fireEvent.click(screen.getByRole("button", { name: "Fit tree" }));
 
@@ -117,7 +117,7 @@ describe("TreeViewer", () => {
 
     fireEvent.wheel(svg, { deltaY: -100, clientX: 300, clientY: 200 });
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(23.8 3.4) scale(1.1)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(-153 -119) scale(1.5)");
   });
 
   it("pans in viewBox units and resets the pan", () => {
@@ -150,7 +150,7 @@ describe("TreeViewer", () => {
     fireEvent.pointerMove(svg, { pointerId: 1, clientX: 144, clientY: 122 });
     fireEvent.pointerUp(svg, { pointerId: 1 });
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(74.8 37.4) scale(1.1)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(74.8 37.4) scale(1.5)");
   });
 
   it("does not draw class-start to ascendancy-start edges", () => {
@@ -599,7 +599,7 @@ describe("TreeViewer", () => {
     fireEvent.pointerMove(svg, { pointerId: 1, clientX: 144, clientY: 122 });
     fireEvent.pointerUp(svg, { pointerId: 1 });
 
-    expect(transformLayer?.getAttribute("transform")).toBe("translate(74.8 37.4) scale(1.1)");
+    expect(transformLayer?.getAttribute("transform")).toBe("translate(74.8 37.4) scale(1.5)");
     expect(updateCount).toBe(0);
   });
 
