@@ -19,18 +19,11 @@ import { filterVisibleTreeGraph } from "./tree/treeVisibility";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
 import { AppHeader } from "./viewer/AppHeader";
 import { SidePanel } from "./viewer/SidePanel";
-import { TreeViewer, type DebugOverlayState } from "./viewer/TreeViewer";
+import { TreeViewerPanel } from "./viewer/TreeViewerPanel";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
 const defaultNodeVisualScale = 3;
 const treeDataVersionLabel = "PoE2 0.5.0";
-const debugOverlayOff: DebugOverlayState = {
-  showNodeIds: false,
-  highlightMissingStats: false,
-  highlightOrphans: false,
-  showEdgeRoutes: false,
-  showEdgeRouteLabels: false,
-};
 
 export default function App() {
   const { allocationPlan, setAllocationPlan, resetAllocationPlan } = useAllocationPlanState();
@@ -271,40 +264,28 @@ export default function App() {
       ) : null}
       <section className="workspace">
         <BuildSummaryPanel summary={buildSummaryData} />
-        <section
-          className={`tree-viewer-shell${graphLoadStatus === "loading" ? " tree-viewer-shell-loading" : ""}`}
-          role="region"
-          aria-label="Passive tree viewer"
-          aria-busy={graphLoadStatus === "loading"}
-        >
-          {graphLoadStatus === "loading" ? (
-            <div className="tree-loading-state">
-              Loading passive tree...
-            </div>
-          ) : null}
-          <TreeViewer
-            graph={visibleGraph}
-            selectedNodeId={selectedNodeId}
-            pathStartNodeId={pathStartNodeId}
-            pathStartClassName={selectedClassStartOption?.className}
-            activeAscendancyId={selectedAscendancy?.id}
-            noAllocationPathNodeId={noAllocationPathNodeId}
-            nodeVisualScale={nodeVisualScale}
-            searchMatchNodeIds={searchMatchNodeIds}
-            searchFocusedNodeId={searchFocusedNodeId}
-            buildGoalNodeIds={buildGoalNodeIdSet}
-            allocatedNodeIds={displayAllocatedNodeIds}
-            allocatedEdgeKeys={displayAllocatedEdgeKeys}
-            allocationPathNodeIds={allocationPathNodeIds}
-            allocationPathEdgeKeys={allocationPathEdgeKeys}
-            hoverAllocationPathNodeIds={hoverAllocationPathNodeIds}
-            hoverAllocationPathEdgeKeys={hoverAllocationPathEdgeKeys}
-            onSelectNode={selectTreeNode}
-            onAddBuildGoal={toggleMapBuildGoal}
-            onHoverNode={updateHoverPreviewTarget}
-            debug={debugOverlayOff}
-          />
-        </section>
+        <TreeViewerPanel
+          graph={visibleGraph}
+          graphLoadStatus={graphLoadStatus}
+          selectedNodeId={selectedNodeId}
+          pathStartNodeId={pathStartNodeId}
+          pathStartClassName={selectedClassStartOption?.className}
+          activeAscendancyId={selectedAscendancy?.id}
+          noAllocationPathNodeId={noAllocationPathNodeId}
+          nodeVisualScale={nodeVisualScale}
+          searchMatchNodeIds={searchMatchNodeIds}
+          searchFocusedNodeId={searchFocusedNodeId}
+          buildGoalNodeIds={buildGoalNodeIdSet}
+          allocatedNodeIds={displayAllocatedNodeIds}
+          allocatedEdgeKeys={displayAllocatedEdgeKeys}
+          allocationPathNodeIds={allocationPathNodeIds}
+          allocationPathEdgeKeys={allocationPathEdgeKeys}
+          hoverAllocationPathNodeIds={hoverAllocationPathNodeIds}
+          hoverAllocationPathEdgeKeys={hoverAllocationPathEdgeKeys}
+          onSelectNode={selectTreeNode}
+          onAddBuildGoal={toggleMapBuildGoal}
+          onHoverNode={updateHoverPreviewTarget}
+        />
         <SidePanel
           searchQuery={searchQuery}
           searchResults={searchResultsWithAllocationDistance}
