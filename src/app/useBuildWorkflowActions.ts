@@ -4,7 +4,7 @@ import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
 import type { AllocationPlan } from "./allocationPlan";
-import { canAddBuildGoal } from "./buildWorkflow";
+import { useBuildGoalActions } from "./useBuildGoalActions";
 import { usePobImportWorkflow } from "./usePobImportWorkflow";
 import { useSavedBuildWorkflow } from "./useSavedBuildWorkflow";
 
@@ -94,11 +94,6 @@ export function useBuildWorkflowActions({
     resetAllocationPlan(pathStartNodeId);
   }, [clearOptimizedRouteState, pathStartNodeId, resetAllocationPlan, resetAscendancyAllocation]);
 
-  const updateSearchQuery = useCallback((query: string) => {
-    setSearchQuery(query);
-    setSearchFocusedNodeId(undefined);
-  }, [setSearchFocusedNodeId, setSearchQuery]);
-
   const applyClassStartOption = useCallback((option: ClassStartOption) => {
     clearOptimizedRouteState();
     clearTreeInteractionState();
@@ -149,42 +144,24 @@ export function useBuildWorkflowActions({
     clearTreeInteractionState,
   });
 
-  const addBuildGoal = useCallback((nodeId: string, options: { allowAnyPassive?: boolean } = {}) => {
-    const node = visibleGraph.nodes[nodeId];
-    if (!node || !canAddBuildGoal(node, options)) return;
-    clearPobImportStatus();
-    addBuildGoalNodeId(nodeId);
-  }, [addBuildGoalNodeId, clearPobImportStatus, visibleGraph.nodes]);
-
-  const addMatchingBuildGoals = useCallback((nodeIds: string[]) => {
-    const addableNodeIds = nodeIds.filter((nodeId) => {
-      const node = visibleGraph.nodes[nodeId];
-      return node && canAddBuildGoal(node, { allowAnyPassive: true });
-    });
-    if (addableNodeIds.length === 0) return;
-
-    clearPobImportStatus();
-    addBuildGoalNodeIds(addableNodeIds);
-  }, [addBuildGoalNodeIds, clearPobImportStatus, visibleGraph.nodes]);
-
-  const removeBuildGoal = useCallback((nodeId: string) => {
-    clearPobImportStatus();
-    removeBuildGoalNodeId(nodeId);
-  }, [clearPobImportStatus, removeBuildGoalNodeId]);
-
-  const toggleMapBuildGoal = useCallback((nodeId: string) => {
-    if (buildGoalNodeIdSet.has(nodeId)) {
-      removeBuildGoal(nodeId);
-      return;
-    }
-
-    addBuildGoal(nodeId, { allowAnyPassive: true });
-  }, [addBuildGoal, buildGoalNodeIdSet, removeBuildGoal]);
-
-  const clearBuildGoals = useCallback(() => {
-    clearPobImportStatus();
-    clearBuildGoalNodeIds();
-  }, [clearBuildGoalNodeIds, clearPobImportStatus]);
+  const {
+    updateSearchQuery,
+    addBuildGoal,
+    addMatchingBuildGoals,
+    toggleMapBuildGoal,
+    removeBuildGoal,
+    clearBuildGoals,
+  } = useBuildGoalActions({
+    visibleGraph,
+    buildGoalNodeIdSet,
+    addBuildGoalNodeId,
+    addBuildGoalNodeIds,
+    removeBuildGoalNodeId,
+    clearBuildGoalNodeIds,
+    clearPobImportStatus,
+    setSearchQuery,
+    setSearchFocusedNodeId,
+  });
 
   const { importPobBuildGoals } = usePobImportWorkflow({
     graph,
