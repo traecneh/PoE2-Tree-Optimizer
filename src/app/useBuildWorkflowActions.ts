@@ -3,14 +3,10 @@ import type { ClassStartOption } from "../tree/classStartAliases";
 import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
-import { sanitizeSavedAllocationPlan, type AllocationPlan } from "./allocationPlan";
-import { sanitizeAscendancyAllocationNodeIds } from "./ascendancyAllocation";
-import {
-  canAddBuildGoal,
-  resolveSavedClassStartOption,
-  validNodeVisualScale,
-} from "./buildWorkflow";
+import type { AllocationPlan } from "./allocationPlan";
+import { canAddBuildGoal } from "./buildWorkflow";
 import { usePobImportWorkflow } from "./usePobImportWorkflow";
+import { useSavedBuildWorkflow } from "./useSavedBuildWorkflow";
 
 type UseBuildWorkflowActionsOptions = {
   graph: TreeGraph;
@@ -124,81 +120,34 @@ export function useBuildWorkflowActions({
     if (option) applyClassStartOption(option);
   }, [applyClassStartOption, classStartOptions]);
 
-  const clearWorkingBuildState = useCallback(() => {
-    clearOptimizedRouteState();
-    clearPobImport();
-    setSearchQuery("");
-    setSearchFocusedNodeId(undefined);
-    clearTreeInteractionState();
-    setBuildGoalNodeIds([]);
-    resetAscendancyAllocation();
-    resetAllocationPlan(pathStartNodeId);
-  }, [
-    clearOptimizedRouteState,
-    clearPobImport,
-    clearTreeInteractionState,
-    pathStartNodeId,
-    resetAllocationPlan,
-    resetAscendancyAllocation,
-    setBuildGoalNodeIds,
-    setSearchFocusedNodeId,
-    setSearchQuery,
-  ]);
-
-  const loadSavedBuild = useCallback((buildId: string) => {
-    const build = selectSavedBuild(buildId);
-    if (!build) return;
-
-    clearOptimizedRouteState();
-    clearPobImport();
-    setSearchQuery("");
-    setSearchFocusedNodeId(undefined);
-    clearTreeInteractionState();
-
-    const nextClassStartOption = resolveSavedClassStartOption(build.state, classStartOptions);
-    const nextPathStartNodeId = nextClassStartOption?.nodeId;
-    setSelectedClassStartId(nextClassStartOption?.id);
-    setPathStartNodeId(nextPathStartNodeId);
-    setAllocationPlan(sanitizeSavedAllocationPlan(build.state.allocationPlan, graph, nextPathStartNodeId));
-    setAscendancyAllocationNodeIds(sanitizeAscendancyAllocationNodeIds(
-      build.state.ascendancyAllocationNodeIds,
-      graph,
-      nextClassStartOption?.ascendancy,
-    ));
-    setNodeVisualScale(validNodeVisualScale(build.state.nodeVisualScale, nodeVisualScaleOptions, defaultNodeVisualScale));
-    setBuildGoalNodeIds(build.state.buildGoalNodeIds.filter((nodeId) => {
-      const node = graph.nodes[nodeId];
-      return node && canAddBuildGoal(node, { allowAnyPassive: true });
-    }));
-  }, [
-    classStartOptions,
-    clearOptimizedRouteState,
-    clearPobImport,
-    clearTreeInteractionState,
-    defaultNodeVisualScale,
+  const {
+    clearWorkingBuildState,
+    loadSavedBuild,
+    newUnsavedBuild,
+    deleteSelectedBuild,
+  } = useSavedBuildWorkflow({
     graph,
-    nodeVisualScaleOptions,
-    selectSavedBuild,
-    setAllocationPlan,
-    setAscendancyAllocationNodeIds,
-    setBuildGoalNodeIds,
-    setNodeVisualScale,
-    setPathStartNodeId,
-    setSearchFocusedNodeId,
-    setSearchQuery,
+    classStartOptions,
+    pathStartNodeId,
     setSelectedClassStartId,
-  ]);
-
-  const newUnsavedBuild = useCallback((nextStatus = "New unsaved build") => {
-    clearWorkingBuildState();
-    markNewUnsavedBuild(nextStatus);
-  }, [clearWorkingBuildState, markNewUnsavedBuild]);
-
-  const deleteSelectedBuild = useCallback(() => {
-    const deletedBuild = deleteSelectedSavedBuild();
-    if (!deletedBuild) return;
-    clearWorkingBuildState();
-  }, [clearWorkingBuildState, deleteSelectedSavedBuild]);
+    setPathStartNodeId,
+    setAllocationPlan,
+    resetAllocationPlan,
+    nodeVisualScaleOptions,
+    defaultNodeVisualScale,
+    setNodeVisualScale,
+    setBuildGoalNodeIds,
+    setAscendancyAllocationNodeIds,
+    resetAscendancyAllocation,
+    clearOptimizedRouteState,
+    clearPobImport,
+    selectSavedBuild,
+    markNewUnsavedBuild,
+    deleteSelectedSavedBuild,
+    setSearchQuery,
+    setSearchFocusedNodeId,
+    clearTreeInteractionState,
+  });
 
   const addBuildGoal = useCallback((nodeId: string, options: { allowAnyPassive?: boolean } = {}) => {
     const node = visibleGraph.nodes[nodeId];
