@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { TreeNode } from "../tree/types";
 import { ControlTooltip } from "./ControlTooltip";
 
@@ -86,6 +87,8 @@ type BuildGoalsPanelProps = {
   onPreviousRoute?: () => void;
   onNextRoute?: () => void;
 };
+
+const optimizerNoImprovementSeconds = 60;
 
 export function BuildGoalsPanel({
   goals,
@@ -431,6 +434,9 @@ function formatPobPathStartStatus(status: PobBuildImportPathStartStatus): string
 }
 
 function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {
+  const countdownResetKey = optimizerCountdownResetKey(status);
+  const secondsUntilNoImprovementStop = useOptimizerImprovementCountdown(countdownResetKey);
+
   if (status.kind === "idle") return null;
   if (status.kind === "running" && status.pointCost !== undefined) {
     return (
@@ -440,6 +446,7 @@ function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {
           <p>{`Improved: ${status.improvementHistory.map((pointCost) => String(pointCost)).join(" -> ")}`}</p>
         ) : null}
         <p>Still searching...</p>
+        <OptimizerCountdown secondsRemaining={secondsUntilNoImprovementStop} />
       </div>
     );
   }
@@ -452,6 +459,53 @@ function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {
       {message}
     </p>
   );
+}
+
+function OptimizerCountdown({ secondsRemaining }: { secondsRemaining: number }) {
+  return (
+    <div className="optimizer-countdown">
+      <progress
+        className="optimizer-countdown-progress"
+        aria-label="Optimizer improvement countdown"
+        max={optimizerNoImprovementSeconds}
+        value={secondsRemaining}
+      />
+      <p className="optimizer-countdown-label">
+        {`Stopping in ${secondsRemaining}s unless a better route is found.`}
+      </p>
+    </div>
+  );
+}
+
+function useOptimizerImprovementCountdown(resetKey: string | undefined): number {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const startAtMsRef = useRef(nowMs);
+  const resetKeyRef = useRef(resetKey);
+
+  if (resetKey !== resetKeyRef.current) {
+    resetKeyRef.current = resetKey;
+    startAtMsRef.current = Date.now();
+  }
+
+  useEffect(() => {
+    if (!resetKey) return undefined;
+
+    setNowMs(Date.now());
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [resetKey]);
+
+  const elapsedMs = resetKey ? nowMs - startAtMsRef.current : 0;
+  const secondsRemaining = Math.ceil((optimizerNoImprovementSeconds * 1_000 - elapsedMs) / 1_000);
+  return Math.min(optimizerNoImprovementSeconds, Math.max(0, secondsRemaining));
+}
+
+function optimizerCountdownResetKey(status: BuildGoalsPanelStatus): string | undefined {
+  if (status.kind !== "running" || status.pointCost === undefined) return undefined;
+  return `${status.pointCost}:${status.improvementHistory?.join("|") ?? ""}`;
 }
 
 function formatStatusMessage(status: BuildGoalsPanelStatus): string | undefined {

@@ -1,9 +1,13 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { sampleGraph } from "../tree/sampleGraph";
 import { BuildGoalsPanel } from "./BuildGoalsPanel";
 
 describe("BuildGoalsPanel", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows best-found progress and route candidate navigation while optimizing", () => {
     const onPreviousRoute = vi.fn();
     const onNextRoute = vi.fn();
@@ -39,6 +43,51 @@ describe("BuildGoalsPanel", () => {
     expect(onPreviousRoute).toHaveBeenCalledOnce();
     expect(onNextRoute).toHaveBeenCalledOnce();
     expect((screen.getByRole("button", { name: "Apply optimized route" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("shows and resets the no-improvement countdown while searching", () => {
+    vi.useFakeTimers();
+    const commonProps = {
+      goals: [],
+      pobImportCode: "",
+      pobImportStatus: { kind: "idle" as const },
+      canApplyOptimizedRoute: true,
+      onPobImportCodeChange: vi.fn(),
+      onImportPobBuildGoals: vi.fn(),
+      onRemoveGoal: vi.fn(),
+      onClearGoals: vi.fn(),
+      onOptimize: vi.fn(),
+      onCancel: vi.fn(),
+      onApplyOptimizedRoute: vi.fn(),
+    };
+    const { rerender } = render(
+      <BuildGoalsPanel
+        {...commonProps}
+        status={{ kind: "running", pointCost: 122, improvementHistory: [122] }}
+      />,
+    );
+
+    expect(screen.getByText("Stopping in 60s unless a better route is found.")).not.toBeNull();
+    const progress = screen.getByRole("progressbar", { name: "Optimizer improvement countdown" }) as HTMLProgressElement;
+    expect(progress.max).toBe(60);
+    expect(progress.value).toBe(60);
+
+    act(() => {
+      vi.advanceTimersByTime(15_000);
+    });
+
+    expect(screen.getByText("Stopping in 45s unless a better route is found.")).not.toBeNull();
+    expect(progress.value).toBe(45);
+
+    rerender(
+      <BuildGoalsPanel
+        {...commonProps}
+        status={{ kind: "running", pointCost: 118, improvementHistory: [122, 118] }}
+      />,
+    );
+
+    expect(screen.getByText("Stopping in 60s unless a better route is found.")).not.toBeNull();
+    expect(progress.value).toBe(60);
   });
 
   it("describes build goal controls with custom tooltips", () => {
