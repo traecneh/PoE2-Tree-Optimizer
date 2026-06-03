@@ -1,10 +1,11 @@
-import { useCallback, type Dispatch, type SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import type { ClassStartOption } from "../tree/classStartAliases";
 import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
 import type { AllocationPlan } from "./allocationPlan";
 import { useBuildGoalActions } from "./useBuildGoalActions";
+import { useClassStartAllocationActions } from "./useClassStartAllocationActions";
 import { usePobImportWorkflow } from "./usePobImportWorkflow";
 import { useSavedBuildWorkflow } from "./useSavedBuildWorkflow";
 
@@ -81,39 +82,23 @@ export function useBuildWorkflowActions({
   setSearchFocusedNodeId,
   clearTreeInteractionState,
 }: UseBuildWorkflowActionsOptions) {
-  const canResetAllocation = allocationPointCount(allocationPlan.committedNodePath) > 0
-    || activeAscendancyAllocationNodeIds.length > 0
-    || allocationPlan.previewNodePath.length > 0
-    || allocationPlan.previewEdgeKeys.length > 0
-    || allocationPlan.previewRouteNodePath.length > 0
-    || Boolean(allocationPlan.noAllocationPathNodeId);
-
-  const resetAllocation = useCallback(() => {
-    clearOptimizedRouteState();
-    resetAscendancyAllocation();
-    resetAllocationPlan(pathStartNodeId);
-  }, [clearOptimizedRouteState, pathStartNodeId, resetAllocationPlan, resetAscendancyAllocation]);
-
-  const applyClassStartOption = useCallback((option: ClassStartOption) => {
-    clearOptimizedRouteState();
-    clearTreeInteractionState();
-    setSelectedClassStartId(option.id);
-    setPathStartNodeId(option.nodeId);
-    resetAscendancyAllocation();
-    resetAllocationPlan(option.nodeId);
-  }, [
-    clearOptimizedRouteState,
-    clearTreeInteractionState,
+  const {
+    canResetAllocation,
+    resetAllocation,
+    applyClassStartOption,
+    changeSelectedClassStart,
+  } = useClassStartAllocationActions({
+    allocationPlan,
+    activeAscendancyAllocationNodeIds,
+    classStartOptions,
+    pathStartNodeId,
+    setSelectedClassStartId,
+    setPathStartNodeId,
     resetAllocationPlan,
     resetAscendancyAllocation,
-    setPathStartNodeId,
-    setSelectedClassStartId,
-  ]);
-
-  const changeSelectedClassStart = useCallback((classStartId: string) => {
-    const option = classStartOptions.find((currentOption) => currentOption.id === classStartId);
-    if (option) applyClassStartOption(option);
-  }, [applyClassStartOption, classStartOptions]);
+    clearOptimizedRouteState,
+    clearTreeInteractionState,
+  });
 
   const {
     clearWorkingBuildState,
@@ -192,8 +177,4 @@ export function useBuildWorkflowActions({
     clearBuildGoals,
     importPobBuildGoals,
   };
-}
-
-function allocationPointCount(committedNodePath: string[]): number {
-  return Math.max(0, committedNodePath.length - 1);
 }
