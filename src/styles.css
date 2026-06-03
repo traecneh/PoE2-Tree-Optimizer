@@ -1262,6 +1262,37 @@ button {
   background: #151b24;
 }
 
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(320px, 58vh) auto auto;
+    grid-template-areas:
+      "tree"
+      "summary"
+      "side";
+    overflow: auto;
+  }
+
+  .tree-viewer-shell {
+    grid-area: tree;
+    min-height: 320px;
+  }
+
+  .build-summary-panel {
+    grid-area: summary;
+    max-height: 40vh;
+    border-right: 0;
+    border-top: 1px solid #283241;
+  }
+
+  .side-panel {
+    grid-area: side;
+    min-height: 320px;
+    border-left: 0;
+    border-top: 1px solid #283241;
+  }
+}
+
 .passive-search-panel {
   padding: 14px 16px 16px;
   border-bottom: 1px solid #283241;
