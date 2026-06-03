@@ -1,20 +1,16 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
-import { resolveClassStartOptionFromPobMetadata, type ClassStartOption } from "../tree/classStartAliases";
-import { importBuildGoalsFromPobCode } from "../tree/pobBuildImport";
+import type { ClassStartOption } from "../tree/classStartAliases";
 import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
-import { mergeNodeIds, sanitizeSavedAllocationPlan, type AllocationPlan } from "./allocationPlan";
+import { sanitizeSavedAllocationPlan, type AllocationPlan } from "./allocationPlan";
 import { sanitizeAscendancyAllocationNodeIds } from "./ascendancyAllocation";
-import {
-  buildPobImportReportDetails,
-  pobPathStartStatus,
-} from "./pobImportStatus";
 import {
   canAddBuildGoal,
   resolveSavedClassStartOption,
   validNodeVisualScale,
 } from "./buildWorkflow";
+import { usePobImportWorkflow } from "./usePobImportWorkflow";
 
 type UseBuildWorkflowActionsOptions = {
   graph: TreeGraph;
@@ -241,65 +237,18 @@ export function useBuildWorkflowActions({
     clearBuildGoalNodeIds();
   }, [clearBuildGoalNodeIds, clearPobImportStatus]);
 
-  const importPobBuildGoals = useCallback(() => {
-    if (pobImportCode.trim().length === 0) return;
-
-    try {
-      const result = importBuildGoalsFromPobCode(pobImportCode, graph);
-      const currentGoalNodeIds = new Set(buildGoalNodeIds);
-      const importedGoalNodeIds = result.goalNodeIds.filter((nodeId) => !currentGoalNodeIds.has(nodeId));
-      const pathStartResolution = resolveClassStartOptionFromPobMetadata(classStartOptions, {
-        className: result.className,
-        ascendClassName: result.ascendClassName,
-        allocatedNodeIds: result.allocatedNodeIds,
-      });
-      const nextClassStartOption = pathStartResolution.kind === "matched" ? pathStartResolution.option : selectedClassStartOption;
-      const importedAscendancyNodeIds = sanitizeAscendancyAllocationNodeIds(
-        result.ascendancyNodeIds,
-        graph,
-        nextClassStartOption?.ascendancy,
-      );
-
-      clearOptimizedRouteState();
-      if (pathStartResolution.kind === "matched") {
-        applyClassStartOption(pathStartResolution.option);
-      }
-      setAscendancyAllocationNodeIds(importedAscendancyNodeIds);
-      setBuildGoalNodeIds((current) => mergeNodeIds(current, importedGoalNodeIds));
-      setPobImportStatus({
-        kind: "success",
-        importedGoalCount: importedGoalNodeIds.length,
-        pobBasePassivePointCount: result.pobBasePassivePointCount,
-        selectedAscendancyNodeCount: importedAscendancyNodeIds.length,
-        alreadySelectedGoalCount: result.goalNodeIds.length - importedGoalNodeIds.length,
-        missingNodeCount: result.missingNodeIds.length,
-        pathStart: pobPathStartStatus(pathStartResolution),
-        details: buildPobImportReportDetails(result, {
-          graph,
-          importedGoalNodeIds,
-          alreadySelectedGoalNodeIds: result.goalNodeIds.filter((nodeId) => currentGoalNodeIds.has(nodeId)),
-          selectedAscendancyNodeIds: importedAscendancyNodeIds,
-        }),
-      });
-    } catch (error) {
-      clearOptimizedRouteState();
-      setPobImportStatus({
-        kind: "error",
-        message: error instanceof Error ? error.message : "Could not import PoB build code.",
-      });
-    }
-  }, [
-    applyClassStartOption,
-    buildGoalNodeIds,
-    classStartOptions,
-    clearOptimizedRouteState,
+  const { importPobBuildGoals } = usePobImportWorkflow({
     graph,
-    pobImportCode,
+    classStartOptions,
     selectedClassStartOption,
-    setAscendancyAllocationNodeIds,
+    buildGoalNodeIds,
     setBuildGoalNodeIds,
+    pobImportCode,
+    setAscendancyAllocationNodeIds,
     setPobImportStatus,
-  ]);
+    applyClassStartOption,
+    clearOptimizedRouteState,
+  });
 
   return {
     canResetAllocation,
