@@ -454,6 +454,16 @@ function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {
   const message = formatStatusMessage(status);
   if (!message) return null;
 
+  if (status.kind === "success") {
+    const detail = formatSuccessStatusDetail(status);
+    return (
+      <div className="build-goals-status success" role="status">
+        <p>{message}</p>
+        {detail ? <p className="build-goals-status-detail">{detail}</p> : null}
+      </div>
+    );
+  }
+
   return (
     <p className={`build-goals-status ${status.kind}`} role="status">
       {message}
@@ -506,6 +516,18 @@ function useOptimizerImprovementCountdown(resetKey: string | undefined): number 
 function optimizerCountdownResetKey(status: BuildGoalsPanelStatus): string | undefined {
   if (status.kind !== "running" || status.pointCost === undefined) return undefined;
   return `${status.pointCost}:${status.improvementHistory?.join("|") ?? ""}`;
+}
+
+function formatSuccessStatusDetail(status: Extract<BuildGoalsPanelStatus, { kind: "success" }>): string | undefined {
+  if (status.completeReason === "exact") return "Exact route found.";
+  if (status.completeReason === "bounded") return "Bounded route search completed.";
+  if (status.completeReason === "no-improvement") return "Stopped after 60s without improvement.";
+  if (status.completeReason === "iteration-limit") return "Stopped after the iteration limit.";
+  if (status.completeReason === "cancelled") return "Cancelled after showing the best route found.";
+  if (status.searchType === "exact") return "Exact route found.";
+  if (status.searchType === "bounded") return "Bounded route search completed.";
+  if (status.searchType === "anytime") return "Search completed.";
+  return undefined;
 }
 
 function formatStatusMessage(status: BuildGoalsPanelStatus): string | undefined {

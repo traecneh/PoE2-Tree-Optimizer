@@ -1664,6 +1664,11 @@ button {
   font-weight: 700;
 }
 
+.build-goals-status-detail {
+  color: #aebbd0;
+  font-weight: 400;
+}
+
 .build-goals-status.unreachable,
 .build-goals-status.error {
   color: #ffb49f;

@@ -90,6 +90,50 @@ describe("BuildGoalsPanel", () => {
     expect(progress.value).toBe(60);
   });
 
+  it("explains why optimized route search finished", () => {
+    const commonProps = {
+      goals: [],
+      pobImportCode: "",
+      pobImportStatus: { kind: "idle" as const },
+      canApplyOptimizedRoute: true,
+      onPobImportCodeChange: vi.fn(),
+      onImportPobBuildGoals: vi.fn(),
+      onRemoveGoal: vi.fn(),
+      onClearGoals: vi.fn(),
+      onOptimize: vi.fn(),
+      onCancel: vi.fn(),
+      onApplyOptimizedRoute: vi.fn(),
+    };
+    const { rerender } = render(
+      <BuildGoalsPanel
+        {...commonProps}
+        status={{ kind: "success", pointCost: 147, searchType: "anytime", completeReason: "no-improvement" }}
+      />,
+    );
+
+    expect(screen.getByText("Best route found: 147 points")).not.toBeNull();
+    expect(screen.getByText("Stopped after 60s without improvement.")).not.toBeNull();
+
+    rerender(
+      <BuildGoalsPanel
+        {...commonProps}
+        status={{ kind: "success", pointCost: 12, searchType: "exact", completeReason: "exact" }}
+      />,
+    );
+
+    expect(screen.getByText("Optimized route: 12 points")).not.toBeNull();
+    expect(screen.getByText("Exact route found.")).not.toBeNull();
+
+    rerender(
+      <BuildGoalsPanel
+        {...commonProps}
+        status={{ kind: "success", pointCost: 93, searchType: "anytime", completeReason: "cancelled" }}
+      />,
+    );
+
+    expect(screen.getByText("Cancelled after showing the best route found.")).not.toBeNull();
+  });
+
   it("describes build goal controls with custom tooltips", () => {
     render(
       <BuildGoalsPanel
