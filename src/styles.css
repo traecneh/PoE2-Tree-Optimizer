@@ -1595,11 +1595,7 @@ button {
   grid-column: 1 / -1;
 }
 
-.optimized-route-nav {
-  display: grid;
-  grid-template-columns: 36px 1fr 36px;
-  align-items: center;
-  gap: 8px;
+.optimized-route-options {
   margin-top: 10px;
   color: #d8c27a;
   font-size: 12px;
@@ -1607,9 +1603,66 @@ button {
   text-align: center;
 }
 
+.optimized-route-nav {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+}
+
 .optimized-route-nav-button {
   min-width: 36px;
   padding: 5px 0;
+}
+
+.optimized-route-nav-label {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.optimized-route-nav-detail {
+  color: #9fb3cc;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.optimized-route-cost-groups {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.optimized-route-cost-chip {
+  min-height: 24px;
+  padding: 2px 7px;
+  border: 1px solid rgba(145, 164, 191, 0.35);
+  border-radius: 6px;
+  background: rgba(18, 27, 41, 0.78);
+  color: #bdd0e8;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.optimized-route-cost-chip:hover,
+.optimized-route-cost-chip:focus-visible {
+  border-color: rgba(118, 217, 255, 0.78);
+  color: #e5f6ff;
+}
+
+.optimized-route-cost-chip.active {
+  border-color: rgba(216, 194, 122, 0.88);
+  background: rgba(88, 68, 24, 0.52);
+  color: #ffe9a8;
+}
+
+.optimized-route-cost-chip:disabled {
+  cursor: default;
+  opacity: 0.62;
 }
 
 .build-goals-status {

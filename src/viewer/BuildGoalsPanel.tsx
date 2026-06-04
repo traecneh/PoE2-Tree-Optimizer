@@ -23,6 +23,13 @@ export type BuildGoalsPanelStatus =
   | { kind: "unreachable"; unreachableGoals: TreeNode[] }
   | { kind: "error"; message: string };
 
+export type BuildGoalsRouteCandidateSummary = {
+  index: number;
+  pointCost: number;
+  pointCostRouteNumber: number;
+  pointCostRouteCount: number;
+};
+
 export type PobBuildImportStatus =
   | { kind: "idle" }
   | {
@@ -75,7 +82,7 @@ type BuildGoalsPanelProps = {
   pobImportCode: string;
   pobImportStatus: PobBuildImportStatus;
   canApplyOptimizedRoute: boolean;
-  routeCandidateCount?: number;
+  routeCandidateSummaries?: BuildGoalsRouteCandidateSummary[];
   selectedRouteIndex?: number;
   onPobImportCodeChange: (code: string) => void;
   onImportPobBuildGoals: () => void;
@@ -86,6 +93,7 @@ type BuildGoalsPanelProps = {
   onApplyOptimizedRoute: () => void;
   onPreviousRoute?: () => void;
   onNextRoute?: () => void;
+  onSelectRouteCandidate?: (routeIndex: number) => void;
 };
 
 const optimizerNoImprovementSeconds = 60;
@@ -96,7 +104,7 @@ export function BuildGoalsPanel({
   pobImportCode,
   pobImportStatus,
   canApplyOptimizedRoute,
-  routeCandidateCount = 0,
+  routeCandidateSummaries = [],
   selectedRouteIndex = 0,
   onPobImportCodeChange,
   onImportPobBuildGoals,
@@ -107,8 +115,12 @@ export function BuildGoalsPanel({
   onApplyOptimizedRoute,
   onPreviousRoute,
   onNextRoute,
+  onSelectRouteCandidate,
 }: BuildGoalsPanelProps) {
   const running = status.kind === "running";
+  const routeCandidateCount = routeCandidateSummaries.length;
+  const selectedRouteCandidate = routeCandidateSummaries[selectedRouteIndex];
+  const routeCandidateCostGroups = groupRouteCandidateCostSummaries(routeCandidateSummaries);
   const hasRouteCandidates = routeCandidateCount > 1;
 
   return (
@@ -238,38 +250,64 @@ export function BuildGoalsPanel({
         </ControlTooltip>
       </div>
       {hasRouteCandidates ? (
-        <div className="optimized-route-nav" aria-label="Optimized route candidates">
-          <ControlTooltip
-            id="previous-optimized-route-tooltip"
-            text="Preview the previous optimized route candidate."
-          >
-            <button
-              className="tool-button optimized-route-nav-button"
-              type="button"
-              aria-label="Previous optimized route"
-              aria-describedby="previous-optimized-route-tooltip"
-              onClick={onPreviousRoute}
-              disabled={!onPreviousRoute}
+        <div className="optimized-route-options" aria-label="Optimized route candidates">
+          <div className="optimized-route-nav">
+            <ControlTooltip
+              id="previous-optimized-route-tooltip"
+              text="Preview the previous optimized route candidate."
             >
-              {"<"}
-            </button>
-          </ControlTooltip>
-          <span>{`Route ${selectedRouteIndex + 1} of ${routeCandidateCount}`}</span>
-          <ControlTooltip
-            id="next-optimized-route-tooltip"
-            text="Preview the next optimized route candidate."
-          >
-            <button
-              className="tool-button optimized-route-nav-button"
-              type="button"
-              aria-label="Next optimized route"
-              aria-describedby="next-optimized-route-tooltip"
-              onClick={onNextRoute}
-              disabled={!onNextRoute}
+              <button
+                className="tool-button optimized-route-nav-button"
+                type="button"
+                aria-label="Previous optimized route"
+                aria-describedby="previous-optimized-route-tooltip"
+                onClick={onPreviousRoute}
+                disabled={!onPreviousRoute}
+              >
+                {"<"}
+              </button>
+            </ControlTooltip>
+            <span className="optimized-route-nav-label">
+              <span>{`Route ${selectedRouteIndex + 1} of ${routeCandidateCount}`}</span>
+              {selectedRouteCandidate ? (
+                <span className="optimized-route-nav-detail">
+                  {formatRouteCandidateDetail(selectedRouteCandidate)}
+                </span>
+              ) : null}
+            </span>
+            <ControlTooltip
+              id="next-optimized-route-tooltip"
+              text="Preview the next optimized route candidate."
             >
-              {">"}
-            </button>
-          </ControlTooltip>
+              <button
+                className="tool-button optimized-route-nav-button"
+                type="button"
+                aria-label="Next optimized route"
+                aria-describedby="next-optimized-route-tooltip"
+                onClick={onNextRoute}
+                disabled={!onNextRoute}
+              >
+                {">"}
+              </button>
+            </ControlTooltip>
+          </div>
+          {routeCandidateCostGroups.length > 1 ? (
+            <div className="optimized-route-cost-groups" aria-label="Route point costs">
+              {routeCandidateCostGroups.map((group) => (
+                <button
+                  key={group.pointCost}
+                  className={`optimized-route-cost-chip${group.pointCost === selectedRouteCandidate?.pointCost ? " active" : ""}`}
+                  type="button"
+                  aria-label={`${formatPointCost(group.pointCost)} (${group.routeCount} ${group.routeCount === 1 ? "route" : "routes"})`}
+                  aria-current={group.pointCost === selectedRouteCandidate?.pointCost ? "true" : undefined}
+                  onClick={() => onSelectRouteCandidate?.(group.firstRouteIndex)}
+                  disabled={!onSelectRouteCandidate}
+                >
+                  {`${group.pointCost} (${group.routeCount})`}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
       <BuildGoalStatusMessage status={status} />
@@ -545,6 +583,29 @@ function formatStatusMessage(status: BuildGoalsPanelStatus): string | undefined 
     return `Unreachable: ${status.unreachableGoals.map((node) => node.name ?? node.id).join(", ")}`;
   }
   return status.message;
+}
+
+function formatRouteCandidateDetail(candidate: BuildGoalsRouteCandidateSummary): string {
+  return `${formatPointCost(candidate.pointCost)} · variant ${candidate.pointCostRouteNumber} of ${candidate.pointCostRouteCount}`;
+}
+
+function groupRouteCandidateCostSummaries(routeCandidates: BuildGoalsRouteCandidateSummary[]) {
+  const groups = new Map<number, { pointCost: number; routeCount: number; firstRouteIndex: number }>();
+  for (const candidate of routeCandidates) {
+    const group = groups.get(candidate.pointCost);
+    if (group) {
+      group.routeCount += 1;
+      continue;
+    }
+
+    groups.set(candidate.pointCost, {
+      pointCost: candidate.pointCost,
+      routeCount: 1,
+      firstRouteIndex: candidate.index,
+    });
+  }
+
+  return Array.from(groups.values()).sort((left, right) => left.pointCost - right.pointCost);
 }
 
 function formatGoalMeta(node: TreeNode, allocationDistance: number | undefined, reached: boolean): string {

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { treeEdgeKey } from "./pathAllocation";
 import type { TreeGraph, TreeNode } from "./types";
-import { optimizeBuildGoals, optimizeBuildGoalsAnytime } from "./buildGoalsOptimizer";
+import { optimizeBuildGoals, optimizeBuildGoalsAnytime, retainDiverseRouteCandidates } from "./buildGoalsOptimizer";
 
 describe("optimizeBuildGoals", () => {
   it("finds the shortest route to one required goal", () => {
@@ -241,6 +241,22 @@ describe("optimizeBuildGoals", () => {
     expect(progressCosts[0]).toBeGreaterThan(result.pointCost);
     expect(result.routeCandidates?.length).toBeGreaterThan(1);
   }, 15_000);
+
+  it("retains route candidates across different point costs before extra same-cost variants", () => {
+    const retainedCandidates = retainDiverseRouteCandidates([
+      routeCandidate("10a", 10),
+      routeCandidate("10b", 10),
+      routeCandidate("10c", 10),
+      routeCandidate("10d", 10),
+      routeCandidate("11a", 11),
+      routeCandidate("11b", 11),
+      routeCandidate("12a", 12),
+      routeCandidate("13a", 13),
+    ], 6, 2);
+
+    expect(retainedCandidates.map((candidate) => candidate.pointCost)).toEqual([10, 10, 11, 11, 12, 13]);
+    expect(retainedCandidates.map((candidate) => candidate.label)).toEqual(["10a", "10b", "11a", "11b", "12a", "13a"]);
+  });
 });
 
 function fixtureGraph(edgePairs: Array<[string, string]>): TreeGraph {
@@ -271,4 +287,16 @@ function fixtureGraph(edgePairs: Array<[string, string]>): TreeGraph {
 
 function titleCase(value: string): string {
   return value.split("_").map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`).join(" ");
+}
+
+function routeCandidate(label: string, pointCost: number) {
+  return {
+    label,
+    addedNodeIds: [`${label}_added`],
+    addedEdgeKeys: [treeEdgeKey("start", `${label}_added`)],
+    totalNodeIds: ["start", `${label}_added`],
+    totalEdgeKeys: [treeEdgeKey("start", `${label}_added`)],
+    orderedNodeIds: ["start", `${label}_added`],
+    pointCost,
+  };
 }

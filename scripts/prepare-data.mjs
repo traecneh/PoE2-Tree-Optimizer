@@ -1,4 +1,4 @@
-import { cpSync, copyFileSync, existsSync, mkdirSync, rmSync, statSync } from "node:fs";
+import { cpSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +17,29 @@ function fail(message) {
   process.exitCode = 1;
 }
 
+function validateSourceGraph() {
+  let graph;
+  try {
+    graph = JSON.parse(readFileSync(sourceGraph, "utf8"));
+  } catch (error) {
+    fail(`data/tree-graph.json could not be read: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
+
+  const nodeCount = Object.keys(graph?.nodes ?? {}).length;
+  const classStartCount = Object.keys(graph?.classStarts ?? {}).length;
+  if (nodeCount === 0 || classStartCount === 0) {
+    fail([
+      "data/tree-graph.json is not usable.",
+      `Found ${nodeCount} nodes and ${classStartCount} class starts.`,
+      "Refusing to overwrite public/tree-graph.json with empty tree data.",
+    ].join("\n"));
+    return false;
+  }
+
+  return true;
+}
+
 if (!existsSync(sourceGraph) || !existsSync(sourceAssets)) {
   if (hasUsablePublicData()) {
     console.warn("Tracked deploy data is missing; using existing public tree data.");
@@ -32,7 +55,7 @@ if (!existsSync(sourceGraph) || !existsSync(sourceAssets)) {
   const assetStat = statSync(sourceAssets);
   if (!assetStat.isDirectory()) {
     fail("data/tree-assets exists but is not a directory.");
-  } else {
+  } else if (validateSourceGraph()) {
     mkdirSync(dirname(publicGraph), { recursive: true });
     copyFileSync(sourceGraph, publicGraph);
     rmSync(publicAssets, { recursive: true, force: true });

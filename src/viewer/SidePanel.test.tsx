@@ -43,7 +43,7 @@ function defaultProps() {
     pobImportCode: "",
     pobImportStatus: { kind: "idle" as const },
     canApplyOptimizedRoute: false,
-    routeCandidateCount: 0,
+    routeCandidateSummaries: [],
     selectedRouteIndex: 0,
     onPobImportCodeChange: vi.fn(),
     onImportPobBuildGoals: vi.fn(),

@@ -1,6 +1,12 @@
 import type { AllocationPath } from "../tree/pathAllocation";
 import type { TreeEdge, TreeNode } from "../tree/types";
-import { BuildGoalsPanel, type BuildGoalsPanelGoal, type BuildGoalsPanelStatus, type PobBuildImportStatus } from "./BuildGoalsPanel";
+import {
+  BuildGoalsPanel,
+  type BuildGoalsPanelGoal,
+  type BuildGoalsPanelStatus,
+  type BuildGoalsRouteCandidateSummary,
+  type PobBuildImportStatus,
+} from "./BuildGoalsPanel";
 import { NodeInspector } from "./NodeInspector";
 import { PassiveSearchPanel, type PassiveSearchPanelResult } from "./PassiveSearchPanel";
 
@@ -21,7 +27,7 @@ type SidePanelProps = {
   pobImportCode: string;
   pobImportStatus: PobBuildImportStatus;
   canApplyOptimizedRoute: boolean;
-  routeCandidateCount: number;
+  routeCandidateSummaries: BuildGoalsRouteCandidateSummary[];
   selectedRouteIndex: number;
   onPobImportCodeChange: (code: string) => void;
   onImportPobBuildGoals: () => void;
@@ -59,7 +65,7 @@ export function SidePanel({
   pobImportCode,
   pobImportStatus,
   canApplyOptimizedRoute,
-  routeCandidateCount,
+  routeCandidateSummaries,
   selectedRouteIndex,
   onPobImportCodeChange,
   onImportPobBuildGoals,
@@ -100,7 +106,7 @@ export function SidePanel({
         pobImportCode={pobImportCode}
         pobImportStatus={pobImportStatus}
         canApplyOptimizedRoute={canApplyOptimizedRoute}
-        routeCandidateCount={routeCandidateCount}
+        routeCandidateSummaries={routeCandidateSummaries}
         selectedRouteIndex={selectedRouteIndex}
         onPobImportCodeChange={onPobImportCodeChange}
         onImportPobBuildGoals={onImportPobBuildGoals}
@@ -111,6 +117,7 @@ export function SidePanel({
         onApplyOptimizedRoute={onApplyOptimizedRoute}
         onPreviousRoute={() => onSelectOptimizedRoute(selectedRouteIndex - 1)}
         onNextRoute={() => onSelectOptimizedRoute(selectedRouteIndex + 1)}
+        onSelectRouteCandidate={onSelectOptimizedRoute}
       />
       <NodeInspector
         node={selectedNode}

@@ -11,6 +11,7 @@ describe("BuildGoalsPanel", () => {
   it("shows best-found progress and route candidate navigation while optimizing", () => {
     const onPreviousRoute = vi.fn();
     const onNextRoute = vi.fn();
+    const onSelectRouteCandidate = vi.fn();
 
     render(
       <BuildGoalsPanel
@@ -19,10 +20,16 @@ describe("BuildGoalsPanel", () => {
         pobImportCode=""
         pobImportStatus={{ kind: "idle" }}
         canApplyOptimizedRoute
-        routeCandidateCount={3}
+        routeCandidateSummaries={[
+          { index: 0, pointCost: 114, pointCostRouteNumber: 1, pointCostRouteCount: 2 },
+          { index: 1, pointCost: 114, pointCostRouteNumber: 2, pointCostRouteCount: 2 },
+          { index: 2, pointCost: 116, pointCostRouteNumber: 1, pointCostRouteCount: 1 },
+          { index: 3, pointCost: 118, pointCostRouteNumber: 1, pointCostRouteCount: 1 },
+        ]}
         selectedRouteIndex={1}
         onPreviousRoute={onPreviousRoute}
         onNextRoute={onNextRoute}
+        onSelectRouteCandidate={onSelectRouteCandidate}
         onPobImportCodeChange={vi.fn()}
         onImportPobBuildGoals={vi.fn()}
         onRemoveGoal={vi.fn()}
@@ -35,13 +42,18 @@ describe("BuildGoalsPanel", () => {
 
     expect(screen.getByText("Best found so far: 114 points")).not.toBeNull();
     expect(screen.getByText("Improved: 122 -> 118 -> 114")).not.toBeNull();
-    expect(screen.getByText("Route 2 of 3")).not.toBeNull();
+    expect(screen.getByText("Route 2 of 4")).not.toBeNull();
+    expect(screen.getByText("114 points · variant 2 of 2")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "114 points (2 routes)" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "116 points (1 route)" })).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Previous optimized route" }));
     fireEvent.click(screen.getByRole("button", { name: "Next optimized route" }));
+    fireEvent.click(screen.getByRole("button", { name: "116 points (1 route)" }));
 
     expect(onPreviousRoute).toHaveBeenCalledOnce();
     expect(onNextRoute).toHaveBeenCalledOnce();
+    expect(onSelectRouteCandidate).toHaveBeenCalledWith(2);
     expect((screen.getByRole("button", { name: "Apply optimized route" }) as HTMLButtonElement).disabled).toBe(false);
   });
 

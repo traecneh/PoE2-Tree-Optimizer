@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import type { BuildGoalsPanelStatus } from "../viewer/BuildGoalsPanel";
+import type { BuildGoalsPanelStatus, BuildGoalsRouteCandidateSummary } from "../viewer/BuildGoalsPanel";
 import type { BuildGoalsOptimizeRequest, BuildGoalsOptimizeResult, BuildGoalsRouteCandidate } from "../tree/buildGoalsOptimizer";
 import {
   runBuildGoalsOptimization as runDefaultBuildGoalsOptimization,
@@ -38,7 +38,12 @@ export function useBuildGoalsState({
     () => new Set(buildGoalNodeIds),
     [buildGoalNodeIds],
   );
-  const routeCandidateCount = optimizedPreview?.routeCandidates?.length ?? 0;
+  const routeCandidateSummaries = useMemo(
+    () => summarizeRouteCandidates(optimizedPreview),
+    [optimizedPreview],
+  );
+  const selectedRouteCandidate = routeCandidateSummaries[optimizedRouteIndex];
+  const routeCandidateCount = routeCandidateSummaries.length;
   const canApplyOptimizedRoute = Boolean(optimizedPreview && optimizedPreview.pointCost > 0);
 
   const clearOptimizedRouteState = useCallback((nextStatus: BuildGoalsPanelStatus = { kind: "idle" }) => {
@@ -231,6 +236,8 @@ export function useBuildGoalsState({
     optimizedPreview,
     optimizedRouteIndex,
     routeCandidateCount,
+    routeCandidateSummaries,
+    selectedRouteCandidate,
     canApplyOptimizedRoute,
     clearOptimizedRouteState,
     addBuildGoal,
@@ -254,4 +261,27 @@ function optimizedRouteCandidate(result: BuildGoalsOptimizeResult, routeIndex: n
     orderedNodeIds: result.orderedNodeIds,
     pointCost: result.pointCost,
   };
+}
+
+function summarizeRouteCandidates(result: BuildGoalsOptimizeResult | undefined): BuildGoalsRouteCandidateSummary[] {
+  if (!result) return [];
+  const routeCandidates = result.routeCandidates?.length
+    ? result.routeCandidates
+    : [optimizedRouteCandidate(result, 0)];
+  const routeCountByPointCost = new Map<number, number>();
+  for (const candidate of routeCandidates) {
+    routeCountByPointCost.set(candidate.pointCost, (routeCountByPointCost.get(candidate.pointCost) ?? 0) + 1);
+  }
+
+  const seenByPointCost = new Map<number, number>();
+  return routeCandidates.map((candidate, index) => {
+    const pointCostRouteNumber = (seenByPointCost.get(candidate.pointCost) ?? 0) + 1;
+    seenByPointCost.set(candidate.pointCost, pointCostRouteNumber);
+    return {
+      index,
+      pointCost: candidate.pointCost,
+      pointCostRouteNumber,
+      pointCostRouteCount: routeCountByPointCost.get(candidate.pointCost) ?? 1,
+    };
+  });
 }

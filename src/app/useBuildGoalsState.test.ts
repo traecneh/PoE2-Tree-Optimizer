@@ -105,6 +105,7 @@ describe("useBuildGoalsState", () => {
     await act(async () => {
       resolveRun?.(successResult("complete-route", 4, [
         routeCandidate("first", 4, ["start", "mid", "goal-a", "goal-b"]),
+        routeCandidate("same-cost", 4, ["start", "same-cost", "goal-a", "goal-b"]),
         routeCandidate("second", 5, ["start", "alt", "goal-b", "goal-a"]),
       ]));
     });
@@ -113,7 +114,18 @@ describe("useBuildGoalsState", () => {
       kind: "success",
       pointCost: 4,
     });
-    expect(result.current.buildGoals.routeCandidateCount).toBe(2);
+    expect(result.current.buildGoals.routeCandidateCount).toBe(3);
+    expect(result.current.buildGoals.routeCandidateSummaries).toEqual([
+      { index: 0, pointCost: 4, pointCostRouteNumber: 1, pointCostRouteCount: 2 },
+      { index: 1, pointCost: 4, pointCostRouteNumber: 2, pointCostRouteCount: 2 },
+      { index: 2, pointCost: 5, pointCostRouteNumber: 1, pointCostRouteCount: 1 },
+    ]);
+    expect(result.current.buildGoals.selectedRouteCandidate).toEqual({
+      index: 0,
+      pointCost: 4,
+      pointCostRouteNumber: 1,
+      pointCostRouteCount: 2,
+    });
     expect(result.current.allocationPlan.previewNodePath).toEqual(["start", "mid", "goal-a", "goal-b"]);
 
     act(() => {
@@ -121,6 +133,24 @@ describe("useBuildGoalsState", () => {
     });
 
     expect(result.current.buildGoals.optimizedRouteIndex).toBe(1);
+    expect(result.current.buildGoals.selectedRouteCandidate).toEqual({
+      index: 1,
+      pointCost: 4,
+      pointCostRouteNumber: 2,
+      pointCostRouteCount: 2,
+    });
+    expect(result.current.allocationPlan.previewNodePath).toEqual(["start", "same-cost", "goal-a", "goal-b"]);
+
+    act(() => {
+      result.current.buildGoals.selectOptimizedRoute(2);
+    });
+
+    expect(result.current.buildGoals.selectedRouteCandidate).toEqual({
+      index: 2,
+      pointCost: 5,
+      pointCostRouteNumber: 1,
+      pointCostRouteCount: 1,
+    });
     expect(result.current.allocationPlan.previewNodePath).toEqual(["start", "alt", "goal-b", "goal-a"]);
 
     act(() => {

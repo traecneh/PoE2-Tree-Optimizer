@@ -85,7 +85,7 @@ export default function App() {
     buildGoalNodeIdSet,
     buildGoalStatus,
     optimizedRouteIndex,
-    routeCandidateCount,
+    routeCandidateSummaries,
     canApplyOptimizedRoute,
     clearOptimizedRouteState,
     addBuildGoal: addBuildGoalNodeId,
@@ -303,7 +303,7 @@ export default function App() {
           pobImportCode={pobImportCode}
           pobImportStatus={pobImportStatus}
           canApplyOptimizedRoute={canApplyOptimizedRoute}
-          routeCandidateCount={routeCandidateCount}
+          routeCandidateSummaries={routeCandidateSummaries}
           selectedRouteIndex={optimizedRouteIndex}
           onPobImportCodeChange={setPobImportCode}
           onImportPobBuildGoals={importPobBuildGoals}

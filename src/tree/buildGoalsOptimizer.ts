@@ -90,7 +90,8 @@ const infinity = Number.POSITIVE_INFINITY;
 const maxExactGoalCount = 10;
 const maxExactStateCount = 6_000_000;
 const defaultNoImprovementMs = 60_000;
-const defaultRouteCandidateLimit = 5;
+const defaultRouteCandidateLimit = 18;
+const defaultRouteCandidateVariantLimitPerCost = 3;
 
 export function optimizeBuildGoals(request: BuildGoalsOptimizeRequest): BuildGoalsOptimizeResult {
   if (request.mode !== "shortest") {
@@ -197,8 +198,11 @@ export function optimizeBuildGoalsAnytime(
     if (!candidateSignatures.has(signature)) {
       candidateSignatures.add(signature);
       routeCandidates.push(candidate);
-      routeCandidates.sort(compareRouteCandidates);
-      routeCandidates.splice(candidateLimit);
+      routeCandidates.splice(
+        0,
+        routeCandidates.length,
+        ...retainDiverseRouteCandidates(routeCandidates, candidateLimit),
+      );
     }
 
     if (bestResult && candidate.pointCost >= bestResult.pointCost) return false;
@@ -540,6 +544,52 @@ function routeCandidateSignature(candidate: BuildGoalsRouteCandidate): string {
 
 function compareRouteCandidates(left: BuildGoalsRouteCandidate, right: BuildGoalsRouteCandidate): number {
   return left.pointCost - right.pointCost || routeCandidateSignature(left).localeCompare(routeCandidateSignature(right));
+}
+
+export function retainDiverseRouteCandidates(
+  candidates: BuildGoalsRouteCandidate[],
+  candidateLimit = defaultRouteCandidateLimit,
+  variantLimitPerCost = defaultRouteCandidateVariantLimitPerCost,
+): BuildGoalsRouteCandidate[] {
+  if (candidateLimit <= 0) return [];
+
+  const sortedCandidates = [...candidates].sort(compareRouteCandidates);
+  const candidatesByPointCost = new Map<number, BuildGoalsRouteCandidate[]>();
+  for (const candidate of sortedCandidates) {
+    const pointCostCandidates = candidatesByPointCost.get(candidate.pointCost);
+    if (pointCostCandidates) pointCostCandidates.push(candidate);
+    else candidatesByPointCost.set(candidate.pointCost, [candidate]);
+  }
+
+  const pointCostGroups = Array.from(candidatesByPointCost.values());
+  const retained: BuildGoalsRouteCandidate[] = [];
+  const retainedSignatures = new Set<string>();
+  const keepCandidate = (candidate: BuildGoalsRouteCandidate) => {
+    if (retained.length >= candidateLimit) return;
+    const signature = routeCandidateSignature(candidate);
+    if (retainedSignatures.has(signature)) return;
+    retainedSignatures.add(signature);
+    retained.push(candidate);
+  };
+
+  for (const group of pointCostGroups) {
+    keepCandidate(group[0]);
+  }
+
+  const cappedVariantLimit = Math.max(1, variantLimitPerCost);
+  for (
+    let variantIndex = 1;
+    variantIndex < cappedVariantLimit && retained.length < candidateLimit;
+    variantIndex += 1
+  ) {
+    for (const group of pointCostGroups) {
+      const candidate = group[variantIndex];
+      if (candidate) keepCandidate(candidate);
+      if (retained.length >= candidateLimit) break;
+    }
+  }
+
+  return retained.sort(compareRouteCandidates);
 }
 
 function mulberry32(seed: number): () => number {
