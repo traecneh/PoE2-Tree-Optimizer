@@ -6,6 +6,7 @@ import type { ClassStartOption } from "../tree/classStartAliases";
 import type { TreeGraph } from "../tree/types";
 import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
 import { usePobImportWorkflow } from "./usePobImportWorkflow";
+import type { WeaponSetAllocationNodeIds } from "./weaponSetAllocation";
 
 describe("usePobImportWorkflow", () => {
   it("imports goals, ascendancy allocations, path start, and status together", () => {
@@ -33,7 +34,10 @@ describe("usePobImportWorkflow", () => {
       <PathOfBuilding2>
         <Build className="Ranger" ascendClassName="Amazon" />
         <Tree activeSpec="1">
-          <Spec title="Active" nodes="100,101,102,103,201" />
+          <Spec title="Active" nodes="100,101,102,103,104,105,201">
+            <WeaponSet1 nodes="104" />
+            <WeaponSet2 nodes="105" />
+          </Spec>
         </Tree>
       </PathOfBuilding2>
     `);
@@ -41,6 +45,7 @@ describe("usePobImportWorkflow", () => {
     const { result } = renderHook(() => {
       const [buildGoalNodeIds, setBuildGoalNodeIds] = useState(["101"]);
       const [ascendancyNodeIds, setAscendancyAllocationNodeIds] = useState<string[]>([]);
+      const [weaponSetAllocationNodeIds, setWeaponSetAllocationNodeIds] = useState<WeaponSetAllocationNodeIds>({ 1: [], 2: [] });
       const [pobImportStatus, setPobImportStatus] = useState<PobBuildImportStatus>({ kind: "idle" });
       const workflow = usePobImportWorkflow({
         graph,
@@ -50,6 +55,7 @@ describe("usePobImportWorkflow", () => {
         setBuildGoalNodeIds,
         pobImportCode,
         setAscendancyAllocationNodeIds,
+        setWeaponSetAllocationNodeIds,
         setPobImportStatus,
         applyClassStartOption,
         clearOptimizedRouteState,
@@ -59,6 +65,7 @@ describe("usePobImportWorkflow", () => {
         ...workflow,
         buildGoalNodeIds,
         ascendancyNodeIds,
+        weaponSetAllocationNodeIds,
         pobImportStatus,
       };
     });
@@ -71,12 +78,15 @@ describe("usePobImportWorkflow", () => {
     expect(clearOptimizedRouteState).toHaveBeenCalledTimes(1);
     expect(result.current.buildGoalNodeIds).toEqual(["101", "103"]);
     expect(result.current.ascendancyNodeIds).toEqual(["201"]);
+    expect(result.current.weaponSetAllocationNodeIds).toEqual({ 1: ["104"], 2: ["105"] });
     expect(result.current.pobImportStatus).toMatchObject({
       kind: "success",
       importedGoalCount: 1,
       alreadySelectedGoalCount: 1,
-      pobBasePassivePointCount: 3,
+      pobBasePassivePointCount: 4,
       selectedAscendancyNodeCount: 1,
+      selectedWeaponSet1NodeCount: 1,
+      selectedWeaponSet2NodeCount: 1,
       missingNodeCount: 0,
       pathStart: {
         kind: "matched",
@@ -126,6 +136,20 @@ function fixtureGraph(): TreeGraph {
         position: { x: 300, y: 0 },
         flags: { jewelSocket: true },
       },
+      "104": {
+        id: "104",
+        name: "Weapon Set One",
+        stats: ["5% increased Attack Speed"],
+        position: { x: 400, y: 0 },
+        flags: { small: true },
+      },
+      "105": {
+        id: "105",
+        name: "Weapon Set Two",
+        stats: ["5% increased Cast Speed"],
+        position: { x: 500, y: 0 },
+        flags: { small: true },
+      },
       "200": {
         id: "200",
         name: "Amazon Start",
@@ -159,6 +183,8 @@ function fixtureGraph(): TreeGraph {
       { from: "100", to: "101" },
       { from: "101", to: "102" },
       { from: "102", to: "103" },
+      { from: "103", to: "104" },
+      { from: "103", to: "105" },
       { from: "200", to: "201" },
     ],
     classStarts: { RANGER: "100" },

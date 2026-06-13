@@ -23,6 +23,13 @@ describe("SidePanel", () => {
     expect(props.onOptimize).toHaveBeenCalled();
     expect(props.onAddBuildGoal).toHaveBeenCalledWith("precise_shot");
   });
+
+  it("passes weapon-set mode context into the build goals panel", () => {
+    render(<SidePanel {...defaultProps()} activeAllocationMode="weapon2" />);
+
+    expect(screen.getByText("Weapon Set 2 mode is active.")).not.toBeNull();
+    expect(screen.getByText("To add Weapon Set 2 passives, left-click eligible nodes directly on the tree.")).not.toBeNull();
+  });
 });
 
 function defaultProps() {
@@ -44,7 +51,9 @@ function defaultProps() {
     pobImportStatus: { kind: "idle" as const },
     canApplyOptimizedRoute: false,
     routeCandidateSummaries: [],
+    selectedRouteDetails: undefined,
     selectedRouteIndex: 0,
+    activeAllocationMode: "main" as const,
     onPobImportCodeChange: vi.fn(),
     onImportPobBuildGoals: vi.fn(),
     onRemoveGoal: vi.fn(),

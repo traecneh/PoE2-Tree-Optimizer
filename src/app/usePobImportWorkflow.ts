@@ -6,6 +6,10 @@ import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
 import { mergeNodeIds } from "./allocationPlan";
 import { sanitizeAscendancyAllocationNodeIds } from "./ascendancyAllocation";
 import { buildPobImportReportDetails, pobPathStartStatus } from "./pobImportStatus";
+import {
+  sanitizeWeaponSetAllocations,
+  type WeaponSetAllocationNodeIds,
+} from "./weaponSetAllocation";
 
 type UsePobImportWorkflowOptions = {
   graph: TreeGraph;
@@ -15,6 +19,7 @@ type UsePobImportWorkflowOptions = {
   setBuildGoalNodeIds: Dispatch<SetStateAction<string[]>>;
   pobImportCode: string;
   setAscendancyAllocationNodeIds: Dispatch<SetStateAction<string[]>>;
+  setWeaponSetAllocationNodeIds: Dispatch<SetStateAction<WeaponSetAllocationNodeIds>>;
   setPobImportStatus: Dispatch<SetStateAction<PobBuildImportStatus>>;
   applyClassStartOption: (option: ClassStartOption) => void;
   clearOptimizedRouteState: () => void;
@@ -28,6 +33,7 @@ export function usePobImportWorkflow({
   setBuildGoalNodeIds,
   pobImportCode,
   setAscendancyAllocationNodeIds,
+  setWeaponSetAllocationNodeIds,
   setPobImportStatus,
   applyClassStartOption,
   clearOptimizedRouteState,
@@ -50,18 +56,25 @@ export function usePobImportWorkflow({
         graph,
         nextClassStartOption?.ascendancy,
       );
+      const importedWeaponSetAllocationNodeIds = sanitizeWeaponSetAllocations({
+        1: result.weaponSet1NodeIds,
+        2: result.weaponSet2NodeIds,
+      }, graph);
 
       clearOptimizedRouteState();
       if (pathStartResolution.kind === "matched") {
         applyClassStartOption(pathStartResolution.option);
       }
       setAscendancyAllocationNodeIds(importedAscendancyNodeIds);
+      setWeaponSetAllocationNodeIds(importedWeaponSetAllocationNodeIds);
       setBuildGoalNodeIds((current) => mergeNodeIds(current, importedGoalNodeIds));
       setPobImportStatus({
         kind: "success",
         importedGoalCount: importedGoalNodeIds.length,
         pobBasePassivePointCount: result.pobBasePassivePointCount,
         selectedAscendancyNodeCount: importedAscendancyNodeIds.length,
+        selectedWeaponSet1NodeCount: importedWeaponSetAllocationNodeIds[1].length,
+        selectedWeaponSet2NodeCount: importedWeaponSetAllocationNodeIds[2].length,
         alreadySelectedGoalCount: result.goalNodeIds.length - importedGoalNodeIds.length,
         missingNodeCount: result.missingNodeIds.length,
         pathStart: pobPathStartStatus(pathStartResolution),
@@ -90,6 +103,7 @@ export function usePobImportWorkflow({
     setAscendancyAllocationNodeIds,
     setBuildGoalNodeIds,
     setPobImportStatus,
+    setWeaponSetAllocationNodeIds,
   ]);
 
   return { importPobBuildGoals };

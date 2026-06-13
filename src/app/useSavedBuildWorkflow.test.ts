@@ -2,10 +2,12 @@ import { act, renderHook } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ClassStartOption } from "../tree/classStartAliases";
+import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { SavedBuild, SavedBuildState } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import { emptyAllocationPlanForStart, type AllocationPlan } from "./allocationPlan";
 import { useSavedBuildWorkflow } from "./useSavedBuildWorkflow";
+import { emptyWeaponSetAllocations, type AllocationMode, type WeaponSetAllocationNodeIds } from "./weaponSetAllocation";
 
 describe("useSavedBuildWorkflow", () => {
   it("loads a saved build and clears transient working state", () => {
@@ -28,8 +30,21 @@ describe("useSavedBuildWorkflow", () => {
       const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>("100");
       const [allocationPlan, setAllocationPlan] = useState<AllocationPlan>(emptyAllocationPlanForStart("100"));
       const [nodeVisualScale, setNodeVisualScale] = useState(1);
+      const [activeAllocationMode, setActiveAllocationMode] = useState<AllocationMode>("main");
+      const [weaponSetAllocationNodeIds, setWeaponSetAllocationNodeIds] = useState<WeaponSetAllocationNodeIds>(
+        () => emptyWeaponSetAllocations(),
+      );
       const [buildGoalNodeIds, setBuildGoalNodeIds] = useState(["old-goal"]);
       const [ascendancyNodeIds, setAscendancyAllocationNodeIds] = useState(["old-ascendancy"]);
+      const [appliedOptimizedRouteChoice, setAppliedOptimizedRouteChoice] = useState<OptimizedRouteChoice | undefined>({
+        routeIndex: 0,
+        routeNumber: 1,
+        routeCount: 1,
+        pointCost: 1,
+        pointDeltaFromBest: 0,
+        pointCostRouteNumber: 1,
+        pointCostRouteCount: 1,
+      });
       const [searchQuery, setSearchQuery] = useState("minion");
       const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>("101");
       const workflow = useSavedBuildWorkflow({
@@ -43,8 +58,11 @@ describe("useSavedBuildWorkflow", () => {
         nodeVisualScaleOptions: [1, 2, 3],
         defaultNodeVisualScale: 3,
         setNodeVisualScale,
+        setActiveAllocationMode,
+        setWeaponSetAllocationNodeIds,
         setBuildGoalNodeIds,
         setAscendancyAllocationNodeIds,
+        setAppliedOptimizedRouteChoice,
         resetAscendancyAllocation: () => undefined,
         clearOptimizedRouteState,
         clearPobImport,
@@ -62,8 +80,11 @@ describe("useSavedBuildWorkflow", () => {
         pathStartNodeId,
         allocationPlan,
         nodeVisualScale,
+        activeAllocationMode,
+        weaponSetAllocationNodeIds,
         buildGoalNodeIds,
         ascendancyNodeIds,
+        appliedOptimizedRouteChoice,
         searchQuery,
         searchFocusedNodeId,
       };
@@ -82,8 +103,19 @@ describe("useSavedBuildWorkflow", () => {
     expect(result.current.selectedClassStartId).toBe("ranger:amazon");
     expect(result.current.pathStartNodeId).toBe("200");
     expect(result.current.nodeVisualScale).toBe(3);
+    expect(result.current.activeAllocationMode).toBe("weapon2");
+    expect(result.current.weaponSetAllocationNodeIds).toEqual({ 1: ["201"], 2: ["202"] });
     expect(result.current.buildGoalNodeIds).toEqual(["103"]);
     expect(result.current.ascendancyNodeIds).toEqual(["301", "302"]);
+    expect(result.current.appliedOptimizedRouteChoice).toEqual({
+      routeIndex: 2,
+      routeNumber: 3,
+      routeCount: 4,
+      pointCost: 42,
+      pointDeltaFromBest: 1,
+      pointCostRouteNumber: 1,
+      pointCostRouteCount: 2,
+    });
     expect(result.current.allocationPlan).toMatchObject({
       committedNodePath: ["200", "201"],
       committedEdgeKeys: ["200::201"],
@@ -112,6 +144,20 @@ describe("useSavedBuildWorkflow", () => {
 
     const { result } = renderHook(() => {
       const [buildGoalNodeIds, setBuildGoalNodeIds] = useState(["old-goal"]);
+      const [activeAllocationMode, setActiveAllocationMode] = useState<AllocationMode>("weapon1");
+      const [weaponSetAllocationNodeIds, setWeaponSetAllocationNodeIds] = useState<WeaponSetAllocationNodeIds>({
+        1: ["201"],
+        2: ["202"],
+      });
+      const [appliedOptimizedRouteChoice, setAppliedOptimizedRouteChoice] = useState<OptimizedRouteChoice | undefined>({
+        routeIndex: 1,
+        routeNumber: 2,
+        routeCount: 2,
+        pointCost: 10,
+        pointDeltaFromBest: 1,
+        pointCostRouteNumber: 1,
+        pointCostRouteCount: 1,
+      });
       const [searchQuery, setSearchQuery] = useState("damage");
       const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>("103");
       const workflow = useSavedBuildWorkflow({
@@ -125,8 +171,11 @@ describe("useSavedBuildWorkflow", () => {
         nodeVisualScaleOptions: [1, 2, 3],
         defaultNodeVisualScale: 3,
         setNodeVisualScale: () => undefined,
+        setActiveAllocationMode,
+        setWeaponSetAllocationNodeIds,
         setBuildGoalNodeIds,
         setAscendancyAllocationNodeIds: () => undefined,
+        setAppliedOptimizedRouteChoice,
         resetAscendancyAllocation,
         clearOptimizedRouteState,
         clearPobImport,
@@ -141,6 +190,9 @@ describe("useSavedBuildWorkflow", () => {
       return {
         ...workflow,
         buildGoalNodeIds,
+        activeAllocationMode,
+        weaponSetAllocationNodeIds,
+        appliedOptimizedRouteChoice,
         searchQuery,
         searchFocusedNodeId,
       };
@@ -151,6 +203,9 @@ describe("useSavedBuildWorkflow", () => {
     });
 
     expect(result.current.buildGoalNodeIds).toEqual([]);
+    expect(result.current.activeAllocationMode).toBe("main");
+    expect(result.current.weaponSetAllocationNodeIds).toEqual({ 1: [], 2: [] });
+    expect(result.current.appliedOptimizedRouteChoice).toBeUndefined();
     expect(result.current.searchQuery).toBe("");
     expect(result.current.searchFocusedNodeId).toBeUndefined();
     expect(resetAllocationPlan).toHaveBeenLastCalledWith("200");
@@ -164,6 +219,7 @@ describe("useSavedBuildWorkflow", () => {
     expect(deleteSelectedSavedBuild).toHaveBeenCalledTimes(1);
     expect(resetAllocationPlan).toHaveBeenLastCalledWith("200");
     expect(resetAscendancyAllocation).toHaveBeenCalledTimes(2);
+    expect(result.current.appliedOptimizedRouteChoice).toBeUndefined();
     expect(clearOptimizedRouteState).toHaveBeenCalledTimes(2);
     expect(clearPobImport).toHaveBeenCalledTimes(2);
     expect(clearTreeInteractionState).toHaveBeenCalledTimes(2);
@@ -185,6 +241,17 @@ function savedBuildState(): SavedBuildState {
     nodeVisualScale: 9,
     buildGoalNodeIds: ["103", "200", "missing"],
     ascendancyAllocationNodeIds: ["301", "missing", "302"],
+    activeAllocationMode: "weapon2",
+    weaponSetAllocationNodeIds: { 1: ["201"], 2: ["202", "missing"] },
+    optimizedRouteChoice: {
+      routeIndex: 2,
+      routeNumber: 3,
+      routeCount: 4,
+      pointCost: 42,
+      pointDeltaFromBest: 1,
+      pointCostRouteNumber: 1,
+      pointCostRouteCount: 2,
+    },
   };
 }
 

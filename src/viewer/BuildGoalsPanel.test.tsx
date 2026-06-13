@@ -54,7 +54,127 @@ describe("BuildGoalsPanel", () => {
     expect(onPreviousRoute).toHaveBeenCalledOnce();
     expect(onNextRoute).toHaveBeenCalledOnce();
     expect(onSelectRouteCandidate).toHaveBeenCalledWith(2);
-    expect((screen.getByRole("button", { name: "Apply optimized route" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "Apply selected route" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("shows the applied optimized route choice so users know what saving keeps", () => {
+    render(
+      <BuildGoalsPanel
+        goals={[]}
+        status={{ kind: "already-reached" }}
+        pobImportCode=""
+        pobImportStatus={{ kind: "idle" }}
+        canApplyOptimizedRoute={false}
+        appliedRouteChoice={{
+          routeIndex: 2,
+          routeNumber: 3,
+          routeCount: 4,
+          pointCost: 42,
+          pointDeltaFromBest: 1,
+          pointCostRouteNumber: 1,
+          pointCostRouteCount: 2,
+        }}
+        onPobImportCodeChange={vi.fn()}
+        onImportPobBuildGoals={vi.fn()}
+        onRemoveGoal={vi.fn()}
+        onClearGoals={vi.fn()}
+        onOptimize={vi.fn()}
+        onCancel={vi.fn()}
+        onApplyOptimizedRoute={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Applied route 3 of 4 · 42 points · +1 vs best.")).not.toBeNull();
+    expect(screen.getByText("Saving this build keeps the selected route.")).not.toBeNull();
+  });
+
+  it("shows selected route details and comparison against the best route", () => {
+    render(
+      <BuildGoalsPanel
+        goals={[]}
+        status={{ kind: "success", pointCost: 41, searchType: "anytime", completeReason: "cancelled" }}
+        pobImportCode=""
+        pobImportStatus={{ kind: "idle" }}
+        canApplyOptimizedRoute
+        routeCandidateSummaries={[
+          { index: 0, pointCost: 41, pointCostRouteNumber: 1, pointCostRouteCount: 1 },
+          { index: 1, pointCost: 42, pointCostRouteNumber: 1, pointCostRouteCount: 3 },
+        ]}
+        selectedRouteIndex={1}
+        routeDetails={{
+          pointCost: 42,
+          pointDeltaFromBest: 1,
+          addedNodeCount: 42,
+          selectedOnlyNodeNames: ["Arcane Mixtures", "Flow Like Water"],
+          bestOnlyNodeNames: ["Dampening Shield"],
+          selectedOnlyEdgeCount: 4,
+          bestOnlyEdgeCount: 3,
+          routeSummary: {
+            pointCount: 42,
+            nodeCount: 42,
+            summedStats: [{
+              key: "%:increased maximum energy shield",
+              label: "increased maximum Energy Shield",
+              value: 58,
+              formattedValue: "58",
+              unit: "%",
+              text: "58% increased maximum Energy Shield",
+              sourceNodeIds: ["energy-a", "energy-b"],
+              sourceNodeNames: ["Arcane Mixtures", "Flow Like Water"],
+            }],
+            otherStats: [{
+              text: "Cannot be Stunned",
+              count: 1,
+              sourceNodeIds: ["stun"],
+              sourceNodeNames: ["Arcane Mixtures"],
+            }],
+          },
+          selectedOnlySummary: {
+            pointCount: 2,
+            nodeCount: 2,
+            summedStats: [{
+              key: ":to strength",
+              label: "to Strength",
+              value: 10,
+              formattedValue: "+10",
+              unit: "",
+              text: "+10 to Strength",
+              sourceNodeIds: ["strength"],
+              sourceNodeNames: ["Arcane Mixtures"],
+            }],
+            otherStats: [],
+          },
+          bestOnlySummary: {
+            pointCount: 1,
+            nodeCount: 1,
+            summedStats: [],
+            otherStats: [],
+          },
+        }}
+        onPobImportCodeChange={vi.fn()}
+        onImportPobBuildGoals={vi.fn()}
+        onRemoveGoal={vi.fn()}
+        onClearGoals={vi.fn()}
+        onOptimize={vi.fn()}
+        onCancel={vi.fn()}
+        onApplyOptimizedRoute={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("region", { name: "Selected route details" })).not.toBeNull();
+    expect(screen.getByText("+1 point compared with best route")).not.toBeNull();
+    expect(screen.getByText("42 added passives")).not.toBeNull();
+    expect(screen.getByText("Only in this route")).not.toBeNull();
+    expect(screen.getByText("Arcane Mixtures")).not.toBeNull();
+    expect(screen.getByText("Flow Like Water")).not.toBeNull();
+    expect(screen.getByText("Only in best route")).not.toBeNull();
+    expect(screen.getByText("Dampening Shield")).not.toBeNull();
+    expect(screen.getByText("4 route links differ here; 3 route links only in best.")).not.toBeNull();
+    expect(screen.getByText("Route effects")).not.toBeNull();
+    expect(screen.getByText("58% increased maximum Energy Shield")).not.toBeNull();
+    expect(screen.getByText("Cannot be Stunned")).not.toBeNull();
+    expect(screen.getByText("Unique effects here")).not.toBeNull();
+    expect(screen.getByText("+10 to Strength")).not.toBeNull();
   });
 
   it("shows and resets the no-improvement countdown while searching", () => {
@@ -173,6 +293,30 @@ describe("BuildGoalsPanel", () => {
     expectTooltipText(screen.getByRole("button", { name: "Apply optimized route" }), "Commit the optimized preview");
   });
 
+  it("explains that weapon-set mode uses direct tree clicks instead of build goal optimization", () => {
+    render(
+      <BuildGoalsPanel
+        activeAllocationMode="weapon1"
+        goals={[]}
+        status={{ kind: "idle" }}
+        pobImportCode=""
+        pobImportStatus={{ kind: "idle" }}
+        canApplyOptimizedRoute={false}
+        onPobImportCodeChange={vi.fn()}
+        onImportPobBuildGoals={vi.fn()}
+        onRemoveGoal={vi.fn()}
+        onClearGoals={vi.fn()}
+        onOptimize={vi.fn()}
+        onCancel={vi.fn()}
+        onApplyOptimizedRoute={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Weapon Set 1 mode is active.")).not.toBeNull();
+    expect(screen.getByText("Build goals and Optimize route still affect the main tree only.")).not.toBeNull();
+    expect(screen.getByText("To add Weapon Set 1 passives, left-click eligible nodes directly on the tree.")).not.toBeNull();
+  });
+
   it("reports a concise PoB import summary", () => {
     render(
       <BuildGoalsPanel
@@ -184,6 +328,8 @@ describe("BuildGoalsPanel", () => {
           importedGoalCount: 3,
           pobBasePassivePointCount: 10,
           selectedAscendancyNodeCount: 0,
+          selectedWeaponSet1NodeCount: 0,
+          selectedWeaponSet2NodeCount: 0,
           alreadySelectedGoalCount: 0,
           missingNodeCount: 0,
         }}
@@ -215,6 +361,8 @@ describe("BuildGoalsPanel", () => {
           importedGoalCount: 1,
           pobBasePassivePointCount: 8,
           selectedAscendancyNodeCount: 8,
+          selectedWeaponSet1NodeCount: 0,
+          selectedWeaponSet2NodeCount: 0,
           alreadySelectedGoalCount: 0,
           missingNodeCount: 0,
         }}
@@ -243,6 +391,8 @@ describe("BuildGoalsPanel", () => {
           importedGoalCount: 1,
           pobBasePassivePointCount: 12,
           selectedAscendancyNodeCount: 1,
+          selectedWeaponSet1NodeCount: 1,
+          selectedWeaponSet2NodeCount: 1,
           alreadySelectedGoalCount: 1,
           missingNodeCount: 1,
           details: {
@@ -278,7 +428,7 @@ describe("BuildGoalsPanel", () => {
     expect(screen.getByText("Selected ascendancy passives (1)")).not.toBeNull();
     expect(screen.getByText("Not found in current tree data (1)")).not.toBeNull();
     expect(screen.getByText("999")).not.toBeNull();
-    expect(screen.getByText("Ignored weapon-set passives (2)")).not.toBeNull();
+    expect(screen.getByText("Selected weapon-set passives (2)")).not.toBeNull();
     expect(screen.getByText("Ignored class starts (1)")).not.toBeNull();
     expect(screen.getByText("Ignored pathing passives (1)")).not.toBeNull();
     expect(screen.getByText("Ignored disconnected build goals (1)")).not.toBeNull();

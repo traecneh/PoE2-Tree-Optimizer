@@ -21,6 +21,8 @@ describe("useAllocationDisplayViewModel", () => {
       activeAscendancyAllocationNodeIds: ["precise_shot"],
       activeAscendancyAllocationEdgeKeys: ["projectile_damage::precise_shot"],
       activeAscendancyPointCostByNodeId: new Map([["precise_shot", 0]]),
+      activeAllocationMode: "main",
+      weaponSetAllocationNodeIds: { 1: [], 2: [] },
     }));
 
     expect(result.current.displayAllocatedNodeIds).toEqual(new Set([
@@ -62,6 +64,8 @@ describe("useAllocationDisplayViewModel", () => {
       activeAscendancyAllocationNodeIds: [],
       activeAscendancyAllocationEdgeKeys: [],
       activeAscendancyPointCostByNodeId: new Map(),
+      activeAllocationMode: "main",
+      weaponSetAllocationNodeIds: { 1: [], 2: [] },
     }));
 
     expect(result.current.displayAllocatedNodeIds).toEqual(new Set(["mercenary_start"]));
@@ -98,10 +102,64 @@ describe("useAllocationDisplayViewModel", () => {
       activeAscendancyAllocationNodeIds: [],
       activeAscendancyAllocationEdgeKeys: [],
       activeAscendancyPointCostByNodeId: new Map(),
+      activeAllocationMode: "main",
+      weaponSetAllocationNodeIds: { 1: [], 2: [] },
     }));
 
     expect(result.current.allocatedPointCount).toBe(1);
     expect(result.current.buildSummaryData.nodeCount).toBe(1);
     expect(result.current.buildSummaryData.pointCount).toBe(0);
+  });
+
+  it("adds active weapon set nodes to display and summary while counting base passives by larger set side", () => {
+    const graph: TreeGraph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        set_two: {
+          id: "set_two",
+          groupId: "g1",
+          name: "Set Two",
+          stats: ["5% increased Attack Speed"],
+          position: { x: 320, y: 0 },
+          flags: { small: true },
+        },
+      },
+      edges: [
+        ...sampleGraph.edges,
+        { from: "precise_shot", to: "set_two" },
+      ],
+    };
+    const allocationPlan: AllocationPlan = {
+      committedNodePath: ["mercenary_start", "projectile_damage"],
+      committedEdgeKeys: ["mercenary_start::projectile_damage"],
+      previewNodePath: [],
+      previewEdgeKeys: [],
+      previewRouteNodePath: [],
+    };
+
+    const { result } = renderHook(() => useAllocationDisplayViewModel({
+      visibleGraph: graph,
+      allocationPlan,
+      activeAscendancyAllocationNodeIds: [],
+      activeAscendancyAllocationEdgeKeys: [],
+      activeAscendancyPointCostByNodeId: new Map(),
+      activeAllocationMode: "weapon1",
+      weaponSetAllocationNodeIds: {
+        1: ["precise_shot"],
+        2: ["precise_shot", "set_two"],
+      },
+    }));
+
+    expect(result.current.mainPassivePointCount).toBe(1);
+    expect(result.current.weaponSet1PointCount).toBe(1);
+    expect(result.current.weaponSet2PointCount).toBe(2);
+    expect(result.current.allocatedPointCount).toBe(3);
+    expect(result.current.displayAllocatedNodeIds).toEqual(new Set([
+      "mercenary_start",
+      "projectile_damage",
+      "precise_shot",
+    ]));
+    expect(result.current.weaponSet1EdgeKeys).toEqual(["precise_shot::projectile_damage"]);
   });
 });

@@ -19,6 +19,19 @@ describe("build workflow helpers", () => {
     };
     const buildGoalNodeIds = ["notable"];
     const ascendancyAllocationNodeIds = ["ascendancy"];
+    const weaponSetAllocationNodeIds = {
+      1: ["set-1"],
+      2: ["set-2"],
+    };
+    const optimizedRouteChoice = {
+      routeIndex: 2,
+      routeNumber: 3,
+      routeCount: 4,
+      pointCost: 42,
+      pointDeltaFromBest: 1,
+      pointCostRouteNumber: 1,
+      pointCostRouteCount: 2,
+    };
 
     const state = createSavedBuildState({
       selectedClassStartId: "witch",
@@ -27,14 +40,21 @@ describe("build workflow helpers", () => {
       nodeVisualScale: 3,
       buildGoalNodeIds,
       ascendancyAllocationNodeIds,
+      activeAllocationMode: "weapon1",
+      weaponSetAllocationNodeIds,
+      optimizedRouteChoice,
     });
     allocationPlan.committedNodePath.push("mutated");
     buildGoalNodeIds.push("mutated");
     ascendancyAllocationNodeIds.push("mutated");
+    weaponSetAllocationNodeIds[1].push("mutated");
 
     expect(state.allocationPlan.committedNodePath).toEqual(["start", "notable"]);
     expect(state.buildGoalNodeIds).toEqual(["notable"]);
     expect(state.ascendancyAllocationNodeIds).toEqual(["ascendancy"]);
+    expect(state.activeAllocationMode).toBe("weapon1");
+    expect(state.weaponSetAllocationNodeIds).toEqual({ 1: ["set-1"], 2: ["set-2"] });
+    expect(state.optimizedRouteChoice).toEqual(optimizedRouteChoice);
   });
 
   it("resolves saved class starts by explicit option, node fallback, then first option", () => {
@@ -51,6 +71,8 @@ describe("build workflow helpers", () => {
       nodeVisualScale: 3,
       buildGoalNodeIds: [],
       ascendancyAllocationNodeIds: [],
+      activeAllocationMode: "main",
+      weaponSetAllocationNodeIds: { 1: [], 2: [] },
     }, options)?.id).toBe("sorceress");
     expect(resolveSavedClassStartOption({
       pathStartNodeId: "ranger_start",
@@ -58,12 +80,16 @@ describe("build workflow helpers", () => {
       nodeVisualScale: 3,
       buildGoalNodeIds: [],
       ascendancyAllocationNodeIds: [],
+      activeAllocationMode: "main",
+      weaponSetAllocationNodeIds: { 1: [], 2: [] },
     }, options)?.id).toBe("ranger");
     expect(resolveSavedClassStartOption({
       allocationPlan: emptyAllocationPlanForStart(undefined),
       nodeVisualScale: 3,
       buildGoalNodeIds: [],
       ascendancyAllocationNodeIds: [],
+      activeAllocationMode: "main",
+      weaponSetAllocationNodeIds: { 1: [], 2: [] },
     }, options)?.id).toBe("witch");
   });
 

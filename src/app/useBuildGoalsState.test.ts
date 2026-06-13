@@ -45,7 +45,7 @@ describe("useBuildGoalsState", () => {
     expect(result.current.buildGoalNodeIds).toEqual([]);
   });
 
-  it("runs optimization, previews route candidates, and applies the selected route", async () => {
+  it("runs optimization, previews route candidates, reports route details, and applies the selected route", async () => {
     let progressCallback: ((result: BuildGoalsOptimizeResult) => void) | undefined;
     let resolveRun: ((result: BuildGoalsOptimizeResult) => void) | undefined;
     const cancel = vi.fn();
@@ -126,6 +126,15 @@ describe("useBuildGoalsState", () => {
       pointCostRouteNumber: 1,
       pointCostRouteCount: 2,
     });
+    expect(result.current.buildGoals.selectedRouteDetails).toMatchObject({
+      pointCost: 4,
+      pointDeltaFromBest: 0,
+      addedNodeCount: 3,
+      selectedOnlyNodeNames: [],
+      bestOnlyNodeNames: [],
+      selectedOnlyEdgeCount: 0,
+      bestOnlyEdgeCount: 0,
+    });
     expect(result.current.allocationPlan.previewNodePath).toEqual(["start", "mid", "goal-a", "goal-b"]);
 
     act(() => {
@@ -139,6 +148,15 @@ describe("useBuildGoalsState", () => {
       pointCostRouteNumber: 2,
       pointCostRouteCount: 2,
     });
+    expect(result.current.buildGoals.selectedRouteDetails).toMatchObject({
+      pointCost: 4,
+      pointDeltaFromBest: 0,
+      addedNodeCount: 3,
+      selectedOnlyNodeNames: ["Same Cost"],
+      bestOnlyNodeNames: ["Mid"],
+      selectedOnlyEdgeCount: 2,
+      bestOnlyEdgeCount: 2,
+    });
     expect(result.current.allocationPlan.previewNodePath).toEqual(["start", "same-cost", "goal-a", "goal-b"]);
 
     act(() => {
@@ -151,6 +169,15 @@ describe("useBuildGoalsState", () => {
       pointCostRouteNumber: 1,
       pointCostRouteCount: 1,
     });
+    expect(result.current.buildGoals.selectedRouteDetails).toMatchObject({
+      pointCost: 5,
+      pointDeltaFromBest: 1,
+      addedNodeCount: 3,
+      selectedOnlyNodeNames: ["Alt"],
+      bestOnlyNodeNames: ["Mid"],
+      selectedOnlyEdgeCount: 2,
+      bestOnlyEdgeCount: 2,
+    });
     expect(result.current.allocationPlan.previewNodePath).toEqual(["start", "alt", "goal-b", "goal-a"]);
 
     act(() => {
@@ -160,6 +187,15 @@ describe("useBuildGoalsState", () => {
     expect(result.current.allocationPlan.committedNodePath).toEqual(["start", "alt", "goal-b", "goal-a"]);
     expect(result.current.allocationPlan.previewNodePath).toEqual([]);
     expect(result.current.buildGoals.buildGoalStatus).toEqual({ kind: "already-reached" });
+    expect(result.current.buildGoals.appliedOptimizedRouteChoice).toEqual({
+      routeIndex: 2,
+      routeNumber: 3,
+      routeCount: 3,
+      pointCost: 5,
+      pointDeltaFromBest: 1,
+      pointCostRouteNumber: 1,
+      pointCostRouteCount: 1,
+    });
     expect(cancel).toHaveBeenCalledTimes(0);
   });
 
@@ -224,10 +260,11 @@ function fixtureGraph(): TreeGraph {
     source: { kind: "fixture", path: "src/app/useBuildGoalsState.test.ts" },
     nodes: {
       start: fixtureNode("start", "Start"),
-      mid: fixtureNode("mid", "Mid"),
-      alt: fixtureNode("alt", "Alt"),
-      "goal-a": fixtureNode("goal-a", "Goal A"),
-      "goal-b": fixtureNode("goal-b", "Goal B"),
+      mid: fixtureNode("mid", "Mid", ["+5 to Intelligence"]),
+      alt: fixtureNode("alt", "Alt", ["+5 to Strength"]),
+      "same-cost": fixtureNode("same-cost", "Same Cost", ["+5 to Dexterity"]),
+      "goal-a": fixtureNode("goal-a", "Goal A", ["10% increased Damage"]),
+      "goal-b": fixtureNode("goal-b", "Goal B", ["5% increased Cast Speed"]),
       "goal-c": fixtureNode("goal-c", "Goal C"),
     },
     groups: {},
@@ -238,17 +275,19 @@ function fixtureGraph(): TreeGraph {
       { from: "start", to: "alt" },
       { from: "alt", to: "goal-b" },
       { from: "goal-b", to: "goal-a" },
+      { from: "start", to: "same-cost" },
+      { from: "same-cost", to: "goal-a" },
     ],
     classStarts: { WITCH: "start" },
     bounds: { minX: 0, maxX: 400, minY: 0, maxY: 100 },
   };
 }
 
-function fixtureNode(id: string, name: string) {
+function fixtureNode(id: string, name: string, stats: string[] = []) {
   return {
     id,
     name,
-    stats: [],
+    stats,
     position: { x: 0, y: 0 },
     flags: id === "start" ? { classStart: true } : { small: true },
   };
@@ -277,13 +316,18 @@ function successResult(
 }
 
 function routeCandidate(label: string, pointCost: number, nodeIds: string[]) {
+  const edgeKeys = nodeIds.slice(1).map((nodeId, index) => edgeKey(nodeIds[index], nodeId));
   return {
     label,
     addedNodeIds: nodeIds.slice(1),
-    addedEdgeKeys: nodeIds.slice(1).map((nodeId, index) => `${nodeIds[index]}::${nodeId}`),
+    addedEdgeKeys: edgeKeys,
     totalNodeIds: nodeIds,
-    totalEdgeKeys: nodeIds.slice(1).map((nodeId, index) => `${nodeIds[index]}::${nodeId}`),
+    totalEdgeKeys: edgeKeys,
     orderedNodeIds: nodeIds,
     pointCost,
   };
+}
+
+function edgeKey(left: string, right: string): string {
+  return [left, right].sort().join("::");
 }

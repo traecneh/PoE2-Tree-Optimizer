@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { sampleGraph } from "../tree/sampleGraph";
 import { emptyAllocationPlanForStart, type AllocationPlan } from "./allocationPlan";
 import { useTreeInteractionState } from "./useTreeInteractionState";
+import type { WeaponSetAllocationNodeIds } from "./weaponSetAllocation";
 
 describe("useTreeInteractionState", () => {
   it("previews and applies allocation paths from the current start", () => {
@@ -158,6 +159,40 @@ describe("useTreeInteractionState", () => {
       "projectile_damage",
       "precise_shot",
     ]));
+  });
+
+  it("reports when a weapon-set click would exceed the 24 point cap", () => {
+    const fullWeaponSet = Array.from({ length: 24 }, (_, index) => `existing_${index + 1}`);
+    const { result } = renderHook(() => {
+      const [allocationPlan, setAllocationPlan] = useState<AllocationPlan>(
+        emptyAllocationPlanForStart("mercenary_start"),
+      );
+      const [weaponSetAllocationNodeIds, setWeaponSetAllocationNodeIds] = useState<WeaponSetAllocationNodeIds>({
+        1: fullWeaponSet,
+        2: [],
+      });
+      return useTreeInteractionState({
+        visibleGraph: sampleGraph,
+        allocationPlan,
+        setAllocationPlan,
+        pathStartNodeId: "mercenary_start",
+        allocationDistanceNodeIds: allocationNodes(allocationPlan),
+        currentAllocationEdgeKeys: allocationEdges(allocationPlan),
+        activeAllocationMode: "weapon1",
+        weaponSetAllocationNodeIds,
+        setWeaponSetAllocationNodeIds,
+        clearOptimizedRouteState: () => undefined,
+      });
+    });
+
+    act(() => {
+      result.current.selectTreeNode("projectile_damage");
+    });
+
+    expect(result.current.treeInteractionNotice).toEqual({
+      tone: "warning",
+      message: "Weapon Set 1 cannot allocate Projectile Damage; this path would exceed 24 points.",
+    });
   });
 });
 

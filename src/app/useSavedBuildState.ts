@@ -6,6 +6,7 @@ import {
   type SavedBuild,
   type SavedBuildState,
 } from "../tree/savedBuilds";
+import { parseSavedBuildExport, serializeSavedBuildExport } from "../tree/savedBuildTransfer";
 
 const defaultSavedBuildToastDurationMs = 3000;
 
@@ -35,6 +36,7 @@ export function useSavedBuildState({
     [savedBuilds, selectedSavedBuildId],
   );
   const canSaveCurrentBuild = savedBuildName.trim().length > 0;
+  const canExportSavedBuilds = savedBuilds.length > 0;
 
   const updateSavedBuilds = useCallback((nextBuilds: SavedBuild[]) => {
     setSavedBuilds(nextBuilds);
@@ -130,6 +132,43 @@ export function useSavedBuildState({
     return deletedBuild;
   }, [savedBuilds, selectedSavedBuild, showSavedBuildStatus, updateSavedBuilds]);
 
+  const exportSavedBuildsJson = useCallback((exportedAt?: string): string | undefined => {
+    if (savedBuilds.length === 0) {
+      showSavedBuildStatus("No saved builds to export");
+      return undefined;
+    }
+
+    showSavedBuildStatus(`Exported ${formatBuildCount(savedBuilds.length)}`);
+    return serializeSavedBuildExport(savedBuilds, exportedAt);
+  }, [savedBuilds, showSavedBuildStatus]);
+
+  const importSavedBuildsJson = useCallback((json: string) => {
+    let importedBuilds: SavedBuild[];
+    try {
+      importedBuilds = parseSavedBuildExport(json);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Saved build import failed.";
+      showSavedBuildStatus(`Import failed: ${message}`);
+      return { status: "error" as const, message };
+    }
+
+    const usedIds = new Set(savedBuilds.map((build) => build.id));
+    const nextImportedBuilds = importedBuilds.map((build) => {
+      if (!usedIds.has(build.id)) {
+        usedIds.add(build.id);
+        return build;
+      }
+
+      const nextId = createUniqueSavedBuildId(createSavedBuildId, usedIds);
+      return { ...build, id: nextId };
+    });
+    const nextBuilds = [...savedBuilds, ...nextImportedBuilds];
+
+    updateSavedBuilds(nextBuilds);
+    showSavedBuildStatus(`Imported ${formatBuildCount(nextImportedBuilds.length)}`);
+    return { status: "success" as const, importedCount: nextImportedBuilds.length };
+  }, [createSavedBuildId, savedBuilds, showSavedBuildStatus, updateSavedBuilds]);
+
   useEffect(() => () => {
     if (savedBuildStatusTimeoutId.current !== undefined) {
       window.clearTimeout(savedBuildStatusTimeoutId.current);
@@ -146,10 +185,31 @@ export function useSavedBuildState({
     savedBuildStatus,
     savedBuildStatusFeedbackKey,
     canSaveCurrentBuild,
+    canExportSavedBuilds,
     saveCurrentBuild,
     loadSavedBuild,
     newUnsavedBuild,
     deleteSelectedBuild,
+    exportSavedBuildsJson,
+    importSavedBuildsJson,
     clearSavedBuildStatus,
   };
+}
+
+function createUniqueSavedBuildId(
+  createSavedBuildId: () => string,
+  usedIds: Set<string>,
+): string {
+  let nextId = createSavedBuildId();
+  let attempt = 1;
+  while (usedIds.has(nextId)) {
+    nextId = `${createSavedBuildId()}-${attempt}`;
+    attempt += 1;
+  }
+  usedIds.add(nextId);
+  return nextId;
+}
+
+function formatBuildCount(count: number): string {
+  return `${count} ${count === 1 ? "build" : "builds"}`;
 }

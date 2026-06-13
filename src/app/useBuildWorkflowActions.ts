@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { ClassStartOption } from "../tree/classStartAliases";
+import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
@@ -8,6 +9,7 @@ import { useBuildGoalActions } from "./useBuildGoalActions";
 import { useClassStartAllocationActions } from "./useClassStartAllocationActions";
 import { usePobImportWorkflow } from "./usePobImportWorkflow";
 import { useSavedBuildWorkflow } from "./useSavedBuildWorkflow";
+import { emptyWeaponSetAllocations, type AllocationMode, type WeaponSetAllocationNodeIds } from "./weaponSetAllocation";
 
 type UseBuildWorkflowActionsOptions = {
   graph: TreeGraph;
@@ -23,9 +25,13 @@ type UseBuildWorkflowActionsOptions = {
   nodeVisualScaleOptions: readonly number[];
   defaultNodeVisualScale: number;
   setNodeVisualScale: Dispatch<SetStateAction<number>>;
+  setActiveAllocationMode: Dispatch<SetStateAction<AllocationMode>>;
+  weaponSetAllocationNodeIds: WeaponSetAllocationNodeIds;
+  setWeaponSetAllocationNodeIds: Dispatch<SetStateAction<WeaponSetAllocationNodeIds>>;
   buildGoalNodeIds: string[];
   buildGoalNodeIdSet: ReadonlySet<string>;
   setBuildGoalNodeIds: Dispatch<SetStateAction<string[]>>;
+  setAppliedOptimizedRouteChoice: Dispatch<SetStateAction<OptimizedRouteChoice | undefined>>;
   addBuildGoalNodeId: (nodeId: string) => void;
   addBuildGoalNodeIds: (nodeIds: string[]) => void;
   removeBuildGoalNodeId: (nodeId: string) => void;
@@ -60,9 +66,13 @@ export function useBuildWorkflowActions({
   nodeVisualScaleOptions,
   defaultNodeVisualScale,
   setNodeVisualScale,
+  setActiveAllocationMode,
+  weaponSetAllocationNodeIds,
+  setWeaponSetAllocationNodeIds,
   buildGoalNodeIds,
   buildGoalNodeIdSet,
   setBuildGoalNodeIds,
+  setAppliedOptimizedRouteChoice,
   addBuildGoalNodeId,
   addBuildGoalNodeIds,
   removeBuildGoalNodeId,
@@ -96,6 +106,8 @@ export function useBuildWorkflowActions({
     setPathStartNodeId,
     resetAllocationPlan,
     resetAscendancyAllocation,
+    weaponSetAllocationNodeIds,
+    resetWeaponSetAllocations: () => setWeaponSetAllocationNodeIds(emptyWeaponSetAllocations()),
     clearOptimizedRouteState,
     clearTreeInteractionState,
   });
@@ -116,8 +128,11 @@ export function useBuildWorkflowActions({
     nodeVisualScaleOptions,
     defaultNodeVisualScale,
     setNodeVisualScale,
+    setActiveAllocationMode,
+    setWeaponSetAllocationNodeIds,
     setBuildGoalNodeIds,
     setAscendancyAllocationNodeIds,
+    setAppliedOptimizedRouteChoice,
     resetAscendancyAllocation,
     clearOptimizedRouteState,
     clearPobImport,
@@ -156,6 +171,7 @@ export function useBuildWorkflowActions({
     setBuildGoalNodeIds,
     pobImportCode,
     setAscendancyAllocationNodeIds,
+    setWeaponSetAllocationNodeIds,
     setPobImportStatus,
     applyClassStartOption,
     clearOptimizedRouteState,

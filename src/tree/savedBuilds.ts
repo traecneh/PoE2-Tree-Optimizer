@@ -1,3 +1,5 @@
+import { normalizeOptimizedRouteChoice, type OptimizedRouteChoice } from "./optimizedRouteChoice";
+
 export const savedBuildsStorageKey = "poe2-skill-tree-optimizer.saved-builds.v1";
 const defaultNodeVisualScale = 3;
 
@@ -19,6 +21,16 @@ export type SavedBuildState = {
   nodeVisualScale: number;
   buildGoalNodeIds: string[];
   ascendancyAllocationNodeIds: string[];
+  activeAllocationMode: SavedBuildAllocationMode;
+  weaponSetAllocationNodeIds: SavedBuildWeaponSetAllocationNodeIds;
+  optimizedRouteChoice?: OptimizedRouteChoice;
+};
+
+export type SavedBuildAllocationMode = "main" | "weapon1" | "weapon2";
+
+export type SavedBuildWeaponSetAllocationNodeIds = {
+  1: string[];
+  2: string[];
 };
 
 export type SavedBuild = {
@@ -36,8 +48,7 @@ export function loadSavedBuilds(storage: Storage | undefined = defaultStorage())
     const rawBuilds = storage.getItem(savedBuildsStorageKey);
     if (!rawBuilds) return [];
     const parsedBuilds: unknown = JSON.parse(rawBuilds);
-    if (!Array.isArray(parsedBuilds)) return [];
-    return parsedBuilds.flatMap((build) => normalizeSavedBuild(build));
+    return normalizeSavedBuilds(parsedBuilds);
   } catch {
     return [];
   }
@@ -68,6 +79,11 @@ function defaultStorage(): Storage | undefined {
   }
 }
 
+export function normalizeSavedBuilds(value: unknown): SavedBuild[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((build) => normalizeSavedBuild(build));
+}
+
 function normalizeSavedBuild(value: unknown): SavedBuild[] {
   if (!isRecord(value)) return [];
 
@@ -83,6 +99,9 @@ function normalizeSavedBuild(value: unknown): SavedBuild[] {
   const ascendancyAllocationNodeIds = isStringArray(state.ascendancyAllocationNodeIds)
     ? state.ascendancyAllocationNodeIds
     : [];
+  const activeAllocationMode = normalizeAllocationMode(state.activeAllocationMode);
+  const weaponSetAllocationNodeIds = normalizeWeaponSetAllocationNodeIds(state.weaponSetAllocationNodeIds);
+  const optimizedRouteChoice = normalizeOptimizedRouteChoice(state.optimizedRouteChoice);
 
   if (!id || !name) return [];
 
@@ -98,6 +117,9 @@ function normalizeSavedBuild(value: unknown): SavedBuild[] {
       nodeVisualScale: typeof state.nodeVisualScale === "number" ? state.nodeVisualScale : defaultNodeVisualScale,
       buildGoalNodeIds,
       ascendancyAllocationNodeIds,
+      activeAllocationMode,
+      weaponSetAllocationNodeIds,
+      optimizedRouteChoice,
     },
   }];
 }
@@ -140,4 +162,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function normalizeAllocationMode(value: unknown): SavedBuildAllocationMode {
+  return value === "weapon1" || value === "weapon2" ? value : "main";
+}
+
+function normalizeWeaponSetAllocationNodeIds(value: unknown): SavedBuildWeaponSetAllocationNodeIds {
+  if (!isRecord(value)) return { 1: [], 2: [] };
+
+  return {
+    1: isStringArray(value["1"]) ? value["1"] : [],
+    2: isStringArray(value["2"]) ? value["2"] : [],
+  };
 }

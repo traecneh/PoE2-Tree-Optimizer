@@ -55,6 +55,7 @@ describe("App", () => {
     expect(tooltip.textContent).toContain("Hover path preview");
     expect(tooltip.textContent).toContain("Optimize route");
     expect(tooltip.textContent).toContain("New build");
+    expect(tooltip.textContent).toContain("Export");
     expect(tooltip.textContent).toContain("Reset allocation");
     expect(tooltip.textContent).toContain("PoB");
   });
@@ -261,6 +262,20 @@ describe("App", () => {
           position: { x: 400, y: 0 },
           flags: { keystone: true },
         },
+        "105": {
+          id: "105",
+          name: "Weapon Set One Damage",
+          stats: ["6% increased Attack Damage"],
+          position: { x: 500, y: 0 },
+          flags: { small: true },
+        },
+        "106": {
+          id: "106",
+          name: "Weapon Set Two Speed",
+          stats: ["4% increased Attack Speed"],
+          position: { x: 600, y: 0 },
+          flags: { small: true },
+        },
       },
       groups: {},
       edges: [
@@ -268,9 +283,11 @@ describe("App", () => {
         { from: "102", to: "101" },
         { from: "101", to: "103" },
         { from: "103", to: "104" },
+        { from: "104", to: "105" },
+        { from: "105", to: "106" },
       ],
       classStarts: { Test: "100" },
-      bounds: { minX: 0, maxX: 400, minY: 0, maxY: 0 },
+      bounds: { minX: 0, maxX: 600, minY: 0, maxY: 0 },
     };
   }
 
@@ -1316,6 +1333,54 @@ describe("App", () => {
     expect(within(goalsPanel).queryByText("Unused Keystone")).toBeNull();
   });
 
+  it("imports PoB weapon-set passives and lets the user view each weapon set", async () => {
+    stubTreeFetchWithGraph(pobImportFixtureGraph());
+    const code = encodePobXml(`
+      <PathOfBuilding2>
+        <Tree activeSpec="1">
+          <Spec title="Imported Weapon Tree" nodes="100,101,102,105,106">
+            <WeaponSet1 nodes="105" />
+            <WeaponSet2 nodes="106" />
+          </Spec>
+        </Tree>
+      </PathOfBuilding2>
+    `);
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: "Weapon Set One Damage" });
+
+    fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
+    const importButton = screen.getByRole("button", { name: "Import PoB goals" }) as HTMLButtonElement;
+    await waitFor(() => {
+      expect(importButton.disabled).toBe(false);
+    });
+    fireEvent.click(importButton);
+
+    expect(await screen.findByText("Imported 1 build goal.")).not.toBeNull();
+    expect(screen.getByText("PoB base passives: 3.")).not.toBeNull();
+    expect(screen.getByText("Selected weapon sets: 1/1.")).not.toBeNull();
+    expect(screen.getByText("Allocated 1/123")).not.toBeNull();
+    expect(screen.getByText("W1 1/24 · W2 1/24")).not.toBeNull();
+
+    const weaponSet1Node = screen.getByRole("button", { name: "Weapon Set One Damage" });
+    const weaponSet2Node = screen.getByRole("button", { name: "Weapon Set Two Speed" });
+    expect(weaponSet1Node.classList.contains("weapon-set-1")).toBe(true);
+    expect(weaponSet1Node.classList.contains("allocated")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weapon Set 1 allocation mode" }));
+
+    expect(weaponSet1Node.classList.contains("allocated")).toBe(true);
+    expect(weaponSet1Node.classList.contains("active-weapon-set-node")).toBe(true);
+    expect(weaponSet2Node.classList.contains("allocated")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weapon Set 2 allocation mode" }));
+
+    expect(weaponSet1Node.classList.contains("allocated")).toBe(false);
+    expect(weaponSet2Node.classList.contains("allocated")).toBe(true);
+    expect(weaponSet2Node.classList.contains("active-weapon-set-node")).toBe(true);
+  });
+
   it("imports and selects PoB ascendancy passives with a concise import summary", async () => {
     stubTreeFetchWithGraph(pobAscendancyImportFixtureGraph());
     const code = encodePobXml(`
@@ -1340,7 +1405,7 @@ describe("App", () => {
     expect(await screen.findByText("Imported 0 build goals.")).not.toBeNull();
     expect(screen.getByText("PoB base passives: 0.")).not.toBeNull();
     expect(screen.getByText("Selected 5 ascendancy passives.")).not.toBeNull();
-    expect(screen.queryByText(/weapon set/i)).toBeNull();
+    expect(screen.queryByText(/Selected weapon-set passives/i)).toBeNull();
     expect(screen.queryByText(/Non-weapon nodes imported/i)).toBeNull();
     expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Mercenary - Gemling Legionnaire");
     expect(screen.getByText("Ascendancy 4/8")).not.toBeNull();
@@ -1617,6 +1682,52 @@ describe("App", () => {
     expect(screen.getByText("1 point")).not.toBeNull();
     expect(screen.getByText("Precise Shot -> Jewel Socket")).not.toBeNull();
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(1);
+  });
+
+  it("edits weapon-set passives by clicking eligible nodes while a weapon mode is active", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    const weaponSet1Mode = screen.getByRole("button", { name: "Weapon Set 1 allocation mode" });
+    const mainMode = screen.getByRole("button", { name: "Main allocation mode" });
+    const projectileDamage = screen.getByRole("button", { name: "Projectile Damage" });
+
+    fireEvent.click(weaponSet1Mode);
+    fireEvent.click(projectileDamage);
+
+    expect(screen.getByText("Allocated 1/123")).not.toBeNull();
+    expect(screen.getByText("Main 0/123")).not.toBeNull();
+    expect(screen.getByText("W1 1/24 · W2 0/24")).not.toBeNull();
+    expect(screen.getByText("Weapon Set 1: allocated Projectile Damage. 1/24 used.")).not.toBeNull();
+    expect(projectileDamage.classList.contains("allocated")).toBe(true);
+    expect(projectileDamage.classList.contains("active-weapon-set-node")).toBe(true);
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(0);
+
+    fireEvent.click(mainMode);
+
+    expect(projectileDamage.classList.contains("allocated")).toBe(false);
+    expect(screen.getByText("Allocated 1/123")).not.toBeNull();
+
+    fireEvent.click(weaponSet1Mode);
+    fireEvent.click(projectileDamage);
+
+    expect(screen.getByText("Allocated 0/123")).not.toBeNull();
+    expect(screen.getByText("W1 0/24 · W2 0/24")).not.toBeNull();
+    expect(screen.getByText("Weapon Set 1: removed Projectile Damage. 0/24 used.")).not.toBeNull();
+    expect(projectileDamage.classList.contains("allocated")).toBe(false);
+  });
+
+  it("shows weapon-set feedback for rejected map clicks", () => {
+    stubTreeFetch();
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weapon Set 1 allocation mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
+
+    expect(screen.getByText("Jewel sockets cannot be allocated as weapon set passives.")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(false);
   });
 
   it("previews new paths from the closest allocated node", async () => {

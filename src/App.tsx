@@ -15,6 +15,11 @@ import { usePobImportState } from "./app/usePobImportState";
 import { useSavedBuildState } from "./app/useSavedBuildState";
 import { useTreeInteractionState } from "./app/useTreeInteractionState";
 import { useTreeStateCleanupEffects } from "./app/useTreeStateCleanupEffects";
+import {
+  emptyWeaponSetAllocations,
+  type AllocationMode,
+  type WeaponSetAllocationNodeIds,
+} from "./app/weaponSetAllocation";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
 import { AppHeader } from "./viewer/AppHeader";
@@ -27,6 +32,10 @@ const treeDataVersionLabel = "PoE2 0.5.0";
 
 export default function App() {
   const { allocationPlan, setAllocationPlan, resetAllocationPlan } = useAllocationPlanState();
+  const [activeAllocationMode, setActiveAllocationMode] = useState<AllocationMode>("main");
+  const [weaponSetAllocationNodeIds, setWeaponSetAllocationNodeIds] = useState<WeaponSetAllocationNodeIds>(
+    () => emptyWeaponSetAllocations(),
+  );
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(defaultNodeVisualScale);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>();
@@ -67,10 +76,13 @@ export default function App() {
     savedBuildStatus,
     savedBuildStatusFeedbackKey,
     canSaveCurrentBuild,
+    canExportSavedBuilds,
     saveCurrentBuild,
     loadSavedBuild: selectSavedBuild,
     newUnsavedBuild: markNewUnsavedBuild,
     deleteSelectedBuild: deleteSelectedSavedBuild,
+    exportSavedBuildsJson,
+    importSavedBuildsJson,
   } = useSavedBuildState({ getCurrentState: currentSavedBuildState });
   const visibleGraph = useMemo(
     () => filterVisibleTreeGraph(graph, {
@@ -86,6 +98,9 @@ export default function App() {
     buildGoalStatus,
     optimizedRouteIndex,
     routeCandidateSummaries,
+    selectedRouteDetails,
+    appliedOptimizedRouteChoice,
+    setAppliedOptimizedRouteChoice,
     canApplyOptimizedRoute,
     clearOptimizedRouteState,
     addBuildGoal: addBuildGoalNodeId,
@@ -104,6 +119,11 @@ export default function App() {
   const {
     allocatedNodePath,
     allocatedPointCount,
+    mainPassivePointCount,
+    weaponSet1PointCount,
+    weaponSet2PointCount,
+    weaponSet1EdgeKeys,
+    weaponSet2EdgeKeys,
     displayAllocatedNodeIds,
     displayAllocatedEdgeKeys,
     allocationDistanceNodeIds,
@@ -115,7 +135,25 @@ export default function App() {
     activeAscendancyAllocationNodeIds,
     activeAscendancyAllocationEdgeKeys,
     activeAscendancyPointCostByNodeId,
+    activeAllocationMode,
+    weaponSetAllocationNodeIds,
   });
+  const weaponSet1NodeIdSet = useMemo(
+    () => new Set(weaponSetAllocationNodeIds[1]),
+    [weaponSetAllocationNodeIds],
+  );
+  const weaponSet2NodeIdSet = useMemo(
+    () => new Set(weaponSetAllocationNodeIds[2]),
+    [weaponSetAllocationNodeIds],
+  );
+  const weaponSet1EdgeKeySet = useMemo(
+    () => new Set(weaponSet1EdgeKeys),
+    [weaponSet1EdgeKeys],
+  );
+  const weaponSet2EdgeKeySet = useMemo(
+    () => new Set(weaponSet2EdgeKeys),
+    [weaponSet2EdgeKeys],
+  );
   const {
     selectedNodeId,
     selectedNode,
@@ -128,6 +166,7 @@ export default function App() {
     hoverAllocationPathNodeIds,
     hoverAllocationPathEdgeKeys,
     noAllocationPathNodeId,
+    treeInteractionNotice,
     clearTreeInteractionState,
     updateHoverPreviewTarget,
     toggleHoverPathPreview,
@@ -140,6 +179,9 @@ export default function App() {
     pathStartNodeId,
     allocationDistanceNodeIds,
     currentAllocationEdgeKeys,
+    activeAllocationMode,
+    weaponSetAllocationNodeIds,
+    setWeaponSetAllocationNodeIds,
     clearOptimizedRouteState,
     toggleAscendancyAllocationNode,
   });
@@ -182,9 +224,13 @@ export default function App() {
     nodeVisualScaleOptions,
     defaultNodeVisualScale,
     setNodeVisualScale,
+    setActiveAllocationMode,
+    weaponSetAllocationNodeIds,
+    setWeaponSetAllocationNodeIds,
     buildGoalNodeIds,
     buildGoalNodeIdSet,
     setBuildGoalNodeIds,
+    setAppliedOptimizedRouteChoice,
     addBuildGoalNodeId,
     addBuildGoalNodeIds,
     removeBuildGoalNodeId,
@@ -213,7 +259,24 @@ export default function App() {
       nodeVisualScale,
       buildGoalNodeIds,
       ascendancyAllocationNodeIds: activeAscendancyAllocationNodeIds,
+      activeAllocationMode,
+      weaponSetAllocationNodeIds,
+      optimizedRouteChoice: appliedOptimizedRouteChoice,
     });
+  }
+
+  function exportSavedBuildsFile() {
+    const savedBuildsJson = exportSavedBuildsJson();
+    if (!savedBuildsJson) return;
+    downloadTextFile("poe2-tree-optimizer-builds.json", savedBuildsJson, "application/json");
+  }
+
+  async function importSavedBuildsFile(file: File) {
+    try {
+      importSavedBuildsJson(await file.text());
+    } catch {
+      importSavedBuildsJson("");
+    }
   }
 
   useTreeStateCleanupEffects({
@@ -237,12 +300,17 @@ export default function App() {
         savedBuildStatusFeedbackKey={savedBuildStatusFeedbackKey}
         canSaveCurrentBuild={canSaveCurrentBuild}
         canDeleteSelectedBuild={Boolean(selectedSavedBuild)}
+        canExportSavedBuilds={canExportSavedBuilds}
         classStartOptions={classStartOptions}
         selectedClassStartId={selectedClassStartId}
         nodeVisualScale={nodeVisualScale}
         nodeVisualScaleOptions={nodeVisualScaleOptions}
+        activeAllocationMode={activeAllocationMode}
         hoverPathPreviewEnabled={hoverPathPreviewEnabled}
         allocatedPointCount={allocatedPointCount}
+        mainPassivePointCount={mainPassivePointCount}
+        weaponSet1PointCount={weaponSet1PointCount}
+        weaponSet2PointCount={weaponSet2PointCount}
         activeAscendancyPointCount={activeAscendancyPointCount}
         hasSelectedAscendancy={Boolean(selectedAscendancy)}
         canResetAllocation={canResetAllocation}
@@ -251,8 +319,11 @@ export default function App() {
         onNewUnsavedBuild={newUnsavedBuild}
         onSaveCurrentBuild={saveCurrentBuild}
         onDeleteSelectedBuild={deleteSelectedBuild}
+        onExportSavedBuilds={exportSavedBuildsFile}
+        onImportSavedBuildsFile={importSavedBuildsFile}
         onChangeSelectedClassStart={changeSelectedClassStart}
         onNodeVisualScaleChange={setNodeVisualScale}
+        onChangeActiveAllocationMode={setActiveAllocationMode}
         onToggleHoverPathPreview={toggleHoverPathPreview}
         onResetAllocation={resetAllocation}
       />
@@ -276,12 +347,18 @@ export default function App() {
           searchMatchNodeIds={searchMatchNodeIds}
           searchFocusedNodeId={searchFocusedNodeId}
           buildGoalNodeIds={buildGoalNodeIdSet}
+          activeAllocationMode={activeAllocationMode}
+          weaponSet1NodeIds={weaponSet1NodeIdSet}
+          weaponSet2NodeIds={weaponSet2NodeIdSet}
+          weaponSet1EdgeKeys={weaponSet1EdgeKeySet}
+          weaponSet2EdgeKeys={weaponSet2EdgeKeySet}
           allocatedNodeIds={displayAllocatedNodeIds}
           allocatedEdgeKeys={displayAllocatedEdgeKeys}
           allocationPathNodeIds={allocationPathNodeIds}
           allocationPathEdgeKeys={allocationPathEdgeKeys}
           hoverAllocationPathNodeIds={hoverAllocationPathNodeIds}
           hoverAllocationPathEdgeKeys={hoverAllocationPathEdgeKeys}
+          treeInteractionNotice={treeInteractionNotice}
           onSelectNode={selectTreeNode}
           onAddBuildGoal={toggleMapBuildGoal}
           onHoverNode={updateHoverPreviewTarget}
@@ -304,7 +381,10 @@ export default function App() {
           pobImportStatus={pobImportStatus}
           canApplyOptimizedRoute={canApplyOptimizedRoute}
           routeCandidateSummaries={routeCandidateSummaries}
+          selectedRouteDetails={selectedRouteDetails}
+          appliedOptimizedRouteChoice={appliedOptimizedRouteChoice}
           selectedRouteIndex={optimizedRouteIndex}
+          activeAllocationMode={activeAllocationMode}
           onPobImportCodeChange={setPobImportCode}
           onImportPobBuildGoals={importPobBuildGoals}
           onRemoveGoal={removeBuildGoal}
@@ -326,4 +406,16 @@ export default function App() {
       </section>
     </main>
   );
+}
+
+function downloadTextFile(filename: string, text: string, type: string) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }

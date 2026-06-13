@@ -1,7 +1,14 @@
 import type { ClassStartOption } from "../tree/classStartAliases";
+import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { SavedBuildState } from "../tree/savedBuilds";
 import type { TreeNode } from "../tree/types";
 import { cloneAllocationPlan, type AllocationPlan } from "./allocationPlan";
+import {
+  cloneWeaponSetAllocations,
+  emptyWeaponSetAllocations,
+  type AllocationMode,
+  type WeaponSetAllocationNodeIds,
+} from "./weaponSetAllocation";
 
 export type CreateSavedBuildStateOptions = {
   selectedClassStartId: string | undefined;
@@ -10,6 +17,9 @@ export type CreateSavedBuildStateOptions = {
   nodeVisualScale: number;
   buildGoalNodeIds: string[];
   ascendancyAllocationNodeIds: string[];
+  activeAllocationMode?: AllocationMode;
+  weaponSetAllocationNodeIds?: WeaponSetAllocationNodeIds;
+  optimizedRouteChoice?: OptimizedRouteChoice;
 };
 
 export function createSavedBuildState({
@@ -19,6 +29,9 @@ export function createSavedBuildState({
   nodeVisualScale,
   buildGoalNodeIds,
   ascendancyAllocationNodeIds,
+  activeAllocationMode = "main",
+  weaponSetAllocationNodeIds = emptyWeaponSetAllocations(),
+  optimizedRouteChoice,
 }: CreateSavedBuildStateOptions): SavedBuildState {
   return {
     selectedClassStartId,
@@ -27,6 +40,9 @@ export function createSavedBuildState({
     nodeVisualScale,
     buildGoalNodeIds: [...buildGoalNodeIds],
     ascendancyAllocationNodeIds: [...ascendancyAllocationNodeIds],
+    activeAllocationMode,
+    weaponSetAllocationNodeIds: cloneWeaponSetAllocations(weaponSetAllocationNodeIds),
+    optimizedRouteChoice,
   };
 }
 

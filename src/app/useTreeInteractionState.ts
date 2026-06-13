@@ -14,6 +14,19 @@ import {
   pruneNodePathOnClick,
   type AllocationPlan,
 } from "./allocationPlan";
+import {
+  allocationModeWeaponSetId,
+  nextWeaponSetAllocationNodeIdsForClick,
+  type AllocationMode,
+  type WeaponSetAllocationClickStatus,
+  type WeaponSetAllocationNodeIds,
+  type WeaponSetId,
+} from "./weaponSetAllocation";
+
+export type TreeInteractionNotice = {
+  tone: "info" | "success" | "warning";
+  message: string;
+};
 
 type UseTreeInteractionStateOptions = {
   visibleGraph: TreeGraph;
@@ -22,6 +35,9 @@ type UseTreeInteractionStateOptions = {
   pathStartNodeId: string | undefined;
   allocationDistanceNodeIds: ReadonlySet<string>;
   currentAllocationEdgeKeys: ReadonlySet<string>;
+  activeAllocationMode?: AllocationMode;
+  weaponSetAllocationNodeIds?: WeaponSetAllocationNodeIds;
+  setWeaponSetAllocationNodeIds?: Dispatch<SetStateAction<WeaponSetAllocationNodeIds>>;
   clearOptimizedRouteState: () => void;
   toggleAscendancyAllocationNode?: (node: TreeNode) => void;
 };
@@ -33,6 +49,9 @@ export function useTreeInteractionState({
   pathStartNodeId,
   allocationDistanceNodeIds,
   currentAllocationEdgeKeys,
+  activeAllocationMode = "main",
+  weaponSetAllocationNodeIds = { 1: [], 2: [] },
+  setWeaponSetAllocationNodeIds,
   clearOptimizedRouteState,
   toggleAscendancyAllocationNode,
 }: UseTreeInteractionStateOptions) {
@@ -40,6 +59,7 @@ export function useTreeInteractionState({
   const [hoverPathPreviewEnabled, setHoverPathPreviewEnabled] = useState(false);
   const [hoverPreviewTargetNodeId, setHoverPreviewTargetNodeId] = useState<string | undefined>();
   const [goalShortcutActive, setGoalShortcutActive] = useState(false);
+  const [treeInteractionNotice, setTreeInteractionNotice] = useState<TreeInteractionNotice | undefined>();
 
   const selectedNode = useMemo(
     () => (selectedNodeId ? visibleGraph.nodes[selectedNodeId] : undefined),
@@ -107,6 +127,7 @@ export function useTreeInteractionState({
   const clearTreeInteractionState = useCallback(() => {
     setSelectedNodeId(undefined);
     setHoverPreviewTargetNodeId(undefined);
+    setTreeInteractionNotice(undefined);
   }, []);
 
   const updateHoverPreviewTarget = useCallback((nodeId: string | undefined) => {
@@ -136,10 +157,58 @@ export function useTreeInteractionState({
     clearOptimizedRouteState();
     const node = visibleGraph.nodes[nodeId];
     if (!node) return;
-    if (node.flags.ascendancy) {
+    const activeWeaponSetId = allocationModeWeaponSetId(activeAllocationMode);
+    if (!activeWeaponSetId && node.flags.ascendancy) {
       setSelectedNodeId(nodeId);
       setHoverPreviewTargetNodeId(undefined);
+      setTreeInteractionNotice(undefined);
       toggleAscendancyAllocationNode?.(node);
+      return;
+    }
+
+    if (activeWeaponSetId) {
+      const baseNodePath = allocationPlan.previewNodePath.length > 0
+        ? allocationPlan.previewNodePath
+        : allocationPlan.committedNodePath;
+      const mainNodeIds = baseNodePath.length > 0
+        ? baseNodePath
+        : pathStartNodeId ? [pathStartNodeId] : [];
+      const currentWeaponSetNodeIds = weaponSetAllocationNodeIds[activeWeaponSetId];
+      const result = nextWeaponSetAllocationNodeIdsForClick({
+        graph: visibleGraph,
+        mainNodeIds,
+        weaponSetNodeIds: currentWeaponSetNodeIds,
+        targetNodeId: nodeId,
+      });
+      setTreeInteractionNotice(weaponSetInteractionNotice({
+        node,
+        status: result.status,
+        weaponSetId: activeWeaponSetId,
+        wasAllocated: currentWeaponSetNodeIds.includes(nodeId),
+        stillAllocated: result.nodeIds.includes(nodeId),
+        nextPointCount: result.nodeIds.length,
+      }));
+
+      if (result.status === "updated") {
+        setSelectedNodeId(result.nodeIds.includes(nodeId) ? nodeId : undefined);
+        setHoverPreviewTargetNodeId(undefined);
+        setWeaponSetAllocationNodeIds?.((current) => ({
+          1: activeWeaponSetId === 1 ? result.nodeIds : current[1],
+          2: activeWeaponSetId === 2 ? result.nodeIds : current[2],
+        }));
+        setAllocationPlan((current) => ({
+          ...current,
+          noAllocationPathNodeId: undefined,
+        }));
+        return;
+      }
+
+      setSelectedNodeId(nodeId);
+      setHoverPreviewTargetNodeId(undefined);
+      setAllocationPlan((current) => ({
+        ...current,
+        noAllocationPathNodeId: result.status === "already-main" ? undefined : nodeId,
+      }));
       return;
     }
 
@@ -147,6 +216,7 @@ export function useTreeInteractionState({
     if (committedNodeIndex !== -1) {
       const committedNodePath = pruneCommittedNodePathOnClick(allocationPlan.committedNodePath, nodeId);
       setSelectedNodeId(committedNodePath.includes(nodeId) ? nodeId : undefined);
+      setTreeInteractionNotice(undefined);
       setAllocationPlan({
         committedNodePath,
         committedEdgeKeys: filterEdgeKeysToNodeIds(allocationPlan.committedEdgeKeys, committedNodePath),
@@ -162,6 +232,7 @@ export function useTreeInteractionState({
       const previewNodePath = pruneNodePathOnClick(allocationPlan.previewNodePath, nodeId);
       const previewRouteNodePath = pruneNodePathOnClick(allocationPlan.previewRouteNodePath, nodeId);
       setSelectedNodeId(previewNodePath.includes(nodeId) ? nodeId : undefined);
+      setTreeInteractionNotice(undefined);
       setAllocationPlan({
         ...allocationPlan,
         previewNodePath,
@@ -177,6 +248,7 @@ export function useTreeInteractionState({
     }
 
     setSelectedNodeId(nodeId);
+    setTreeInteractionNotice(undefined);
     setAllocationPlan((current) => {
       const baseNodePath = current.previewNodePath.length > 0
         ? current.previewNodePath
@@ -210,11 +282,14 @@ export function useTreeInteractionState({
     });
   }, [
     allocationPlan,
+    activeAllocationMode,
     clearOptimizedRouteState,
     pathStartNodeId,
     setAllocationPlan,
+    setWeaponSetAllocationNodeIds,
     toggleAscendancyAllocationNode,
     visibleGraph,
+    weaponSetAllocationNodeIds,
   ]);
 
   useEffect(() => {
@@ -265,10 +340,76 @@ export function useTreeInteractionState({
     hoverAllocationPathNodeIds,
     hoverAllocationPathEdgeKeys,
     noAllocationPathNodeId: allocationPlan.noAllocationPathNodeId,
+    treeInteractionNotice,
     clearTreeInteractionState,
     updateHoverPreviewTarget,
     toggleHoverPathPreview,
     selectTreeNode,
     allocatePreviewPath,
   };
+}
+
+function weaponSetInteractionNotice({
+  node,
+  status,
+  weaponSetId,
+  wasAllocated,
+  stillAllocated,
+  nextPointCount,
+}: {
+  node: TreeNode;
+  status: WeaponSetAllocationClickStatus;
+  weaponSetId: WeaponSetId;
+  wasAllocated: boolean;
+  stillAllocated: boolean;
+  nextPointCount: number;
+}): TreeInteractionNotice {
+  const weaponSetLabel = `Weapon Set ${weaponSetId}`;
+  if (status === "updated") {
+    if (wasAllocated) {
+      const action = stillAllocated ? "pruned after" : "removed";
+      return {
+        tone: "success",
+        message: `${weaponSetLabel}: ${action} ${node.name}. ${nextPointCount}/24 used.`,
+      };
+    }
+    return {
+      tone: "success",
+      message: `${weaponSetLabel}: allocated ${node.name}. ${nextPointCount}/24 used.`,
+    };
+  }
+
+  if (status === "already-main") {
+    return {
+      tone: "info",
+      message: `${node.name} is already allocated in the main tree.`,
+    };
+  }
+
+  if (status === "limit-exceeded") {
+    return {
+      tone: "warning",
+      message: `${weaponSetLabel} cannot allocate ${node.name}; this path would exceed 24 points.`,
+    };
+  }
+
+  if (status === "unreachable") {
+    return {
+      tone: "warning",
+      message: `${weaponSetLabel} cannot reach ${node.name} from the current allocation.`,
+    };
+  }
+
+  return {
+    tone: "warning",
+    message: invalidWeaponSetTargetMessage(node),
+  };
+}
+
+function invalidWeaponSetTargetMessage(node: TreeNode): string {
+  if (node.flags.keystone) return "Keystones cannot be allocated as weapon set passives.";
+  if (node.flags.jewelSocket) return "Jewel sockets cannot be allocated as weapon set passives.";
+  if (node.flags.classStart) return "Class starts cannot be allocated as weapon set passives.";
+  if (node.flags.ascendancy) return "Ascendancy nodes cannot be allocated as weapon set passives.";
+  return `${node.name} cannot be allocated as a weapon set passive.`;
 }

@@ -1,9 +1,12 @@
 import type { AllocationPath } from "../tree/pathAllocation";
+import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { TreeEdge, TreeNode } from "../tree/types";
+import type { AllocationMode } from "../app/weaponSetAllocation";
 import {
   BuildGoalsPanel,
   type BuildGoalsPanelGoal,
   type BuildGoalsPanelStatus,
+  type BuildGoalsRouteCandidateDetails,
   type BuildGoalsRouteCandidateSummary,
   type PobBuildImportStatus,
 } from "./BuildGoalsPanel";
@@ -28,7 +31,10 @@ type SidePanelProps = {
   pobImportStatus: PobBuildImportStatus;
   canApplyOptimizedRoute: boolean;
   routeCandidateSummaries: BuildGoalsRouteCandidateSummary[];
+  selectedRouteDetails: BuildGoalsRouteCandidateDetails | undefined;
+  appliedOptimizedRouteChoice?: OptimizedRouteChoice;
   selectedRouteIndex: number;
+  activeAllocationMode: AllocationMode;
   onPobImportCodeChange: (code: string) => void;
   onImportPobBuildGoals: () => void;
   onRemoveGoal: (nodeId: string) => void;
@@ -66,7 +72,10 @@ export function SidePanel({
   pobImportStatus,
   canApplyOptimizedRoute,
   routeCandidateSummaries,
+  selectedRouteDetails,
+  appliedOptimizedRouteChoice,
   selectedRouteIndex,
+  activeAllocationMode,
   onPobImportCodeChange,
   onImportPobBuildGoals,
   onRemoveGoal,
@@ -107,7 +116,10 @@ export function SidePanel({
         pobImportStatus={pobImportStatus}
         canApplyOptimizedRoute={canApplyOptimizedRoute}
         routeCandidateSummaries={routeCandidateSummaries}
+        routeDetails={selectedRouteDetails}
+        appliedRouteChoice={appliedOptimizedRouteChoice}
         selectedRouteIndex={selectedRouteIndex}
+        activeAllocationMode={activeAllocationMode}
         onPobImportCodeChange={onPobImportCodeChange}
         onImportPobBuildGoals={onImportPobBuildGoals}
         onRemoveGoal={onRemoveGoal}

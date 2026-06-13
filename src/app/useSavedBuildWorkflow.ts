@@ -1,5 +1,6 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { ClassStartOption } from "../tree/classStartAliases";
+import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import { sanitizeSavedAllocationPlan, type AllocationPlan } from "./allocationPlan";
@@ -9,6 +10,12 @@ import {
   resolveSavedClassStartOption,
   validNodeVisualScale,
 } from "./buildWorkflow";
+import {
+  emptyWeaponSetAllocations,
+  sanitizeWeaponSetAllocations,
+  type AllocationMode,
+  type WeaponSetAllocationNodeIds,
+} from "./weaponSetAllocation";
 
 type UseSavedBuildWorkflowOptions = {
   graph: TreeGraph;
@@ -21,8 +28,11 @@ type UseSavedBuildWorkflowOptions = {
   nodeVisualScaleOptions: readonly number[];
   defaultNodeVisualScale: number;
   setNodeVisualScale: Dispatch<SetStateAction<number>>;
+  setActiveAllocationMode: Dispatch<SetStateAction<AllocationMode>>;
+  setWeaponSetAllocationNodeIds: Dispatch<SetStateAction<WeaponSetAllocationNodeIds>>;
   setBuildGoalNodeIds: Dispatch<SetStateAction<string[]>>;
   setAscendancyAllocationNodeIds: Dispatch<SetStateAction<string[]>>;
+  setAppliedOptimizedRouteChoice: Dispatch<SetStateAction<OptimizedRouteChoice | undefined>>;
   resetAscendancyAllocation: () => void;
   clearOptimizedRouteState: () => void;
   clearPobImport: () => void;
@@ -45,8 +55,11 @@ export function useSavedBuildWorkflow({
   nodeVisualScaleOptions,
   defaultNodeVisualScale,
   setNodeVisualScale,
+  setActiveAllocationMode,
+  setWeaponSetAllocationNodeIds,
   setBuildGoalNodeIds,
   setAscendancyAllocationNodeIds,
+  setAppliedOptimizedRouteChoice,
   resetAscendancyAllocation,
   clearOptimizedRouteState,
   clearPobImport,
@@ -64,6 +77,9 @@ export function useSavedBuildWorkflow({
     setSearchFocusedNodeId(undefined);
     clearTreeInteractionState();
     setBuildGoalNodeIds([]);
+    setActiveAllocationMode("main");
+    setWeaponSetAllocationNodeIds(emptyWeaponSetAllocations());
+    setAppliedOptimizedRouteChoice(undefined);
     resetAscendancyAllocation();
     resetAllocationPlan(pathStartNodeId);
   }, [
@@ -73,7 +89,10 @@ export function useSavedBuildWorkflow({
     pathStartNodeId,
     resetAllocationPlan,
     resetAscendancyAllocation,
+    setAppliedOptimizedRouteChoice,
+    setActiveAllocationMode,
     setBuildGoalNodeIds,
+    setWeaponSetAllocationNodeIds,
     setSearchFocusedNodeId,
     setSearchQuery,
   ]);
@@ -99,10 +118,13 @@ export function useSavedBuildWorkflow({
       nextClassStartOption?.ascendancy,
     ));
     setNodeVisualScale(validNodeVisualScale(build.state.nodeVisualScale, nodeVisualScaleOptions, defaultNodeVisualScale));
+    setActiveAllocationMode(build.state.activeAllocationMode);
+    setWeaponSetAllocationNodeIds(sanitizeWeaponSetAllocations(build.state.weaponSetAllocationNodeIds, graph));
     setBuildGoalNodeIds(build.state.buildGoalNodeIds.filter((nodeId) => {
       const node = graph.nodes[nodeId];
       return node && canAddBuildGoal(node, { allowAnyPassive: true });
     }));
+    setAppliedOptimizedRouteChoice(build.state.optimizedRouteChoice);
   }, [
     classStartOptions,
     clearOptimizedRouteState,
@@ -114,12 +136,15 @@ export function useSavedBuildWorkflow({
     selectSavedBuild,
     setAllocationPlan,
     setAscendancyAllocationNodeIds,
+    setAppliedOptimizedRouteChoice,
+    setActiveAllocationMode,
     setBuildGoalNodeIds,
     setNodeVisualScale,
     setPathStartNodeId,
     setSearchFocusedNodeId,
     setSearchQuery,
     setSelectedClassStartId,
+    setWeaponSetAllocationNodeIds,
   ]);
 
   const newUnsavedBuild = useCallback((nextStatus = "New unsaved build") => {

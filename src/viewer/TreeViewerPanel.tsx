@@ -1,4 +1,6 @@
 import type { TreeGraph } from "../tree/types";
+import type { TreeInteractionNotice } from "../app/useTreeInteractionState";
+import type { AllocationMode } from "../app/weaponSetAllocation";
 import { TreeViewer, type DebugOverlayState } from "./TreeViewer";
 
 type TreeViewerPanelLoadStatus = "loading" | "loaded" | "fallback";
@@ -15,12 +17,18 @@ type TreeViewerPanelProps = {
   searchMatchNodeIds: ReadonlySet<string>;
   searchFocusedNodeId: string | undefined;
   buildGoalNodeIds: ReadonlySet<string>;
+  activeAllocationMode: AllocationMode;
+  weaponSet1NodeIds: ReadonlySet<string>;
+  weaponSet2NodeIds: ReadonlySet<string>;
+  weaponSet1EdgeKeys: ReadonlySet<string>;
+  weaponSet2EdgeKeys: ReadonlySet<string>;
   allocatedNodeIds: ReadonlySet<string>;
   allocatedEdgeKeys: ReadonlySet<string>;
   allocationPathNodeIds: ReadonlySet<string>;
   allocationPathEdgeKeys: ReadonlySet<string>;
   hoverAllocationPathNodeIds: ReadonlySet<string>;
   hoverAllocationPathEdgeKeys: ReadonlySet<string>;
+  treeInteractionNotice?: TreeInteractionNotice;
   onSelectNode: (nodeId: string) => void;
   onAddBuildGoal: (nodeId: string) => void;
   onHoverNode: (nodeId: string | undefined) => void;
@@ -46,12 +54,18 @@ export function TreeViewerPanel({
   searchMatchNodeIds,
   searchFocusedNodeId,
   buildGoalNodeIds,
+  activeAllocationMode,
+  weaponSet1NodeIds,
+  weaponSet2NodeIds,
+  weaponSet1EdgeKeys,
+  weaponSet2EdgeKeys,
   allocatedNodeIds,
   allocatedEdgeKeys,
   allocationPathNodeIds,
   allocationPathEdgeKeys,
   hoverAllocationPathNodeIds,
   hoverAllocationPathEdgeKeys,
+  treeInteractionNotice,
   onSelectNode,
   onAddBuildGoal,
   onHoverNode,
@@ -70,6 +84,15 @@ export function TreeViewerPanel({
           Loading passive tree...
         </div>
       ) : null}
+      {treeInteractionNotice ? (
+        <div
+          className={`tree-interaction-notice tree-interaction-notice-${treeInteractionNotice.tone}`}
+          role="status"
+          aria-live="polite"
+        >
+          {treeInteractionNotice.message}
+        </div>
+      ) : null}
       <TreeViewer
         graph={graph}
         selectedNodeId={selectedNodeId}
@@ -81,6 +104,11 @@ export function TreeViewerPanel({
         searchMatchNodeIds={searchMatchNodeIds}
         searchFocusedNodeId={searchFocusedNodeId}
         buildGoalNodeIds={buildGoalNodeIds}
+        activeAllocationMode={activeAllocationMode}
+        weaponSet1NodeIds={weaponSet1NodeIds}
+        weaponSet2NodeIds={weaponSet2NodeIds}
+        weaponSet1EdgeKeys={weaponSet1EdgeKeys}
+        weaponSet2EdgeKeys={weaponSet2EdgeKeys}
         allocatedNodeIds={allocatedNodeIds}
         allocatedEdgeKeys={allocatedEdgeKeys}
         allocationPathNodeIds={allocationPathNodeIds}

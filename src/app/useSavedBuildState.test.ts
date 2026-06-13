@@ -49,6 +49,55 @@ describe("useSavedBuildState", () => {
     expect(result.current.savedBuildStatus).toBe("Saved Updated pass");
     expect(storeSavedBuilds).toHaveBeenCalledTimes(2);
     expect(storedBuilds).toHaveLength(2);
+
+    const exportedJson = result.current.exportSavedBuildsJson("2026-06-04T12:00:00.000Z");
+    expect(JSON.parse(exportedJson ?? "{}")).toMatchObject({
+      schemaVersion: 1,
+      exportedAt: "2026-06-04T12:00:00.000Z",
+      builds: [{ id: "build-1", name: "Updated pass" }],
+    });
+  });
+
+  it("imports saved builds and assigns fresh ids for collisions", () => {
+    const storedBuilds: unknown[] = [];
+    const storeSavedBuilds = vi.fn((builds: unknown[]) => {
+      storedBuilds.push(builds);
+    });
+    const createSavedBuildId = vi.fn(() => "fresh-import-id");
+    const existingBuild = {
+      id: "shared-id",
+      name: "Existing build",
+      createdAt: "2026-06-01T00:00:00.000Z",
+      updatedAt: "2026-06-01T00:00:00.000Z",
+      state: savedBuildState(),
+    };
+    const importedBuild = {
+      id: "shared-id",
+      name: "Imported build",
+      createdAt: "2026-06-02T00:00:00.000Z",
+      updatedAt: "2026-06-02T00:00:00.000Z",
+      state: savedBuildState({ pathStartNodeId: "2000" }),
+    };
+    const { result } = renderHook(() => useSavedBuildState({
+      createSavedBuildId,
+      loadSavedBuilds: () => [existingBuild],
+      storeSavedBuilds,
+      getCurrentState: () => savedBuildState(),
+      toastDurationMs: 3000,
+    }));
+
+    act(() => {
+      result.current.importSavedBuildsJson(JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: "2026-06-04T12:00:00.000Z",
+        builds: [importedBuild],
+      }));
+    });
+
+    expect(result.current.savedBuilds.map((build) => build.id)).toEqual(["shared-id", "fresh-import-id"]);
+    expect(result.current.savedBuilds[1].name).toBe("Imported build");
+    expect(result.current.savedBuildStatus).toBe("Imported 1 build");
+    expect(storeSavedBuilds).toHaveBeenCalledWith(result.current.savedBuilds);
   });
 
   it("loads and deletes selected builds", () => {
@@ -143,6 +192,8 @@ function savedBuildState(overrides: Partial<SavedBuildState> = {}): SavedBuildSt
     nodeVisualScale: 3,
     buildGoalNodeIds: [],
     ascendancyAllocationNodeIds: [],
+    activeAllocationMode: "main",
+    weaponSetAllocationNodeIds: { 1: [], 2: [] },
     ...overrides,
   };
 }

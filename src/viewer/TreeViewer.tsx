@@ -3,6 +3,7 @@ import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject, Wh
 import { passiveIconPublicPath } from "../tree/passiveIconAssets";
 import { treeEdgeKey } from "../tree/pathAllocation";
 import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
+import type { AllocationMode } from "../app/weaponSetAllocation";
 import { buildTreeEdgePath } from "./treeEdgePath";
 import { buildFitViewBox } from "./treeViewBox";
 
@@ -25,6 +26,11 @@ type TreeViewerProps = {
   searchMatchNodeIds?: ReadonlySet<string>;
   searchFocusedNodeId?: string;
   buildGoalNodeIds?: ReadonlySet<string>;
+  activeAllocationMode?: AllocationMode;
+  weaponSet1NodeIds?: ReadonlySet<string>;
+  weaponSet2NodeIds?: ReadonlySet<string>;
+  weaponSet1EdgeKeys?: ReadonlySet<string>;
+  weaponSet2EdgeKeys?: ReadonlySet<string>;
   allocatedNodeIds?: ReadonlySet<string>;
   allocatedEdgeKeys?: ReadonlySet<string>;
   allocationPathNodeIds?: ReadonlySet<string>;
@@ -110,6 +116,11 @@ export function TreeViewer({
   searchMatchNodeIds,
   searchFocusedNodeId,
   buildGoalNodeIds,
+  activeAllocationMode = "main",
+  weaponSet1NodeIds,
+  weaponSet2NodeIds,
+  weaponSet1EdgeKeys,
+  weaponSet2EdgeKeys,
   allocatedNodeIds,
   allocatedEdgeKeys,
   allocationPathNodeIds,
@@ -183,6 +194,14 @@ export function TreeViewer({
   const allocatedHighlightEdges = useMemo(
     () => renderedEdgesForKeys(allocatedEdgeKeys, renderedEdgeByKey),
     [allocatedEdgeKeys, renderedEdgeByKey],
+  );
+  const weaponSet1HighlightEdges = useMemo(
+    () => renderedEdgesForKeys(weaponSet1EdgeKeys, renderedEdgeByKey),
+    [renderedEdgeByKey, weaponSet1EdgeKeys],
+  );
+  const weaponSet2HighlightEdges = useMemo(
+    () => renderedEdgesForKeys(weaponSet2EdgeKeys, renderedEdgeByKey),
+    [renderedEdgeByKey, weaponSet2EdgeKeys],
   );
   const allocationPathHighlightEdges = useMemo(
     () => renderedEdgesForKeys(allocationPathEdgeKeys, renderedEdgeByKey),
@@ -458,6 +477,22 @@ export function TreeViewer({
               />
             ))}
           </g>
+          <g className="weapon-set-highlight-layer" aria-hidden="true">
+            {weaponSet1HighlightEdges.map((edge) => (
+              <path
+                key={`${edge.id}-weapon-set-1-highlight`}
+                className={weaponSetEdgeClassName(1, activeAllocationMode)}
+                d={edge.path}
+              />
+            ))}
+            {weaponSet2HighlightEdges.map((edge) => (
+              <path
+                key={`${edge.id}-weapon-set-2-highlight`}
+                className={weaponSetEdgeClassName(2, activeAllocationMode)}
+                d={edge.path}
+              />
+            ))}
+          </g>
           <g className="path-highlight-layer" aria-hidden="true">
             {allocationPathHighlightEdges.map((edge) => (
               <path
@@ -510,6 +545,12 @@ export function TreeViewer({
                 selected={node.node.id === selectedNodeId}
                 pathStart={node.node.id === pathStartNodeId}
                 ascendancyClass={nodeAscendancyClass(node.node, activeAscendancyId)}
+                weaponSetClass={weaponSetNodeClass(
+                  node.node.id,
+                  weaponSet1NodeIds,
+                  weaponSet2NodeIds,
+                  activeAllocationMode,
+                )}
                 noAllocationPath={node.node.id === noAllocationPathNodeId}
                 nodeVisualScale={nodeVisualScale}
                 buildGoal={buildGoalNodeIds?.has(node.node.id) ?? false}
@@ -760,6 +801,42 @@ function nodeAscendancyClass(node: TreeNode, activeAscendancyId: string | undefi
   return node.ascendancy?.id === activeAscendancyId ? "active-ascendancy" : "inactive-ascendancy";
 }
 
+function weaponSetNodeClass(
+  nodeId: string,
+  weaponSet1NodeIds: ReadonlySet<string> | undefined,
+  weaponSet2NodeIds: ReadonlySet<string> | undefined,
+  activeAllocationMode: AllocationMode,
+): string | undefined {
+  const inWeaponSet1 = weaponSet1NodeIds?.has(nodeId) ?? false;
+  const inWeaponSet2 = weaponSet2NodeIds?.has(nodeId) ?? false;
+  if (!inWeaponSet1 && !inWeaponSet2) return undefined;
+
+  const classNames = ["weapon-set-node"];
+  if (inWeaponSet1 && inWeaponSet2) classNames.push("weapon-set-both");
+  else if (inWeaponSet1) classNames.push("weapon-set-1");
+  else classNames.push("weapon-set-2");
+
+  if (
+    (activeAllocationMode === "weapon1" && inWeaponSet1)
+    || (activeAllocationMode === "weapon2" && inWeaponSet2)
+  ) {
+    classNames.push("active-weapon-set-node");
+  } else {
+    classNames.push("inactive-weapon-set-node");
+  }
+
+  return classNames.join(" ");
+}
+
+function weaponSetEdgeClassName(weaponSetId: 1 | 2, activeAllocationMode: AllocationMode): string {
+  const active = activeAllocationMode === `weapon${weaponSetId}`;
+  return [
+    "weapon-set-edge",
+    `weapon-set-${weaponSetId}-edge`,
+    active ? "active-weapon-set-edge" : "inactive-weapon-set-edge",
+  ].join(" ");
+}
+
 function edgeAscendancyClass(
   from: TreeNode,
   to: TreeNode,
@@ -841,6 +918,7 @@ type ButtonNodeProps = {
   selected: boolean;
   pathStart: boolean;
   ascendancyClass?: string;
+  weaponSetClass?: string;
   noAllocationPath: boolean;
   nodeVisualScale: number;
   buildGoal: boolean;
@@ -862,6 +940,7 @@ const ButtonNode = memo(function ButtonNode({
   selected,
   pathStart,
   ascendancyClass,
+  weaponSetClass,
   noAllocationPath,
   nodeVisualScale,
   buildGoal,
@@ -915,7 +994,7 @@ const ButtonNode = memo(function ButtonNode({
 
   return (
     <g
-      className={`tree-node ${typeClass} ${visual.accentClass}${ascendancyClass ? ` ${ascendancyClass}` : ""}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${buildGoal ? " build-goal" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${hoverAllocationPath ? " hover-allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
+      className={`tree-node ${typeClass} ${visual.accentClass}${ascendancyClass ? ` ${ascendancyClass}` : ""}${weaponSetClass ? ` ${weaponSetClass}` : ""}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${buildGoal ? " build-goal" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${hoverAllocationPath ? " hover-allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
       role="button"
       tabIndex={0}

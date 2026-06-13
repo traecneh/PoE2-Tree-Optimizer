@@ -346,6 +346,7 @@ button {
 }
 
 .node-size-control,
+.allocation-mode-control,
 .path-start-control,
 .hover-preview-control,
 .saved-build-select-control,
@@ -358,6 +359,54 @@ button {
   white-space: nowrap;
 }
 
+.allocation-mode-control {
+  gap: 5px;
+}
+
+.allocation-mode-label {
+  color: #c6d0df;
+}
+
+.allocation-mode-buttons {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid #3a4658;
+  border-radius: 6px;
+  background: #1a2230;
+}
+
+.mode-button {
+  min-height: 26px;
+  border: 0;
+  border-right: 1px solid #3a4658;
+  background: transparent;
+  color: #c6d0df;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 7px;
+  transition:
+    background 45ms ease-out,
+    color 45ms ease-out;
+}
+
+.mode-button:last-child {
+  border-right: 0;
+}
+
+.mode-button:hover,
+.mode-button:focus-visible {
+  background: #263248;
+  color: #ffffff;
+  outline: none;
+}
+
+.mode-button[aria-pressed="true"] {
+  background: #40526f;
+  color: #ffffff;
+}
+
 .saved-build-control {
   grid-area: build;
   gap: 6px;
@@ -365,6 +414,32 @@ button {
 
 .saved-build-name-control input {
   width: 100px;
+}
+
+.saved-build-route-choice {
+  max-width: 260px;
+  overflow: hidden;
+  border: 1px solid rgba(216, 194, 122, 0.5);
+  border-radius: 999px;
+  background: rgba(88, 68, 24, 0.26);
+  color: #ffe6a4;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 4px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-build-import-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .header-control-group .tool-button {
@@ -408,6 +483,13 @@ button {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
+}
+
+.allocation-count-breakdown {
+  gap: 8px;
+  color: #c6d0df;
+  font-size: 11px;
+  font-weight: 650;
 }
 
 .tree-setup-control {
@@ -547,6 +629,39 @@ button {
   color: #aab4c4;
   font-size: 14px;
   letter-spacing: 0;
+}
+
+.tree-interaction-notice {
+  position: absolute;
+  z-index: 6;
+  top: 14px;
+  left: 50%;
+  max-width: min(520px, calc(100% - 120px));
+  padding: 9px 12px;
+  border: 1px solid rgba(139, 169, 212, 0.56);
+  border-radius: 7px;
+  background: rgba(10, 14, 20, 0.94);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(139, 169, 212, 0.1);
+  color: #dce9ff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  transform: translateX(-50%);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.tree-interaction-notice-success {
+  border-color: rgba(136, 221, 181, 0.58);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(136, 221, 181, 0.12);
+  color: #d7ffe9;
+}
+
+.tree-interaction-notice-warning {
+  border-color: rgba(232, 190, 92, 0.68);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(232, 190, 92, 0.14);
+  color: #ffe8a8;
 }
 
 .tree-viewer {
@@ -745,6 +860,7 @@ button {
 }
 
 .allocated-highlight-layer,
+.weapon-set-highlight-layer,
 .path-highlight-layer,
 .hover-path-highlight-layer,
 .search-highlight-layer,
@@ -760,6 +876,33 @@ button {
   stroke-linecap: round;
   stroke-width: 5;
   vector-effect: non-scaling-stroke;
+}
+
+.weapon-set-edge {
+  fill: none;
+  pointer-events: none;
+  stroke-linecap: round;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.weapon-set-1-edge {
+  stroke: #ffbf5f;
+  stroke-dasharray: 16 10;
+}
+
+.weapon-set-2-edge {
+  stroke: #74cfff;
+  stroke-dasharray: 10 9;
+}
+
+.weapon-set-edge.active-weapon-set-edge {
+  opacity: 0.86;
+  stroke-width: 5;
+}
+
+.weapon-set-edge.inactive-weapon-set-edge {
+  opacity: 0.34;
 }
 
 .allocation-path-edge {
@@ -1053,6 +1196,44 @@ button {
 .tree-node.build-goal .node-frame {
   stroke: #c289ff;
   stroke-width: 8;
+}
+
+.tree-node.weapon-set-node .node-frame {
+  stroke-width: 5;
+}
+
+.tree-node.weapon-set-1 .node-frame {
+  stroke: #ffbf5f;
+}
+
+.tree-node.weapon-set-2 .node-frame {
+  stroke: #74cfff;
+}
+
+.tree-node.weapon-set-both .node-frame {
+  stroke: #f2f1a1;
+  stroke-dasharray: 10 6;
+}
+
+.tree-node.inactive-weapon-set-node:not(.allocated) .node-frame {
+  opacity: 0.82;
+  stroke-width: 4;
+}
+
+.tree-node.active-weapon-set-node .node-core {
+  stroke-width: 3;
+}
+
+.tree-node.weapon-set-1.active-weapon-set-node .node-core {
+  stroke: #ffe4a8;
+}
+
+.tree-node.weapon-set-2.active-weapon-set-node .node-core {
+  stroke: #c7f0ff;
+}
+
+.tree-node.weapon-set-both.active-weapon-set-node .node-core {
+  stroke: #ffffcf;
 }
 
 .tree-node.allocated .node-halo {
@@ -1427,6 +1608,24 @@ button {
   font-size: 12px;
 }
 
+.build-goals-weapon-set-note {
+  display: grid;
+  gap: 3px;
+  margin-top: 10px;
+  border: 1px solid rgba(118, 217, 255, 0.32);
+  border-radius: 6px;
+  background: rgba(23, 47, 61, 0.42);
+  padding: 8px 10px;
+  color: #c7d8e8;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.build-goals-weapon-set-note strong {
+  color: #76d9ff;
+  font-size: 12px;
+}
+
 .pob-import-control {
   display: grid;
   gap: 8px;
@@ -1663,6 +1862,111 @@ button {
 .optimized-route-cost-chip:disabled {
   cursor: default;
   opacity: 0.62;
+}
+
+.optimized-route-details {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  border: 1px solid rgba(74, 92, 118, 0.8);
+  border-radius: 6px;
+  background: rgba(15, 20, 28, 0.74);
+  padding: 9px;
+  color: #c9d6e6;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.optimized-route-details-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.optimized-route-details h3,
+.optimized-route-details h4 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.optimized-route-details h3 {
+  color: #eef2f7;
+  font-size: 13px;
+}
+
+.optimized-route-details h4 {
+  color: #9edecb;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.optimized-route-details-header span,
+.optimized-route-details-count {
+  color: #f0d079;
+  font-weight: 800;
+}
+
+.optimized-route-details-count,
+.optimized-route-edge-delta,
+.optimized-route-difference p,
+.optimized-route-effect-summary p {
+  margin: 0;
+}
+
+.optimized-route-edge-delta,
+.optimized-route-difference p,
+.optimized-route-effect-summary p {
+  color: #95a8be;
+}
+
+.optimized-route-difference,
+.optimized-route-effect-summary {
+  display: grid;
+  gap: 5px;
+}
+
+.optimized-route-difference ul,
+.optimized-route-effect-summary ul {
+  display: grid;
+  gap: 4px;
+  max-height: 112px;
+  margin: 0;
+  padding-left: 17px;
+  overflow: auto;
+}
+
+.optimized-route-effect-summary li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.optimized-route-effect-count {
+  flex: 0 0 auto;
+  color: #f3d67a;
+  font-weight: 800;
+}
+
+.optimized-route-applied {
+  display: grid;
+  gap: 3px;
+  margin: 10px 0 0;
+  border: 1px solid rgba(216, 194, 122, 0.48);
+  border-radius: 6px;
+  background: rgba(88, 68, 24, 0.28);
+  padding: 8px;
+  color: #ffe6a4;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.optimized-route-applied span + span {
+  color: #9edecb;
+  font-weight: 600;
 }
 
 .build-goals-status {

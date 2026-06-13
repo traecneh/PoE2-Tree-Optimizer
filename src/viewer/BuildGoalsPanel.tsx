@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import type { AllocationMode } from "../app/weaponSetAllocation";
+import type { BuildSummary } from "../tree/buildSummary";
+import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { TreeNode } from "../tree/types";
 import { ControlTooltip } from "./ControlTooltip";
 
@@ -30,6 +33,19 @@ export type BuildGoalsRouteCandidateSummary = {
   pointCostRouteCount: number;
 };
 
+export type BuildGoalsRouteCandidateDetails = {
+  pointCost: number;
+  pointDeltaFromBest: number;
+  addedNodeCount: number;
+  selectedOnlyNodeNames: string[];
+  bestOnlyNodeNames: string[];
+  selectedOnlyEdgeCount: number;
+  bestOnlyEdgeCount: number;
+  routeSummary: BuildSummary;
+  selectedOnlySummary: BuildSummary;
+  bestOnlySummary: BuildSummary;
+};
+
 export type PobBuildImportStatus =
   | { kind: "idle" }
   | {
@@ -37,6 +53,8 @@ export type PobBuildImportStatus =
     importedGoalCount: number;
     pobBasePassivePointCount: number;
     selectedAscendancyNodeCount: number;
+    selectedWeaponSet1NodeCount: number;
+    selectedWeaponSet2NodeCount: number;
     alreadySelectedGoalCount: number;
     missingNodeCount: number;
     pathStart?: PobBuildImportPathStartStatus;
@@ -83,7 +101,10 @@ type BuildGoalsPanelProps = {
   pobImportStatus: PobBuildImportStatus;
   canApplyOptimizedRoute: boolean;
   routeCandidateSummaries?: BuildGoalsRouteCandidateSummary[];
+  routeDetails?: BuildGoalsRouteCandidateDetails;
+  appliedRouteChoice?: OptimizedRouteChoice;
   selectedRouteIndex?: number;
+  activeAllocationMode?: AllocationMode;
   onPobImportCodeChange: (code: string) => void;
   onImportPobBuildGoals: () => void;
   onRemoveGoal: (nodeId: string) => void;
@@ -105,7 +126,10 @@ export function BuildGoalsPanel({
   pobImportStatus,
   canApplyOptimizedRoute,
   routeCandidateSummaries = [],
+  routeDetails,
+  appliedRouteChoice,
   selectedRouteIndex = 0,
+  activeAllocationMode = "main",
   onPobImportCodeChange,
   onImportPobBuildGoals,
   onRemoveGoal,
@@ -122,6 +146,10 @@ export function BuildGoalsPanel({
   const selectedRouteCandidate = routeCandidateSummaries[selectedRouteIndex];
   const routeCandidateCostGroups = groupRouteCandidateCostSummaries(routeCandidateSummaries);
   const hasRouteCandidates = routeCandidateCount > 1;
+  const applyRouteLabel = hasRouteCandidates ? "Apply selected route" : "Apply optimized route";
+  const applyRouteTooltip = hasRouteCandidates
+    ? "Commit the selected optimized route candidate to the current allocation."
+    : "Commit the optimized preview to the current allocation.";
 
   return (
     <section className="build-goals-panel" aria-label="Build goals">
@@ -142,6 +170,7 @@ export function BuildGoalsPanel({
           </button>
         </ControlTooltip>
       </div>
+      <WeaponSetModeNotice mode={activeAllocationMode} />
       <div className="pob-import-control">
         <label className="pob-import-label" htmlFor="pob-build-code-input">PoB build code</label>
         <ControlTooltip
@@ -234,7 +263,7 @@ export function BuildGoalsPanel({
         </ControlTooltip>
         <ControlTooltip
           id="apply-optimized-route-tooltip"
-          text="Commit the optimized preview to the current allocation."
+          text={applyRouteTooltip}
           block
           className="optimized-route-action-tooltip"
         >
@@ -245,7 +274,7 @@ export function BuildGoalsPanel({
             onClick={onApplyOptimizedRoute}
             disabled={!canApplyOptimizedRoute}
           >
-            Apply optimized route
+            {applyRouteLabel}
           </button>
         </ControlTooltip>
       </div>
@@ -310,13 +339,41 @@ export function BuildGoalsPanel({
           ) : null}
         </div>
       ) : null}
+      {routeDetails ? <OptimizedRouteDetails details={routeDetails} /> : null}
+      {appliedRouteChoice ? <AppliedOptimizedRouteChoiceMessage choice={appliedRouteChoice} /> : null}
       <BuildGoalStatusMessage status={status} />
     </section>
   );
 }
 
+function WeaponSetModeNotice({ mode }: { mode: AllocationMode }) {
+  if (mode === "main") return null;
+  const label = mode === "weapon1" ? "Weapon Set 1" : "Weapon Set 2";
+
+  return (
+    <div className="build-goals-weapon-set-note" role="note">
+      <strong>{`${label} mode is active.`}</strong>
+      <span>Build goals and Optimize route still affect the main tree only.</span>
+      <span>{`To add ${label} passives, left-click eligible nodes directly on the tree.`}</span>
+    </div>
+  );
+}
+
 function tooltipId(prefix: string, value: string): string {
   return `${prefix}-${value.replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
+}
+
+function AppliedOptimizedRouteChoiceMessage({ choice }: { choice: OptimizedRouteChoice }) {
+  const deltaText = choice.pointDeltaFromBest > 0
+    ? `+${choice.pointDeltaFromBest} vs best`
+    : "matches best";
+
+  return (
+    <p className="optimized-route-applied" role="status">
+      <span>{`Applied route ${choice.routeNumber} of ${choice.routeCount} · ${formatPointCost(choice.pointCost)} · ${deltaText}.`}</span>
+      <span>Saving this build keeps the selected route.</span>
+    </p>
+  );
 }
 
 function PobImportStatusMessage({ status }: { status: PobBuildImportStatus }) {
@@ -332,6 +389,9 @@ function PobImportStatusMessage({ status }: { status: PobBuildImportStatus }) {
         <span>{` PoB base passives: ${status.pobBasePassivePointCount}.`}</span>
         {status.selectedAscendancyNodeCount > 0 ? (
           <span>{` Selected ${formatAscendancyPassiveCount(status.selectedAscendancyNodeCount)}.`}</span>
+        ) : null}
+        {status.selectedWeaponSet1NodeCount > 0 || status.selectedWeaponSet2NodeCount > 0 ? (
+          <span>{` Selected weapon sets: ${status.selectedWeaponSet1NodeCount}/${status.selectedWeaponSet2NodeCount}.`}</span>
         ) : null}
         {status.alreadySelectedGoalCount > 0 ? (
           <span>{` ${formatGoalCount(status.alreadySelectedGoalCount)} already selected.`}</span>
@@ -362,7 +422,7 @@ function PobImportReport({ details }: { details: PobBuildImportReportDetails | u
       <PobImportNodeGroup title="Already selected goals" nodes={details.alreadySelectedGoalNodes} />
       <PobImportNodeGroup title="Selected ascendancy passives" nodes={details.selectedAscendancyNodes} />
       <PobImportIdGroup title="Not found in current tree data" nodeIds={details.missingNodeIds} limit={24} />
-      <PobImportIdGroup title="Ignored weapon-set passives" nodeIds={details.weaponSetNodeIds} limit={16} />
+      <PobImportIdGroup title="Selected weapon-set passives" nodeIds={details.weaponSetNodeIds} limit={16} />
       {ignoredGroups.map((group) => (
         <PobImportNodeGroup
           key={group.reason}
@@ -525,6 +585,117 @@ function OptimizerCountdown({ secondsRemaining }: { secondsRemaining: number }) 
   );
 }
 
+function OptimizedRouteDetails({ details }: { details: BuildGoalsRouteCandidateDetails }) {
+  return (
+    <section className="optimized-route-details" aria-label="Selected route details">
+      <div className="optimized-route-details-header">
+        <h3>Route details</h3>
+        <span>{formatRouteDelta(details.pointDeltaFromBest)}</span>
+      </div>
+      <p className="optimized-route-details-count">{formatAddedPassiveCount(details.addedNodeCount)}</p>
+      <RouteDifferenceList
+        title="Only in this route"
+        nodeNames={details.selectedOnlyNodeNames}
+        emptyText={details.pointDeltaFromBest === 0 ? "No passive difference from the best route." : "No extra passives beyond the best route."}
+      />
+      {details.bestOnlyNodeNames.length > 0 ? (
+        <RouteDifferenceList
+          title="Only in best route"
+          nodeNames={details.bestOnlyNodeNames}
+          emptyText="No passives only in the best route."
+        />
+      ) : null}
+      {details.selectedOnlyEdgeCount > 0 || details.bestOnlyEdgeCount > 0 ? (
+        <p className="optimized-route-edge-delta">
+          {formatEdgeDelta(details.selectedOnlyEdgeCount, details.bestOnlyEdgeCount)}
+        </p>
+      ) : null}
+      <RouteEffectSummary
+        title="Route effects"
+        summary={details.routeSummary}
+        emptyText="This route adds no stat lines."
+      />
+      {details.selectedOnlyNodeNames.length > 0 ? (
+        <RouteEffectSummary
+          title="Unique effects here"
+          summary={details.selectedOnlySummary}
+          emptyText="The unique passives here add no stat lines."
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function RouteDifferenceList({
+  title,
+  nodeNames,
+  emptyText,
+}: {
+  title: string;
+  nodeNames: string[];
+  emptyText: string;
+}) {
+  const visibleNodeNames = nodeNames.slice(0, 6);
+  const hiddenCount = nodeNames.length - visibleNodeNames.length;
+
+  return (
+    <section className="optimized-route-difference">
+      <h4>{title}</h4>
+      {visibleNodeNames.length > 0 ? (
+        <>
+          <ul>
+            {visibleNodeNames.map((nodeName) => <li key={nodeName}>{nodeName}</li>)}
+          </ul>
+          {hiddenCount > 0 ? <p>{`and ${hiddenCount} more`}</p> : null}
+        </>
+      ) : (
+        <p>{emptyText}</p>
+      )}
+    </section>
+  );
+}
+
+function RouteEffectSummary({
+  title,
+  summary,
+  emptyText,
+}: {
+  title: string;
+  summary: BuildSummary;
+  emptyText: string;
+}) {
+  const visibleSummedStats = summary.summedStats.slice(0, 5);
+  const visibleOtherStats = summary.otherStats.slice(0, 3);
+  const hiddenCount = (summary.summedStats.length - visibleSummedStats.length)
+    + (summary.otherStats.length - visibleOtherStats.length);
+
+  return (
+    <section className="optimized-route-effect-summary">
+      <h4>{title}</h4>
+      {visibleSummedStats.length > 0 || visibleOtherStats.length > 0 ? (
+        <>
+          <ul>
+            {visibleSummedStats.map((stat) => (
+              <li key={stat.key} title={formatSourceTitle(stat.sourceNodeNames)}>
+                {stat.text}
+              </li>
+            ))}
+            {visibleOtherStats.map((stat) => (
+              <li key={stat.text} title={formatSourceTitle(stat.sourceNodeNames)}>
+                <span>{stat.text}</span>
+                {stat.count > 1 ? <span className="optimized-route-effect-count">{`x${stat.count}`}</span> : null}
+              </li>
+            ))}
+          </ul>
+          {hiddenCount > 0 ? <p>{`and ${hiddenCount} more effects`}</p> : null}
+        </>
+      ) : (
+        <p>{emptyText}</p>
+      )}
+    </section>
+  );
+}
+
 function useOptimizerImprovementCountdown(resetKey: string | undefined): number {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const startAtMsRef = useRef(nowMs);
@@ -587,6 +758,24 @@ function formatStatusMessage(status: BuildGoalsPanelStatus): string | undefined 
 
 function formatRouteCandidateDetail(candidate: BuildGoalsRouteCandidateSummary): string {
   return `${formatPointCost(candidate.pointCost)} · variant ${candidate.pointCostRouteNumber} of ${candidate.pointCostRouteCount}`;
+}
+
+function formatRouteDelta(pointDeltaFromBest: number): string {
+  if (pointDeltaFromBest === 0) return "Current best route";
+  return `+${formatPointCost(pointDeltaFromBest)} compared with best route`;
+}
+
+function formatAddedPassiveCount(addedNodeCount: number): string {
+  return `${addedNodeCount} added ${addedNodeCount === 1 ? "passive" : "passives"}`;
+}
+
+function formatEdgeDelta(selectedOnlyEdgeCount: number, bestOnlyEdgeCount: number): string {
+  return `${selectedOnlyEdgeCount} route ${selectedOnlyEdgeCount === 1 ? "link differs" : "links differ"} here; ${bestOnlyEdgeCount} route ${bestOnlyEdgeCount === 1 ? "link" : "links"} only in best.`;
+}
+
+function formatSourceTitle(sourceNodeNames: string[]): string | undefined {
+  if (sourceNodeNames.length < 2) return undefined;
+  return `${sourceNodeNames.length} sources: ${sourceNodeNames.join("; ")}`;
 }
 
 function groupRouteCandidateCostSummaries(routeCandidates: BuildGoalsRouteCandidateSummary[]) {
