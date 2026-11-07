@@ -11,6 +11,8 @@ import {
   type BuildGoalsOptimizationRun,
 } from "../tree/buildGoalsOptimizerClient";
 import { buildSummary } from "../tree/buildSummary";
+import { defaultPassiveOptimizationSettings, normalizePassiveOptimizationSettings, type PassiveOptimizationSettings } from "../tree/passivePreferences";
+import { maxPassiveAllocationPointCount } from "../tree/passivePointBudget";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { TreeGraph } from "../tree/types";
 import type { AllocationPlan } from "./allocationPlan";
@@ -26,6 +28,7 @@ type UseBuildGoalsStateOptions = {
   allocationPlan: AllocationPlan;
   setAllocationPlan: Dispatch<SetStateAction<AllocationPlan>>;
   runOptimization?: RunBuildGoalsOptimization;
+  mainPointLimit?: number;
 };
 
 export function useBuildGoalsState({
@@ -33,13 +36,16 @@ export function useBuildGoalsState({
   allocationPlan,
   setAllocationPlan,
   runOptimization = runDefaultBuildGoalsOptimization,
+  mainPointLimit = maxPassiveAllocationPointCount,
 }: UseBuildGoalsStateOptions) {
   const [buildGoalNodeIds, setBuildGoalNodeIds] = useState<string[]>([]);
+  const [optimizerSettings, setOptimizerSettings] = useState(defaultPassiveOptimizationSettings);
   const [buildGoalStatus, setBuildGoalStatus] = useState<BuildGoalsPanelStatus>({ kind: "idle" });
   const [optimizedPreview, setOptimizedPreview] = useState<BuildGoalsOptimizeResult | undefined>();
   const [optimizedRouteIndex, setOptimizedRouteIndex] = useState(0);
   const [appliedOptimizedRouteChoice, setAppliedOptimizedRouteChoice] = useState<OptimizedRouteChoice | undefined>();
   const optimizerRun = useRef<BuildGoalsOptimizationRun | undefined>(undefined);
+  const allocationBeforeOptimization = useRef<AllocationPlan | undefined>(undefined);
 
   const buildGoalNodeIdSet = useMemo(
     () => new Set(buildGoalNodeIds),
@@ -64,7 +70,19 @@ export function useBuildGoalsState({
     setOptimizedRouteIndex(0);
     setAppliedOptimizedRouteChoice(undefined);
     setBuildGoalStatus(nextStatus);
+    allocationBeforeOptimization.current = undefined;
   }, []);
+
+  const restoreOptimizerSettings = useCallback((settings: PassiveOptimizationSettings) => {
+    setOptimizerSettings(normalizePassiveOptimizationSettings(settings));
+  }, []);
+
+  const updateOptimizerSettings = useCallback((settings: PassiveOptimizationSettings) => {
+    const originalAllocation = allocationBeforeOptimization.current;
+    clearOptimizedRouteState();
+    if (originalAllocation) setAllocationPlan(originalAllocation);
+    restoreOptimizerSettings(settings);
+  }, [clearOptimizedRouteState, restoreOptimizerSettings, setAllocationPlan]);
 
   const addBuildGoal = useCallback((nodeId: string) => {
     clearOptimizedRouteState();
@@ -133,7 +151,7 @@ export function useBuildGoalsState({
       return;
     }
 
-    if (result.pointCost === 0) {
+    if (result.pointCost === 0 && !result.weighted) {
       setAppliedOptimizedRouteChoice(undefined);
       setBuildGoalStatus({ kind: "already-reached" });
       return;
@@ -149,10 +167,16 @@ export function useBuildGoalsState({
       searchType: result.searchType,
       completeReason: result.completeReason,
       improvementHistory: result.improvementHistory,
+      weighted: result.weighted,
+      message: result.message,
     });
   }, [showOptimizedRoutePreview, visibleGraph.nodes]);
 
   const handleOptimizedProgress = useCallback((result: BuildGoalsOptimizeResult) => {
+    if (result.weighted?.stage === "baseline") {
+      setBuildGoalStatus({ kind: "running", weighted: result.weighted });
+      return;
+    }
     if (result.status !== "success" || result.pointCost === 0) return;
     showOptimizedRoutePreview(result, 0);
     setOptimizedPreview(result);
@@ -162,6 +186,7 @@ export function useBuildGoalsState({
       kind: "running",
       pointCost: result.pointCost,
       improvementHistory: result.improvementHistory,
+      weighted: result.weighted,
     });
   }, [showOptimizedRoutePreview]);
 
@@ -169,22 +194,30 @@ export function useBuildGoalsState({
     if (buildGoalNodeIds.length === 0) return;
 
     optimizerRun.current?.cancel();
+    const baseAllocation = optimizerSettings.mode === "weighted" && optimizedPreview?.weighted && allocationBeforeOptimization.current
+      ? allocationBeforeOptimization.current : allocationPlan;
+    allocationBeforeOptimization.current = baseAllocation;
     setOptimizedPreview(undefined);
     setAppliedOptimizedRouteChoice(undefined);
     setBuildGoalStatus({ kind: "running" });
 
-    const baseNodeIds = allocationPlan.previewNodePath.length > 0
-      ? allocationPlan.previewNodePath
-      : allocationPlan.committedNodePath;
-    const baseEdgeKeys = allocationPlan.previewEdgeKeys.length > 0
-      ? allocationPlan.previewEdgeKeys
-      : allocationPlan.committedEdgeKeys;
+    const baseNodeIds = baseAllocation.previewNodePath.length > 0
+      ? baseAllocation.previewNodePath
+      : baseAllocation.committedNodePath;
+    const baseEdgeKeys = baseAllocation.previewEdgeKeys.length > 0
+      ? baseAllocation.previewEdgeKeys
+      : baseAllocation.committedEdgeKeys;
     const run = runOptimization({
       graph: visibleGraph,
       baseNodeIds,
       baseEdgeKeys,
       goalNodeIds: buildGoalNodeIds,
-      mode: "shortest",
+      mode: optimizerSettings.mode,
+      ...(optimizerSettings.mode === "weighted" ? {
+        preferences: optimizerSettings.preferences,
+        extraPointBudget: optimizerSettings.extraPointBudget,
+        ...(optimizerSettings.pointBudgetMode === "all-available" ? { pointBudgetMode: "all-available" as const, totalPointLimit: mainPointLimit } : {}),
+      } : {}),
     }, {
       onProgress: (result) => {
         if (optimizerRun.current !== run) return;
@@ -199,6 +232,7 @@ export function useBuildGoalsState({
       handleOptimizedResult(result);
     });
   }, [
+    allocationPlan,
     allocationPlan.committedEdgeKeys,
     allocationPlan.committedNodePath,
     allocationPlan.previewEdgeKeys,
@@ -207,6 +241,9 @@ export function useBuildGoalsState({
     handleOptimizedProgress,
     handleOptimizedResult,
     runOptimization,
+    optimizerSettings,
+    mainPointLimit,
+    optimizedPreview,
     visibleGraph,
   ]);
 
@@ -242,6 +279,7 @@ export function useBuildGoalsState({
     setOptimizedPreview(undefined);
     setOptimizedRouteIndex(0);
     setAppliedOptimizedRouteChoice(routeChoice);
+    allocationBeforeOptimization.current = undefined;
     setBuildGoalStatus({ kind: "already-reached" });
   }, [optimizedPreview, optimizedRouteIndex, setAllocationPlan]);
 
@@ -251,6 +289,9 @@ export function useBuildGoalsState({
 
   return {
     buildGoalNodeIds,
+    optimizerSettings,
+    updateOptimizerSettings,
+    restoreOptimizerSettings,
     setBuildGoalNodeIds,
     buildGoalNodeIdSet,
     buildGoalStatus,
@@ -308,6 +349,10 @@ function buildOptimizedRouteChoice(
     pointDeltaFromBest: Math.max(0, selectedRoute.pointCost - bestPointCost),
     pointCostRouteNumber: selectedSummary.pointCostRouteNumber,
     pointCostRouteCount: selectedSummary.pointCostRouteCount,
+    ...(selectedRoute.weighted ? {
+      preferenceScore: selectedRoute.weighted.score,
+      baselinePointCost: selectedRoute.weighted.baselinePointCost,
+    } : {}),
   };
 }
 
@@ -322,7 +367,7 @@ function buildRouteCandidateDetails(
   const selectedRoute = routeCandidates[routeIndex];
   if (!selectedRoute) return undefined;
 
-  const bestRoute = routeCandidates.reduce((best, candidate) => (
+  const bestRoute = (result.weighted ? routeCandidates.find((candidate) => candidate.label === "shortest-baseline") : undefined) ?? routeCandidates.reduce((best, candidate) => (
     candidate.pointCost < best.pointCost ? candidate : best
   ), routeCandidates[0]);
   const selectedAddedNodeIdSet = new Set(selectedRoute.addedNodeIds);
@@ -345,6 +390,7 @@ function buildRouteCandidateDetails(
     routeSummary: buildSummary(graph, selectedRoute.addedNodeIds),
     selectedOnlySummary: buildSummary(graph, selectedOnlyNodeIds),
     bestOnlySummary: buildSummary(graph, bestOnlyNodeIds),
+    weighted: selectedRoute.weighted,
   };
 }
 
@@ -375,6 +421,7 @@ function summarizeRouteCandidates(result: BuildGoalsOptimizeResult | undefined):
       pointCost: candidate.pointCost,
       pointCostRouteNumber,
       pointCostRouteCount: routeCountByPointCost.get(candidate.pointCost) ?? 1,
+      ...(candidate.weighted ? { preferenceScore: candidate.weighted.score } : {}),
     };
   });
 }

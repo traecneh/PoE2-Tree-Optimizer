@@ -1,7 +1,8 @@
 import { isAllocatableTreeEdge, treeEdgeKey } from "./pathAllocation";
 import type { NodeId, TreeGraph } from "./types";
+import type { PassivePreference, WeightedRouteScore } from "./passivePreferences";
 
-export type BuildGoalsOptimizeMode = "shortest";
+export type BuildGoalsOptimizeMode = "shortest" | "weighted";
 
 export type BuildGoalsOptimizeRequest = {
   graph: TreeGraph;
@@ -9,6 +10,10 @@ export type BuildGoalsOptimizeRequest = {
   baseEdgeKeys: string[];
   goalNodeIds: NodeId[];
   mode: BuildGoalsOptimizeMode;
+  preferences?: PassivePreference[];
+  extraPointBudget?: number;
+  pointBudgetMode?: "extra" | "all-available";
+  totalPointLimit?: number;
 };
 
 export type BuildGoalsOptimizeResult = {
@@ -25,6 +30,7 @@ export type BuildGoalsOptimizeResult = {
   completeReason?: "exact" | "bounded" | "no-improvement" | "iteration-limit" | "cancelled";
   routeCandidates?: BuildGoalsRouteCandidate[];
   improvementHistory?: number[];
+  weighted?: WeightedRouteScore;
 };
 
 export type BuildGoalsRouteCandidate = {
@@ -35,6 +41,7 @@ export type BuildGoalsRouteCandidate = {
   orderedNodeIds: NodeId[];
   pointCost: number;
   label?: string;
+  weighted?: WeightedRouteScore;
 };
 
 export type BuildGoalsAnytimeOptions = {
@@ -446,7 +453,7 @@ function addRouteEdgeKeys(routeNodeIndexes: number[], nodeIds: NodeId[], edgeKey
   }
 }
 
-function routeCandidateFromSolution(
+export function routeCandidateFromSolution(
   label: string,
   solution: SolutionSets,
   baseNodeIds: NodeId[],
@@ -763,7 +770,7 @@ function solveBoundedShortestRoute(
   };
 }
 
-function findShortestNodeCostRoutes(
+export function findShortestNodeCostRoutes(
   startNodeIndexes: number[],
   adjacency: number[][],
   nodeCosts: number[],
@@ -839,7 +846,7 @@ function findTerminalRoot(parents: number[], terminalIndex: number): number {
   return current;
 }
 
-function routeNodeIndexesFromSearch(search: RouteSearch, targetNodeIndex: number): number[] {
+export function routeNodeIndexesFromSearch(search: RouteSearch, targetNodeIndex: number): number[] {
   const routeNodeIndexes: number[] = [];
   let current = targetNodeIndex;
 
@@ -1041,6 +1048,10 @@ function buildAdjacency(graph: TreeGraph): Map<NodeId, NodeId[]> {
   }
 
   return adjacency;
+}
+
+export function buildOptimizerGraph(graph: TreeGraph, baseNodeIds: NodeId[]) {
+  return buildIndexedGraph(graph, buildAdjacency(graph), baseNodeIds);
 }
 
 function appendNeighbor(adjacency: Map<NodeId, NodeId[]>, from: NodeId, to: NodeId) {

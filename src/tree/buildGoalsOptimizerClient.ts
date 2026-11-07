@@ -3,6 +3,7 @@ import {
   type BuildGoalsOptimizeRequest,
   type BuildGoalsOptimizeResult,
 } from "./buildGoalsOptimizer";
+import { optimizeWeightedBuildGoals } from "./weightedBuildGoalsOptimizer";
 import type {
   BuildGoalsOptimizerWorkerRequest,
   BuildGoalsOptimizerWorkerResponse,
@@ -93,7 +94,9 @@ function runInCurrentThread(
         };
       }
 
-      const result = optimizeBuildGoals(request);
+      const result = request.mode === "weighted"
+        ? optimizeWeightedBuildGoals(request, callbacks.onProgress, { maxIterations: 24 })
+        : optimizeBuildGoals(request);
       callbacks.onProgress?.(result);
       return result;
     }),

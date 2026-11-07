@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "name": "Warbringer: preserve life, hit capacity and regeneration in both sets; preserve W2 selected-skill damage",
+  "requiredNodeIds": [],
+  "minimums": [
+    { "metric": "Life", "baselineFraction": 1 },
+    { "metric": "TotalEHP", "baselineFraction": 1 },
+    { "metric": "LifeRegenRecovery", "baselineFraction": 1 },
+    { "metric": "ManaRegenRecovery", "value": 0 },
+    { "metric": "CombinedDPS", "baselineFraction": 1, "weaponSets": [2] }
+  ]
+}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ClassStartOption } from "../tree/classStartAliases";
+import {
+  defaultPassiveOptimizationSettings,
+  normalizePassiveOptimizationSettings,
+  passivePreferenceCatalog,
+  type PassiveOptimizationSettings,
+} from "../tree/passivePreferences";
 import type { TreeNode } from "../tree/types";
 import { emptyAllocationPlanForStart } from "./allocationPlan";
 import {
@@ -23,6 +29,11 @@ describe("build workflow helpers", () => {
       1: ["set-1"],
       2: ["set-2"],
     };
+    const optimizerSettings: PassiveOptimizationSettings = {
+      mode: "weighted",
+      extraPointBudget: 3,
+      preferences: [{ id: passivePreferenceCatalog[0].id, weight: 2 }],
+    };
     const optimizedRouteChoice = {
       routeIndex: 2,
       routeNumber: 3,
@@ -43,11 +54,14 @@ describe("build workflow helpers", () => {
       activeAllocationMode: "weapon1",
       weaponSetAllocationNodeIds,
       optimizedRouteChoice,
+      optimizerSettings,
     });
     allocationPlan.committedNodePath.push("mutated");
     buildGoalNodeIds.push("mutated");
     ascendancyAllocationNodeIds.push("mutated");
     weaponSetAllocationNodeIds[1].push("mutated");
+    optimizerSettings.extraPointBudget = 8;
+    optimizerSettings.preferences[0].weight = 3;
 
     expect(state.allocationPlan.committedNodePath).toEqual(["start", "notable"]);
     expect(state.buildGoalNodeIds).toEqual(["notable"]);
@@ -55,6 +69,34 @@ describe("build workflow helpers", () => {
     expect(state.activeAllocationMode).toBe("weapon1");
     expect(state.weaponSetAllocationNodeIds).toEqual({ 1: ["set-1"], 2: ["set-2"] });
     expect(state.optimizedRouteChoice).toEqual(optimizedRouteChoice);
+    expect(state.optimizerSettings).toEqual({
+      mode: "weighted",
+      extraPointBudget: 3,
+      preferences: [{ id: passivePreferenceCatalog[0].id, weight: 2 }],
+    });
+    expect(state.optimizerSettings).not.toBe(optimizerSettings);
+    expect(state.optimizerSettings?.preferences).not.toBe(optimizerSettings.preferences);
+    expect(state.optimizerSettings?.preferences[0]).not.toBe(optimizerSettings.preferences[0]);
+  });
+
+  it("defaults missing optimizer settings and normalizes invalid snapshot settings", () => {
+    const options = {
+      selectedClassStartId: undefined,
+      pathStartNodeId: undefined,
+      allocationPlan: emptyAllocationPlanForStart(undefined),
+      nodeVisualScale: 3,
+      buildGoalNodeIds: [],
+      ascendancyAllocationNodeIds: [],
+    };
+    const optimizerSettings: PassiveOptimizationSettings = {
+      mode: "weighted",
+      extraPointBudget: -5,
+      preferences: [],
+    };
+
+    expect(createSavedBuildState(options).optimizerSettings).toEqual(defaultPassiveOptimizationSettings());
+    expect(createSavedBuildState({ ...options, optimizerSettings }).optimizerSettings)
+      .toEqual(normalizePassiveOptimizationSettings(optimizerSettings));
   });
 
   it("resolves saved class starts by explicit option, node fallback, then first option", () => {

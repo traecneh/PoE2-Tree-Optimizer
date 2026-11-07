@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-05-29T17:51:01.015Z",
-  "totalIcons": 572,
+  "generatedAt": "2026-11-07T02:56:20.459Z",
+  "totalIcons": 524,
   "icons": [
     {
       "source": "Art/2DArt/SkillIcons/ExplosiveGrenade.dds",
@@ -98,26 +98,6 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-acolyteofchayula-acolyteofchayulaunravelling.png"
     },
     {
-      "source": "Art/2DArt/SkillIcons/passives/AltAttackDamageMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-altattackdamagemastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-altattackdamagemastery.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/AltMasteryAuras.dds",
-      "assetKey": "art-2dart-skillicons-passives-altmasteryauras",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-altmasteryauras.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/AltMasteryChannelling.dds",
-      "assetKey": "art-2dart-skillicons-passives-altmasterychannelling",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-altmasterychannelling.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/AltMinionDamageHeraldMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-altminiondamageheraldmastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-altminiondamageheraldmastery.png"
-    },
-    {
       "source": "Art/2DArt/SkillIcons/passives/Amazon/AmazonConsumeFrenzyChargeGainElementalInstillation.dds",
       "assetKey": "art-2dart-skillicons-passives-amazon-amazonconsumefrenzychargegainelementalinstillation",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-amazon-amazonconsumefrenzychargegainelementalinstillation.png"
@@ -203,11 +183,6 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-areaofeffect.png"
     },
     {
-      "source": "Art/2DArt/SkillIcons/passives/AreaofEffectSpellsMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-areaofeffectspellsmastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-areaofeffectspellsmastery.png"
-    },
-    {
       "source": "Art/2DArt/SkillIcons/passives/ArmourAndEnergyShieldNode.dds",
       "assetKey": "art-2dart-skillicons-passives-armourandenergyshieldnode",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-armourandenergyshieldnode.png"
@@ -253,11 +228,6 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-aspectofthelynx.png"
     },
     {
-      "source": "Art/2DArt/SkillIcons/passives/AttackBlindMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-attackblindmastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-attackblindmastery.png"
-    },
-    {
       "source": "Art/2DArt/SkillIcons/passives/attackspeed.dds",
       "assetKey": "art-2dart-skillicons-passives-attackspeed",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-attackspeed.png"
@@ -266,11 +236,6 @@
       "source": "Art/2DArt/SkillIcons/passives/attackspeedbow.dds",
       "assetKey": "art-2dart-skillicons-passives-attackspeedbow",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-attackspeedbow.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/AttackTotemMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-attacktotemmastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-attacktotemmastery.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/auraareaofeffect.dds",
@@ -493,11 +458,6 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-bloodmage-bloodphysicaldamageextragore.png"
     },
     {
-      "source": "Art/2DArt/SkillIcons/passives/BloodMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-bloodmastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-bloodmastery.png"
-    },
-    {
       "source": "Art/2DArt/SkillIcons/passives/bodysoul.dds",
       "assetKey": "art-2dart-skillicons-passives-bodysoul",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-bodysoul.png"
@@ -531,11 +491,6 @@
       "source": "Art/2DArt/SkillIcons/passives/ChainingProjectiles.dds",
       "assetKey": "art-2dart-skillicons-passives-chainingprojectiles",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-chainingprojectiles.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/ChannellingAttacksMasterySymbol.dds",
-      "assetKey": "art-2dart-skillicons-passives-channellingattacksmasterysymbol",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-channellingattacksmasterysymbol.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/ChannellingAttacksNode.dds",
@@ -603,6 +558,11 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-clawsofthemagpie.png"
     },
     {
+      "source": "Art/2DArt/SkillIcons/passives/ColdAndFireHybridNotable.dds",
+      "assetKey": "art-2dart-skillicons-passives-coldandfirehybridnotable",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-coldandfirehybridnotable.png"
+    },
+    {
       "source": "Art/2DArt/SkillIcons/passives/colddamage.dds",
       "assetKey": "art-2dart-skillicons-passives-colddamage",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-colddamage.png"
@@ -616,6 +576,11 @@
       "source": "Art/2DArt/SkillIcons/passives/ColdFireNode.dds",
       "assetKey": "art-2dart-skillicons-passives-coldfirenode",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-coldfirenode.png"
+    },
+    {
+      "source": "Art/2DArt/SkillIcons/passives/ColdLightningNode.dds",
+      "assetKey": "art-2dart-skillicons-passives-coldlightningnode",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-coldlightningnode.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/coldresist.dds",
@@ -968,11 +933,6 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-elementalresistance2.png"
     },
     {
-      "source": "Art/2DArt/SkillIcons/passives/EnduranceFrenzyChargeMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-endurancefrenzychargemastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-endurancefrenzychargemastery.png"
-    },
-    {
       "source": "Art/2DArt/SkillIcons/passives/energyshield.dds",
       "assetKey": "art-2dart-skillicons-passives-energyshield",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-energyshield.png"
@@ -1093,11 +1053,6 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-flaskstr.png"
     },
     {
-      "source": "Art/2DArt/SkillIcons/passives/FortifyMasterySymbol.dds",
-      "assetKey": "art-2dart-skillicons-passives-fortifymasterysymbol",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-fortifymasterysymbol.png"
-    },
-    {
       "source": "Art/2DArt/SkillIcons/passives/frostborn.dds",
       "assetKey": "art-2dart-skillicons-passives-frostborn",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-frostborn.png"
@@ -1216,11 +1171,6 @@
       "source": "Art/2DArt/SkillIcons/passives/Hunter.dds",
       "assetKey": "art-2dart-skillicons-passives-hunter",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-hunter.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/ImpaleMasterySymbol.dds",
-      "assetKey": "art-2dart-skillicons-passives-impalemasterysymbol",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-impalemasterysymbol.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/IncreasedAttackDamageNode.dds",
@@ -1573,11 +1523,6 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-manastr.png"
     },
     {
-      "source": "Art/2DArt/SkillIcons/passives/MarkMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-markmastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-markmastery.png"
-    },
-    {
       "source": "Art/2DArt/SkillIcons/passives/MarkNode.dds",
       "assetKey": "art-2dart-skillicons-passives-marknode",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-marknode.png"
@@ -1628,184 +1573,9 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-martialartist-martialartistspectralbell.png"
     },
     {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryArmourandEnergyShield.dds",
-      "assetKey": "art-2dart-skillicons-passives-masteryarmourandenergyshield",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masteryarmourandenergyshield.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryAuras.dds",
-      "assetKey": "art-2dart-skillicons-passives-masteryauras",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masteryauras.png"
-    },
-    {
       "source": "Art/2DArt/SkillIcons/passives/MasteryBlank.dds",
       "assetKey": "art-2dart-skillicons-passives-masteryblank",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masteryblank.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryChaos.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterychaos",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterychaos.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryCurse.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterycurse",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterycurse.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryDuration.dds",
-      "assetKey": "art-2dart-skillicons-passives-masteryduration",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masteryduration.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryElementalDamage.dds",
-      "assetKey": "art-2dart-skillicons-passives-masteryelementaldamage",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masteryelementaldamage.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryFlasks.dds",
-      "assetKey": "art-2dart-skillicons-passives-masteryflasks",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masteryflasks.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupAccuracy.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupaccuracy",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupaccuracy.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupArmour.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygrouparmour",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygrouparmour.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupAxe.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupaxe",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupaxe.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupBow.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupbow",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupbow.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupCast.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupcast",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupcast.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupCold.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupcold",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupcold.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupCrit.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupcrit",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupcrit.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupDualWield.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupdualwield",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupdualwield.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupEnergyShield.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupenergyshield",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupenergyshield.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupEnergyShieldMana.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupenergyshieldmana",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupenergyshieldmana.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupEvasion.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupevasion",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupevasion.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupExtra.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupextra",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupextra.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupFire.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupfire",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupfire.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupLife.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygrouplife",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygrouplife.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupLifeMana.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygrouplifemana",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygrouplifemana.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupLightning.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygrouplightning",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygrouplightning.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupMace.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupmace",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupmace.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupMana.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupmana",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupmana.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupMinions.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupminions",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupminions.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupShield.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupshield",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupshield.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupStaff.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupstaff",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupstaff.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupSword.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygroupsword",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygroupsword.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryGroupTwoHands.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterygrouptwohands",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterygrouptwohands.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryPhysicalDamage.dds",
-      "assetKey": "art-2dart-skillicons-passives-masteryphysicaldamage",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masteryphysicaldamage.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryPoison.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterypoison",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterypoison.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryProjectiles.dds",
-      "assetKey": "art-2dart-skillicons-passives-masteryprojectiles",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masteryprojectiles.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryTotem.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterytotem",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterytotem.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MasteryTraps.dds",
-      "assetKey": "art-2dart-skillicons-passives-masterytraps",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-masterytraps.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/MeleeAoENode.dds",
@@ -1851,11 +1621,6 @@
       "source": "Art/2DArt/SkillIcons/passives/minionlife.dds",
       "assetKey": "art-2dart-skillicons-passives-minionlife",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-minionlife.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/MinionMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-minionmastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-minionmastery.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/MinionsandManaNode.dds",
@@ -2173,6 +1938,11 @@
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-primalist-primaliststabcorpse.png"
     },
     {
+      "source": "Art/2DArt/SkillIcons/passives/Primalist/PrimalistStabCorpseHand.dds",
+      "assetKey": "art-2dart-skillicons-passives-primalist-primaliststabcorpsehand",
+      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-primalist-primaliststabcorpsehand.png"
+    },
+    {
       "source": "Art/2DArt/SkillIcons/passives/ProjectileDmgNode.dds",
       "assetKey": "art-2dart-skillicons-passives-projectiledmgnode",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-projectiledmgnode.png"
@@ -2421,11 +2191,6 @@
       "source": "Art/2DArt/SkillIcons/passives/SpellSupressionNotable1.dds",
       "assetKey": "art-2dart-skillicons-passives-spellsupressionnotable1",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-spellsupressionnotable1.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/StaffMasterySymbol.dds",
-      "assetKey": "art-2dart-skillicons-passives-staffmasterysymbol",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-staffmasterysymbol.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/steelspan.dds",
@@ -2751,11 +2516,6 @@
       "source": "Art/2DArt/SkillIcons/passives/WarCryEffect.dds",
       "assetKey": "art-2dart-skillicons-passives-warcryeffect",
       "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-warcryeffect.png"
-    },
-    {
-      "source": "Art/2DArt/SkillIcons/passives/WarcryMastery.dds",
-      "assetKey": "art-2dart-skillicons-passives-warcrymastery",
-      "publicPath": "/tree-assets/icons/art-2dart-skillicons-passives-warcrymastery.png"
     },
     {
       "source": "Art/2DArt/SkillIcons/passives/Warrior.dds",

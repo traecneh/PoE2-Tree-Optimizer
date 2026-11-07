@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "name": "Spark: retain critical defence, allow up to 10% less original damage",
+  "requiredNodeIds": ["50817", "61355"],
+  "minimums": [
+    { "metric": "sharedMindOverMatter", "value": 100 },
+    { "metric": "FullDPS", "baselineFraction": 0.9 },
+    { "metric": "TotalEHP", "baselineFraction": 1 }
+  ]
+}

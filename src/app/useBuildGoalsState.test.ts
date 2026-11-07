@@ -8,6 +8,20 @@ import type { TreeGraph } from "../tree/types";
 import { useBuildGoalsState } from "./useBuildGoalsState";
 
 describe("useBuildGoalsState", () => {
+  it("passes the weapon-set-adjusted main limit for all-available weighted requests", () => {
+    const runOptimization = vi.fn((_request: BuildGoalsOptimizeRequest): BuildGoalsOptimizationRun => ({
+      promise: new Promise<BuildGoalsOptimizeResult>(() => undefined), cancel: vi.fn(),
+    }));
+    const { result } = renderHook(() => useBuildGoalsState({
+      visibleGraph: fixtureGraph(), allocationPlan: fixtureAllocationPlan(), setAllocationPlan: vi.fn(),
+      mainPointLimit: 99, runOptimization,
+    }));
+    act(() => result.current.updateOptimizerSettings({ mode: "weighted", pointBudgetMode: "all-available", extraPointBudget: 5, preferences: [{ id: "life", weight: 1 }] }));
+    act(() => result.current.addBuildGoal("goal-a"));
+    act(() => result.current.optimizeBuildGoalsRoute());
+    expect(runOptimization.mock.calls[0][0]).toMatchObject({ mode: "weighted", pointBudgetMode: "all-available", totalPointLimit: 99 });
+  });
+
   it("adds, merges, toggles, removes, and clears build goal ids", () => {
     const { result } = renderHook(() => useBuildGoalsState({
       visibleGraph: fixtureGraph(),

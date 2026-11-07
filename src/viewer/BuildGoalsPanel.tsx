@@ -4,6 +4,8 @@ import type { BuildSummary } from "../tree/buildSummary";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { TreeNode } from "../tree/types";
 import { ControlTooltip } from "./ControlTooltip";
+import type { PassiveOptimizationSettings, WeightedRouteScore } from "../tree/passivePreferences";
+import { PassivePreferenceControls } from "./PassivePreferenceControls";
 
 export type BuildGoalsPanelGoal = {
   node: TreeNode;
@@ -13,7 +15,7 @@ export type BuildGoalsPanelGoal = {
 
 export type BuildGoalsPanelStatus =
   | { kind: "idle" }
-  | { kind: "running"; pointCost?: number; improvementHistory?: number[] }
+  | { kind: "running"; pointCost?: number; improvementHistory?: number[]; weighted?: WeightedRouteScore }
   | { kind: "cancelled" }
   | { kind: "already-reached" }
   | {
@@ -22,6 +24,8 @@ export type BuildGoalsPanelStatus =
     searchType?: "exact" | "bounded" | "anytime";
     completeReason?: "exact" | "bounded" | "no-improvement" | "iteration-limit" | "cancelled";
     improvementHistory?: number[];
+    weighted?: WeightedRouteScore;
+    message?: string;
   }
   | { kind: "unreachable"; unreachableGoals: TreeNode[] }
   | { kind: "error"; message: string };
@@ -31,6 +35,7 @@ export type BuildGoalsRouteCandidateSummary = {
   pointCost: number;
   pointCostRouteNumber: number;
   pointCostRouteCount: number;
+  preferenceScore?: number;
 };
 
 export type BuildGoalsRouteCandidateDetails = {
@@ -44,6 +49,7 @@ export type BuildGoalsRouteCandidateDetails = {
   routeSummary: BuildSummary;
   selectedOnlySummary: BuildSummary;
   bestOnlySummary: BuildSummary;
+  weighted?: WeightedRouteScore;
 };
 
 export type PobBuildImportStatus =
@@ -95,6 +101,9 @@ export type PobBuildImportIgnoredNodeReference = PobBuildImportNodeReference & {
 };
 
 type BuildGoalsPanelProps = {
+  mainPointLimit?: number;
+  optimizerSettings?: PassiveOptimizationSettings;
+  onOptimizerSettingsChange?: (settings: PassiveOptimizationSettings) => void;
   goals: BuildGoalsPanelGoal[];
   status: BuildGoalsPanelStatus;
   pobImportCode: string;
@@ -120,6 +129,9 @@ type BuildGoalsPanelProps = {
 const optimizerNoImprovementSeconds = 60;
 
 export function BuildGoalsPanel({
+  mainPointLimit,
+  optimizerSettings,
+  onOptimizerSettingsChange,
   goals,
   status,
   pobImportCode,
@@ -232,17 +244,20 @@ export function BuildGoalsPanel({
       ) : (
         <p className="build-goals-empty">No build goals selected.</p>
       )}
+      {optimizerSettings && onOptimizerSettingsChange ? (
+        <PassivePreferenceControls settings={optimizerSettings} onChange={onOptimizerSettingsChange} disabled={running} mainPointLimit={mainPointLimit} />
+      ) : null}
       <div className="build-goals-actions">
         <ControlTooltip
           id="optimize-route-tooltip"
-          text="Preview the shortest route through current goals from the visible allocation."
+          text={optimizerSettings?.mode === "weighted" ? "Preview a preference-scored route through every goal, within the extra-point budget. Existing allocation stays fixed." : "Preview the shortest route through current goals from the visible allocation."}
         >
           <button
             className="tool-button"
             type="button"
             aria-describedby="optimize-route-tooltip"
             onClick={onOptimize}
-            disabled={goals.length === 0 || running}
+            disabled={goals.length === 0 || running || (optimizerSettings?.mode === "weighted" && optimizerSettings.preferences.length === 0)}
           >
             Optimize route
           </button>
@@ -370,7 +385,7 @@ function AppliedOptimizedRouteChoiceMessage({ choice }: { choice: OptimizedRoute
 
   return (
     <p className="optimized-route-applied" role="status">
-      <span>{`Applied route ${choice.routeNumber} of ${choice.routeCount} · ${formatPointCost(choice.pointCost)} · ${deltaText}.`}</span>
+      <span>{`Applied route ${choice.routeNumber} of ${choice.routeCount} · ${formatPointCost(choice.pointCost)} · ${choice.preferenceScore !== undefined ? `preference score ${formatScore(choice.preferenceScore)}` : deltaText}.`}</span>
       <span>Saving this build keeps the selected route.</span>
     </p>
   );
@@ -536,12 +551,16 @@ function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {
   const secondsUntilNoImprovementStop = useOptimizerImprovementCountdown(countdownResetKey);
 
   if (status.kind === "idle") return null;
+  if (status.kind === "running" && status.weighted?.stage === "baseline") {
+    return <p className="build-goals-status running" role="status">Finding shortest baseline...</p>;
+  }
   if (status.kind === "running" && status.pointCost !== undefined) {
     return (
       <div className="build-goals-status running" role="status">
         <p>{`Best found so far: ${formatPointCost(status.pointCost)}`}</p>
+        {status.weighted ? <WeightedScoreSummary score={status.weighted} /> : null}
         {status.improvementHistory && status.improvementHistory.length > 1 ? (
-          <p>{`Improved: ${status.improvementHistory.map((pointCost) => String(pointCost)).join(" -> ")}`}</p>
+          <p>{`${status.weighted ? "Score improved" : "Improved"}: ${status.improvementHistory.map((value) => status.weighted ? formatScore(value) : String(value)).join(" -> ")}`}</p>
         ) : null}
         <p>Still searching...</p>
         <OptimizerCountdown secondsRemaining={secondsUntilNoImprovementStop} />
@@ -557,7 +576,9 @@ function BuildGoalStatusMessage({ status }: { status: BuildGoalsPanelStatus }) {
     return (
       <div className="build-goals-status success" role="status">
         <p>{message}</p>
+        {status.weighted ? <WeightedScoreSummary score={status.weighted} /> : null}
         {detail ? <p className="build-goals-status-detail">{detail}</p> : null}
+        {status.message && status.weighted ? <p>{status.message}</p> : null}
       </div>
     );
   }
@@ -590,9 +611,15 @@ function OptimizedRouteDetails({ details }: { details: BuildGoalsRouteCandidateD
     <section className="optimized-route-details" aria-label="Selected route details">
       <div className="optimized-route-details-header">
         <h3>Route details</h3>
-        <span>{formatRouteDelta(details.pointDeltaFromBest)}</span>
+        <span>{details.weighted ? `+${details.pointCost - details.weighted.baselinePointCost} points vs shortest baseline` : formatRouteDelta(details.pointDeltaFromBest)}</span>
       </div>
       <p className="optimized-route-details-count">{formatAddedPassiveCount(details.addedNodeCount)}</p>
+      {details.weighted ? <>
+        <WeightedScoreSummary score={details.weighted} />
+        <ul className="preference-contributions" aria-label="Preference score breakdown">
+          {details.weighted.contributions.map((row) => <li key={row.id}>{`${row.label}: ${formatScore(row.score)} (${row.nodeCount} ${row.nodeCount === 1 ? "node" : "nodes"})`}</li>)}
+        </ul>
+      </> : null}
       <RouteDifferenceList
         title="Only in this route"
         nodeNames={details.selectedOnlyNodeNames}
@@ -600,7 +627,7 @@ function OptimizedRouteDetails({ details }: { details: BuildGoalsRouteCandidateD
       />
       {details.bestOnlyNodeNames.length > 0 ? (
         <RouteDifferenceList
-          title="Only in best route"
+          title={details.weighted ? "Only in shortest baseline" : "Only in best route"}
           nodeNames={details.bestOnlyNodeNames}
           emptyText="No passives only in the best route."
         />
@@ -644,7 +671,7 @@ function RouteDifferenceList({
       {visibleNodeNames.length > 0 ? (
         <>
           <ul>
-            {visibleNodeNames.map((nodeName) => <li key={nodeName}>{nodeName}</li>)}
+          {visibleNodeNames.map((nodeName, index) => <li key={`${index}:${nodeName}`}>{nodeName}</li>)}
           </ul>
           {hiddenCount > 0 ? <p>{`and ${hiddenCount} more`}</p> : null}
         </>
@@ -724,10 +751,11 @@ function useOptimizerImprovementCountdown(resetKey: string | undefined): number 
 
 function optimizerCountdownResetKey(status: BuildGoalsPanelStatus): string | undefined {
   if (status.kind !== "running" || status.pointCost === undefined) return undefined;
-  return `${status.pointCost}:${status.improvementHistory?.join("|") ?? ""}`;
+  return `${status.pointCost}:${status.weighted?.score ?? ""}:${status.improvementHistory?.join("|") ?? ""}`;
 }
 
 function formatSuccessStatusDetail(status: Extract<BuildGoalsPanelStatus, { kind: "success" }>): string | undefined {
+  if (status.weighted) return status.completeReason === "no-improvement" ? "Preference search stopped after 60s without improvement. Heuristic result, not a proven maximum." : "Preference search completed. Heuristic result, not a proven maximum.";
   if (status.completeReason === "exact") return "Exact route found.";
   if (status.completeReason === "bounded") return "Bounded route search completed.";
   if (status.completeReason === "no-improvement") return "Stopped after 60s without improvement.";
@@ -757,7 +785,17 @@ function formatStatusMessage(status: BuildGoalsPanelStatus): string | undefined 
 }
 
 function formatRouteCandidateDetail(candidate: BuildGoalsRouteCandidateSummary): string {
-  return `${formatPointCost(candidate.pointCost)} · variant ${candidate.pointCostRouteNumber} of ${candidate.pointCostRouteCount}`;
+  return `${formatPointCost(candidate.pointCost)}${candidate.preferenceScore === undefined ? "" : ` · score ${formatScore(candidate.preferenceScore)}`} · variant ${candidate.pointCostRouteNumber} of ${candidate.pointCostRouteCount}`;
+}
+
+function formatScore(value: number): string { return Number(value.toFixed(2)).toString(); }
+
+function WeightedScoreSummary({ score }: { score: WeightedRouteScore }) {
+  return <div className="weighted-score-summary">
+    <p>{`Preference score: ${formatScore(score.score)}`}</p>
+    <p>{`Shortest baseline${score.baselineExact ? " (exact)" : " found"}: ${score.baselinePointCost} points. Limit: ${score.maxPointCost} added points.`}</p>
+    {score.pointBudgetMode === "all-available" ? <p>{`Main-tree limit: ${score.totalPointLimit}. Existing main points: ${score.basePointCost}.`}</p> : null}
+  </div>;
 }
 
 function formatRouteDelta(pointDeltaFromBest: number): string {

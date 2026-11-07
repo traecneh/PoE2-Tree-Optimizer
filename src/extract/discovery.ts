@@ -10,7 +10,8 @@ export type InstallDiscoveryOptions = {
 
 export type Poe2Install = {
   installPath: string;
-  contentGgpkPath: string;
+  contentGgpkPath?: string;
+  bundleIndexPath?: string;
   gameVersion?: string;
 };
 
@@ -28,12 +29,10 @@ const defaultSteamRoots = [
 
 export function discoverPoe2Install(options: InstallDiscoveryOptions = {}): Poe2Install {
   if (options.explicitPath !== undefined) {
-    const contentGgpkPath = join(options.explicitPath, "Content.ggpk");
-    if (existsSync(contentGgpkPath)) {
-      return { installPath: options.explicitPath, contentGgpkPath };
-    }
+    const install = readInstall(options.explicitPath);
+    if (install) return install;
 
-    throw new ExtractionError(`Configured PoE2 path does not contain Content.ggpk: ${options.explicitPath}`, "invalid-install-path");
+    throw new ExtractionError(`Configured PoE2 path contains neither Content.ggpk nor Bundles2/_.index.bin: ${options.explicitPath}`, "invalid-install-path");
   }
 
   const candidates = [
@@ -43,13 +42,24 @@ export function discoverPoe2Install(options: InstallDiscoveryOptions = {}): Poe2
   ].filter((path): path is string => Boolean(path));
 
   for (const candidate of candidates) {
-    const contentGgpkPath = join(candidate, "Content.ggpk");
-    if (existsSync(contentGgpkPath)) {
-      return { installPath: candidate, contentGgpkPath };
-    }
+    const install = readInstall(candidate);
+    if (install) return install;
   }
 
-  throw new ExtractionError("Could not find a Path of Exile 2 install containing Content.ggpk.", "install-not-found");
+  throw new ExtractionError("Could not find a Path of Exile 2 install containing Content.ggpk or Bundles2/_.index.bin.", "install-not-found");
+}
+
+function readInstall(installPath: string): Poe2Install | undefined {
+  const contentGgpkPath = join(installPath, "Content.ggpk");
+  const bundleIndexPath = join(installPath, "Bundles2", "_.index.bin");
+  const hasGgpk = existsSync(contentGgpkPath);
+  const hasBundleIndex = existsSync(bundleIndexPath);
+  if (!hasGgpk && !hasBundleIndex) return undefined;
+  return {
+    installPath,
+    contentGgpkPath: hasGgpk ? contentGgpkPath : undefined,
+    bundleIndexPath: hasBundleIndex ? bundleIndexPath : undefined,
+  };
 }
 
 function steamLibraryCandidates(steamRoots: string[]): string[] {

@@ -38,8 +38,16 @@ describe("App", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: "PoE2 Tree Optimizer for Boomslang" })).not.toBeNull();
-    expect(screen.getByText("Tree data: PoE2 0.5.0")).not.toBeNull();
+    expect(screen.getByText("Tree data: Loading...")).not.toBeNull();
     expect(screen.queryByText(/nodes, .*links, version/i)).toBeNull();
+  });
+
+  it("shows the version of the loaded tree instead of a hardcoded game version", async () => {
+    stubTreeFetchWithGraph({ ...sampleGraph, gameVersion: "0.5.5f" });
+
+    render(<App />);
+
+    expect(await screen.findByText("Tree data: PoE2 0.5.5f")).not.toBeNull();
   });
 
   it("renders header help text with the main site actions", () => {
@@ -1442,6 +1450,98 @@ describe("App", () => {
     expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Huntress");
     expect(screen.getByRole("button", { name: "RANGER" }).classList.contains("path-start")).toBe(true);
     expect(screen.getByRole("button", { name: "Required Huntress Notable" }).classList.contains("build-goal")).toBe(true);
+  });
+
+  it("previews, compares and applies weighted routes without changing shortest defaults", async () => {
+    stubTreeFetch();
+    render(<App />);
+    expect((screen.getByRole("radio", { name: "Shortest" }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
+    expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "jewelSockets" } });
+    fireEvent.change(screen.getByLabelText("Jewel Sockets priority"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+    await screen.findByText("Best route found: 3 points");
+    expect(screen.getAllByText("Preference score: 2").length).toBeGreaterThan(0);
+    expect(screen.getByText("Allocated 0/123")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Apply selected route" }));
+    expect(screen.getByText("Allocated 3/123")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocated")).toBe(true);
+  });
+
+  it("keeps the original weighted base when optimizing again before applying", async () => {
+    stubTreeFetchWithGraph({ ...sampleGraph, nodes: { ...sampleGraph.nodes, socket2: {
+      id: "socket2", name: "Second Socket", stats: [], flags: { jewelSocket: true }, position: { x: 480, y: 90 },
+    } }, edges: [...sampleGraph.edges, { from: "jewel_socket", to: "socket2" }] });
+    render(<App />);
+    await screen.findByRole("button", { name: "Second Socket" });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "jewelSockets" } });
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+    await screen.findByText("Best route found: 3 points");
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+    await screen.findByText("Best route found: 3 points");
+    expect(screen.getAllByText("Shortest baseline (exact): 2 points. Limit: 3 added points.").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Second Socket" }).classList.contains("allocation-path")).toBe(false);
+  });
+
+  it("restores the pre-optimization base when changing preference settings", async () => {
+    stubTreeFetch();
+    render(<App />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+    await screen.findByText("Optimized route: 2 points");
+    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
+    expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "jewelSockets" } });
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+    await screen.findByText("Best route found: 3 points");
+    expect(screen.getAllByText("Shortest baseline (exact): 2 points. Limit: 3 added points.").length).toBeGreaterThan(0);
+  });
+
+  it("uses the all-available budget without filling unrelated nodes", async () => {
+    stubTreeFetch();
+    render(<App />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
+    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "jewelSockets" } });
+    fireEvent.change(screen.getByLabelText("Point budget"), { target: { value: "all-available" } });
+    expect(screen.queryByLabelText("Extra points")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
+    await screen.findByText("Best route found: 3 points");
+    expect(screen.getAllByText("Shortest baseline (exact): 2 points. Limit: 123 added points.").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Apply selected route" }));
+    expect(screen.getByText("Allocated 3/123")).not.toBeNull();
+  });
+
+  it("saves and restores weighted settings with a build, and resets them for a new build", () => {
+    stubTreeFetch();
+    render(<App />);
+    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
+    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "energyShield" } });
+    fireEvent.change(screen.getByLabelText("Energy Shield priority"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "7" } });
+    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: "Weighted shield" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save build" }));
+    const select = screen.getByLabelText("Saved build") as HTMLSelectElement;
+    const savedId = select.value;
+    fireEvent.click(screen.getByRole("button", { name: "New build" }));
+    expect((screen.getByRole("radio", { name: "Shortest" }) as HTMLInputElement).checked).toBe(true);
+    fireEvent.change(select, { target: { value: savedId } });
+    expect((screen.getByRole("radio", { name: "Passive preferences" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText("Extra points") as HTMLInputElement).value).toBe("7");
+    expect((screen.getByLabelText("Energy Shield priority") as HTMLSelectElement).value).toBe("3");
   });
 
   it("optimizes build goals into a preview without applying the route", async () => {

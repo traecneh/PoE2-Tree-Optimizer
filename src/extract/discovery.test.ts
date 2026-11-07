@@ -38,6 +38,36 @@ describe("discoverPoe2Install", () => {
     );
   });
 
+  it("accepts a Steam install with an indexed bundle directory and no Content.ggpk", () => {
+    const root = mkdtempSync(join(tmpdir(), "poe2-bundles-"));
+    mkdirSync(join(root, "Bundles2"));
+    writeFileSync(join(root, "Bundles2", "_.index.bin"), "");
+
+    const result = discoverPoe2Install({ explicitPath: root, commonPaths: [], steamRoots: [] });
+
+    expect(result.installPath).toBe(root);
+    expect(result.contentGgpkPath).toBeUndefined();
+    expect(result.bundleIndexPath).toBe(join(root, "Bundles2", "_.index.bin"));
+  });
+
+  it("discovers indexed bundle installs automatically", () => {
+    delete process.env.POE2_INSTALL_PATH;
+    const root = mkdtempSync(join(tmpdir(), "poe2-bundles-common-"));
+    mkdirSync(join(root, "Bundles2"));
+    writeFileSync(join(root, "Bundles2", "_.index.bin"), "");
+
+    expect(discoverPoe2Install({ commonPaths: [root], steamRoots: [] }).installPath).toBe(root);
+  });
+
+  it("rejects a bundle directory without its index", () => {
+    const root = mkdtempSync(join(tmpdir(), "poe2-bundles-missing-index-"));
+    mkdirSync(join(root, "Bundles2"));
+
+    expect(() => discoverPoe2Install({ explicitPath: root })).toThrow(
+      expect.objectContaining({ code: "invalid-install-path" }),
+    );
+  });
+
   it("reads Steam libraryfolders.vdf and finds Path of Exile 2", () => {
     delete process.env.POE2_INSTALL_PATH;
     const root = mkdtempSync(join(tmpdir(), "poe2-steam-"));

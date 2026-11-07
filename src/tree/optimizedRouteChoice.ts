@@ -6,6 +6,8 @@ export type OptimizedRouteChoice = {
   pointDeltaFromBest: number;
   pointCostRouteNumber: number;
   pointCostRouteCount: number;
+  preferenceScore?: number;
+  baselinePointCost?: number;
 };
 
 export function normalizeOptimizedRouteChoice(value: unknown): OptimizedRouteChoice | undefined {
@@ -36,7 +38,11 @@ export function normalizeOptimizedRouteChoice(value: unknown): OptimizedRouteCho
     return undefined;
   }
 
-  return choice as OptimizedRouteChoice;
+  return {
+    ...choice,
+    ...(typeof value.preferenceScore === "number" && Number.isFinite(value.preferenceScore) && isNonNegativeInteger(value.baselinePointCost)
+      ? { preferenceScore: value.preferenceScore, baselinePointCost: value.baselinePointCost } : {}),
+  } as OptimizedRouteChoice;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

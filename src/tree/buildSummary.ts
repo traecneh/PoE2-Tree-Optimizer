@@ -11,6 +11,16 @@ export type BuildSummarySummedStat = {
   sourceNodeNames: string[];
 };
 
+export type BuildSummaryDamageRangeStat = {
+  key: string;
+  label: string;
+  minimum: number;
+  maximum: number;
+  text: string;
+  sourceNodeIds: NodeId[];
+  sourceNodeNames: string[];
+};
+
 export type BuildSummaryOtherStat = {
   text: string;
   count: number;
@@ -21,7 +31,7 @@ export type BuildSummaryOtherStat = {
 export type BuildSummary = {
   pointCount: number;
   nodeCount: number;
-  summedStats: BuildSummarySummedStat[];
+  summedStats: (BuildSummarySummedStat | BuildSummaryDamageRangeStat)[];
   otherStats: BuildSummaryOtherStat[];
 };
 
@@ -44,6 +54,8 @@ type SummedStatAccumulator = ParsedSummableStat & {
   sourceNodeNames: string[];
 };
 
+type DamageRangeAccumulator = Omit<BuildSummaryDamageRangeStat, "text">;
+
 type OtherStatAccumulator = {
   text: string;
   count: number;
@@ -58,6 +70,7 @@ export function buildSummary(
 ): BuildSummary {
   const uniqueNodeIds = Array.from(new Set(visibleNodeIds));
   const summedStats = new Map<string, SummedStatAccumulator>();
+  const damageRanges = new Map<string, DamageRangeAccumulator>();
   const otherStats = new Map<string, OtherStatAccumulator>();
   let pointCount = 0;
   let nodeCount = 0;
@@ -76,6 +89,20 @@ export function buildSummary(
       const stat = normalizeStatText(rawStat);
       if (!stat) continue;
       const sourceNodeName = node.name ?? nodeId;
+
+      const range = parseDamageRange(stat);
+      if (range) {
+        const existingRange = damageRanges.get(range.key);
+        if (existingRange) {
+          existingRange.minimum += range.minimum;
+          existingRange.maximum += range.maximum;
+          existingRange.sourceNodeIds.push(nodeId);
+          existingRange.sourceNodeNames.push(sourceNodeName);
+        } else {
+          damageRanges.set(range.key, { ...range, sourceNodeIds: [nodeId], sourceNodeNames: [sourceNodeName] });
+        }
+        continue;
+      }
 
       const parsed = parseSummableStat(stat);
       if (!parsed) {
@@ -104,9 +131,31 @@ export function buildSummary(
   return {
     pointCount,
     nodeCount,
-    summedStats: Array.from(summedStats.values()).map(formatSummedStat),
+    summedStats: [
+      ...Array.from(summedStats.values()).map(formatSummedStat),
+      ...Array.from(damageRanges.values()).map(formatDamageRange),
+    ],
     otherStats: Array.from(otherStats.values()),
   };
+}
+
+function parseDamageRange(stat: string): Omit<DamageRangeAccumulator, "sourceNodeIds" | "sourceNodeNames"> | undefined {
+  // Only unconditional flat damage is additive; keep scaling and multi-effect lines untouched.
+  const match = /^Adds (\d+(?:\.\d+)?) to (\d+(?:\.\d+)?) ((?:Physical|Fire|Cold|Lightning|Chaos) damage(?: to (?:Attacks|Spells|Attacks and Spells))?)$/i.exec(stat);
+  if (!match) return undefined;
+
+  const [, rawMinimum, rawMaximum, label] = match;
+  const minimum = Number(rawMinimum);
+  const maximum = Number(rawMaximum);
+  if (!Number.isFinite(minimum) || !Number.isFinite(maximum) || minimum > maximum) return undefined;
+
+  return { key: `damage-range:${label.toLowerCase()}`, label, minimum, maximum };
+}
+
+function formatDamageRange(stat: DamageRangeAccumulator): BuildSummaryDamageRangeStat {
+  const minimum = roundStatValue(stat.minimum);
+  const maximum = roundStatValue(stat.maximum);
+  return { ...stat, minimum, maximum, text: `Adds ${minimum} to ${maximum} ${stat.label}` };
 }
 
 function parseSummableStat(stat: string): ParsedSummableStat | undefined {

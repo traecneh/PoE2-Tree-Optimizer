@@ -1,5 +1,6 @@
 import type { ClassStartOption } from "../tree/classStartAliases";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
+import { normalizePassiveOptimizationSettings, type PassiveOptimizationSettings } from "../tree/passivePreferences";
 import type { SavedBuildState } from "../tree/savedBuilds";
 import type { TreeNode } from "../tree/types";
 import { cloneAllocationPlan, type AllocationPlan } from "./allocationPlan";
@@ -20,6 +21,7 @@ export type CreateSavedBuildStateOptions = {
   activeAllocationMode?: AllocationMode;
   weaponSetAllocationNodeIds?: WeaponSetAllocationNodeIds;
   optimizedRouteChoice?: OptimizedRouteChoice;
+  optimizerSettings?: PassiveOptimizationSettings;
 };
 
 export function createSavedBuildState({
@@ -32,6 +34,7 @@ export function createSavedBuildState({
   activeAllocationMode = "main",
   weaponSetAllocationNodeIds = emptyWeaponSetAllocations(),
   optimizedRouteChoice,
+  optimizerSettings,
 }: CreateSavedBuildStateOptions): SavedBuildState {
   return {
     selectedClassStartId,
@@ -43,6 +46,7 @@ export function createSavedBuildState({
     activeAllocationMode,
     weaponSetAllocationNodeIds: cloneWeaponSetAllocations(weaponSetAllocationNodeIds),
     optimizedRouteChoice,
+    optimizerSettings: normalizePassiveOptimizationSettings(optimizerSettings),
   };
 }
 

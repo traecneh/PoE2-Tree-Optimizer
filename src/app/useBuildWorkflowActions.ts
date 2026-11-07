@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { ClassStartOption } from "../tree/classStartAliases";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
+import type { PassiveOptimizationSettings } from "../tree/passivePreferences";
 import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
@@ -32,6 +33,7 @@ type UseBuildWorkflowActionsOptions = {
   buildGoalNodeIdSet: ReadonlySet<string>;
   setBuildGoalNodeIds: Dispatch<SetStateAction<string[]>>;
   setAppliedOptimizedRouteChoice: Dispatch<SetStateAction<OptimizedRouteChoice | undefined>>;
+  restoreOptimizerSettings?: (settings: PassiveOptimizationSettings) => void;
   addBuildGoalNodeId: (nodeId: string) => void;
   addBuildGoalNodeIds: (nodeIds: string[]) => void;
   removeBuildGoalNodeId: (nodeId: string) => void;
@@ -73,6 +75,7 @@ export function useBuildWorkflowActions({
   buildGoalNodeIdSet,
   setBuildGoalNodeIds,
   setAppliedOptimizedRouteChoice,
+  restoreOptimizerSettings,
   addBuildGoalNodeId,
   addBuildGoalNodeIds,
   removeBuildGoalNodeId,
@@ -133,6 +136,7 @@ export function useBuildWorkflowActions({
     setBuildGoalNodeIds,
     setAscendancyAllocationNodeIds,
     setAppliedOptimizedRouteChoice,
+    restoreOptimizerSettings,
     resetAscendancyAllocation,
     clearOptimizedRouteState,
     clearPobImport,

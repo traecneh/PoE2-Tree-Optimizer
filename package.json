@@ -13,11 +13,12 @@
     "pretest": "npm run prepare-data",
     "test": "vitest run",
     "test:watch": "vitest",
+    "audit:pob": "node tools/pob-evaluation/run_audit.mjs",
     "extract:inventory": "tsx src/extract/cli.ts inventory",
     "extract:graph": "tsx src/extract/cli.ts graph",
     "extract:icons": "tsx src/extract/cli.ts icons",
     "prevalidate:graph": "npm run prepare-data",
-    "validate:graph": "tsx src/extract/cli.ts validate"
+    "validate:graph": "tsx src/extract/cli.ts validate --graph public/tree-graph.json"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

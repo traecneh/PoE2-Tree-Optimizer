@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "Spark: allow up to 10% less damage, but retain critical defence and original mana regeneration",
+  "requiredNodeIds": ["50817", "61355"],
+  "minimums": [
+    { "metric": "sharedMindOverMatter", "value": 100 },
+    { "metric": "FullDPS", "baselineFraction": 0.9 },
+    { "metric": "TotalEHP", "baselineFraction": 1 },
+    { "metric": "ManaRegenRecovery", "baselineFraction": 1 }
+  ]
+}

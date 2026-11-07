@@ -2,6 +2,8 @@
 
 Date: 2026-05-29
 
+This document records the original 0.5.0 extraction. For the current 0.5.5f data, updated table relationships, and export configuration, use [the November 6 refresh guide](2026-11-06-tree-data-refresh.md). The original configuration below does not include all tables required for granted-skill descriptions.
+
 ## Result
 
 The main passive tree can be extracted from the local Path of Exile 2 install without using PoB as the source of truth.

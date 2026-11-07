@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { BuildSummaryPanel } from "./BuildSummaryPanel";
+import { buildSummary } from "../tree/buildSummary";
+import { sampleGraph } from "../tree/sampleGraph";
 
 describe("BuildSummaryPanel", () => {
   it("renders point totals and grouped effects", () => {
@@ -81,5 +83,30 @@ describe("BuildSummaryPanel", () => {
     );
 
     expect(screen.getByText("No allocated passives yet.")).not.toBeNull();
+  });
+
+  it("renders combined damage in Totals with source details instead of a repeat badge", () => {
+    const graph = {
+      ...sampleGraph,
+      nodes: {
+        ...sampleGraph.nodes,
+        projectile_damage: {
+          ...sampleGraph.nodes.projectile_damage,
+          stats: ["Adds 1 to 7 Lightning damage to Attacks"],
+        },
+        precise_shot: {
+          ...sampleGraph.nodes.precise_shot,
+          stats: ["Adds 1 to 7 Lightning damage to Attacks"],
+        },
+      },
+    };
+    render(<BuildSummaryPanel summary={buildSummary(graph, ["projectile_damage", "precise_shot"])} />);
+
+    const effect = screen.getByText("Adds 2 to 14 Lightning damage to Attacks");
+    expect(effect.closest("section")?.querySelector("h3")?.textContent).toBe("Totals");
+    expect(effect.closest("li")?.getAttribute("title")).toBe("2 sources: Projectile Damage; Precise Shot");
+    expect(screen.queryByText("Adds 1 to 7 Lightning damage to Attacks")).toBeNull();
+    expect(screen.queryByText("x2")).toBeNull();
+    expect(screen.getByText("2 allocated points")).not.toBeNull();
   });
 });

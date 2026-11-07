@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defaultPassiveOptimizationSettings } from "./passivePreferences";
 import type { SavedBuild } from "./savedBuilds";
 import { parseSavedBuildExport, serializeSavedBuildExport } from "./savedBuildTransfer";
 
@@ -28,10 +29,12 @@ describe("saved build transfer", () => {
     const legacyBuild = fixtureSavedBuild("legacy", "Legacy build");
     delete (legacyBuild.state as Partial<SavedBuild["state"]>).activeAllocationMode;
     delete (legacyBuild.state as Partial<SavedBuild["state"]>).weaponSetAllocationNodeIds;
+    delete legacyBuild.state.optimizerSettings;
 
     expect(parseSavedBuildExport(JSON.stringify({ builds: [legacyBuild] }))[0].state).toMatchObject({
       activeAllocationMode: "main",
       weaponSetAllocationNodeIds: { 1: [], 2: [] },
+      optimizerSettings: defaultPassiveOptimizationSettings(),
     });
   });
 });
@@ -57,6 +60,7 @@ function fixtureSavedBuild(id: string, name: string): SavedBuild {
       ascendancyAllocationNodeIds: [],
       activeAllocationMode: "main",
       weaponSetAllocationNodeIds: { 1: [], 2: [] },
+      optimizerSettings: defaultPassiveOptimizationSettings(),
     },
   };
 }

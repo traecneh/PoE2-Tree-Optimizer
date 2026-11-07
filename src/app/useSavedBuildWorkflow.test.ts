@@ -3,6 +3,12 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ClassStartOption } from "../tree/classStartAliases";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
+import {
+  defaultPassiveOptimizationSettings,
+  normalizePassiveOptimizationSettings,
+  passivePreferenceCatalog,
+  type PassiveOptimizationSettings,
+} from "../tree/passivePreferences";
 import type { SavedBuild, SavedBuildState } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import { emptyAllocationPlanForStart, type AllocationPlan } from "./allocationPlan";
@@ -10,7 +16,23 @@ import { useSavedBuildWorkflow } from "./useSavedBuildWorkflow";
 import { emptyWeaponSetAllocations, type AllocationMode, type WeaponSetAllocationNodeIds } from "./weaponSetAllocation";
 
 describe("useSavedBuildWorkflow", () => {
-  it("loads a saved build and clears transient working state", () => {
+  it.each<{ optimizerSettings?: PassiveOptimizationSettings }>([
+    {},
+    {
+      optimizerSettings: {
+        mode: "weighted",
+        extraPointBudget: 3,
+        preferences: [{ id: passivePreferenceCatalog[0].id, weight: 2 }],
+      },
+    },
+    {
+      optimizerSettings: {
+        mode: "weighted",
+        extraPointBudget: Number.POSITIVE_INFINITY,
+        preferences: [{ id: passivePreferenceCatalog[0].id, weight: Number.NaN }],
+      },
+    },
+  ])("loads a saved build and restores normalized optimizer settings: %j", ({ optimizerSettings }) => {
     const graph = fixtureGraph();
     const options = classStartOptions();
     const savedBuild: SavedBuild = {
@@ -20,7 +42,9 @@ describe("useSavedBuildWorkflow", () => {
       updatedAt: "2026-06-02T00:00:00.000Z",
       state: savedBuildState(),
     };
+    if (optimizerSettings) savedBuild.state.optimizerSettings = optimizerSettings;
     const selectSavedBuild = vi.fn(() => savedBuild);
+    const restoreOptimizerSettings = vi.fn();
     const clearOptimizedRouteState = vi.fn();
     const clearPobImport = vi.fn();
     const clearTreeInteractionState = vi.fn();
@@ -63,6 +87,7 @@ describe("useSavedBuildWorkflow", () => {
         setBuildGoalNodeIds,
         setAscendancyAllocationNodeIds,
         setAppliedOptimizedRouteChoice,
+        restoreOptimizerSettings,
         resetAscendancyAllocation: () => undefined,
         clearOptimizedRouteState,
         clearPobImport,
@@ -95,6 +120,12 @@ describe("useSavedBuildWorkflow", () => {
     });
 
     expect(selectSavedBuild).toHaveBeenCalledWith("saved-1");
+    expect(restoreOptimizerSettings).toHaveBeenCalledExactlyOnceWith(
+      normalizePassiveOptimizationSettings(optimizerSettings),
+    );
+    if (optimizerSettings) {
+      expect(restoreOptimizerSettings.mock.calls[0][0]).not.toBe(optimizerSettings);
+    }
     expect(clearOptimizedRouteState).toHaveBeenCalledTimes(1);
     expect(clearPobImport).toHaveBeenCalledTimes(1);
     expect(clearTreeInteractionState).toHaveBeenCalledTimes(1);
@@ -134,6 +165,7 @@ describe("useSavedBuildWorkflow", () => {
     const clearPobImport = vi.fn();
     const clearTreeInteractionState = vi.fn();
     const markNewUnsavedBuild = vi.fn();
+    const restoreOptimizerSettings = vi.fn();
     const deleteSelectedSavedBuild = vi.fn(() => ({
       id: "saved-1",
       name: "Stored build",
@@ -176,6 +208,7 @@ describe("useSavedBuildWorkflow", () => {
         setBuildGoalNodeIds,
         setAscendancyAllocationNodeIds: () => undefined,
         setAppliedOptimizedRouteChoice,
+        restoreOptimizerSettings,
         resetAscendancyAllocation,
         clearOptimizedRouteState,
         clearPobImport,
@@ -211,6 +244,7 @@ describe("useSavedBuildWorkflow", () => {
     expect(resetAllocationPlan).toHaveBeenLastCalledWith("200");
     expect(resetAscendancyAllocation).toHaveBeenCalledTimes(1);
     expect(markNewUnsavedBuild).toHaveBeenCalledWith("New unsaved build");
+    expect(restoreOptimizerSettings).toHaveBeenCalledExactlyOnceWith(defaultPassiveOptimizationSettings());
 
     act(() => {
       result.current.deleteSelectedBuild();
@@ -223,6 +257,9 @@ describe("useSavedBuildWorkflow", () => {
     expect(clearOptimizedRouteState).toHaveBeenCalledTimes(2);
     expect(clearPobImport).toHaveBeenCalledTimes(2);
     expect(clearTreeInteractionState).toHaveBeenCalledTimes(2);
+    expect(restoreOptimizerSettings).toHaveBeenCalledTimes(2);
+    expect(restoreOptimizerSettings).toHaveBeenLastCalledWith(defaultPassiveOptimizationSettings());
+    expect(restoreOptimizerSettings.mock.calls[1][0]).not.toBe(restoreOptimizerSettings.mock.calls[0][0]);
   });
 });
 

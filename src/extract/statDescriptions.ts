@@ -3,7 +3,11 @@ export type Poe2StatRow = {
   Id?: string;
 };
 
-export type StatDescriptionFormatter = (statId: unknown, value: number | undefined) => string | undefined;
+export type StatDescriptionFormatter = {
+  (statId: unknown, value: number | undefined): string | undefined;
+  // Results align with input stats; an empty string suppresses a consumed group member.
+  formatAll?: (statIds: readonly unknown[], values: readonly (number | undefined)[]) => (string | undefined)[];
+};
 
 type StatDescriptionRule = {
   condition: string;
@@ -35,17 +39,52 @@ export function createStatDescriptionFormatter(input: {
     }
   }
 
-  return (statId, value) => {
-    if (typeof value !== "number") return undefined;
+  const formatOne: StatDescriptionFormatter = (statId, value) => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
     const statName = statNamesByIndex.get(String(statId));
     if (!statName) return undefined;
     if (isNoDisplayStat(statName)) return "";
     const description = descriptionsByStat.get(statName);
-    if (!description) return formatUndescribedStat(statName, value);
-    const rule = description.rules.find((candidate) => matchesCondition(candidate.condition, value)) ?? description.rules[0];
+    if (!description || description.statNames.length !== 1) return formatUndescribedStat(statName, value);
+    const rule = description.rules.find((candidate) => matchesCondition(candidate.condition, [value])) ?? description.rules[0];
     if (!rule) return undefined;
-    return renderRule(rule, value);
+    return renderRule(rule, [value]);
   };
+
+  formatOne.formatAll = (statIds, values) => {
+    const formatted = statIds.map((statId, index) => formatOne(statId, values[index]));
+    const indexesByName = new Map<string, number>();
+    statIds.forEach((statId, index) => {
+      const name = statNamesByIndex.get(String(statId));
+      if (name && !indexesByName.has(name)) indexesByName.set(name, index);
+    });
+    const consumed = new Set<number>();
+
+    for (let index = 0; index < statIds.length; index += 1) {
+      if (consumed.has(index)) continue;
+      const name = statNamesByIndex.get(String(statIds[index]));
+      const description = name ? descriptionsByStat.get(name) : undefined;
+      if (!description || description.statNames.length < 2) continue;
+      const groupIndexes = description.statNames.map((statName) => indexesByName.get(statName));
+      if (description.statNames.some((statName) => descriptionsByStat.get(statName) !== description)) continue;
+      const indexes = groupIndexes.filter((groupIndex): groupIndex is number => groupIndex !== undefined);
+      if (indexes.some((groupIndex) => consumed.has(groupIndex) || !Number.isFinite(values[groupIndex]))) continue;
+      const groupValues = groupIndexes.map((groupIndex) => groupIndex === undefined ? undefined : values[groupIndex]);
+      // Absent flags default to zero for rule selection; missing displayed values stay unknown.
+      const rule = description.rules.find((candidate) => matchesCondition(candidate.condition, groupValues.map((value) => value ?? 0)));
+      if (!rule) continue;
+      const text = renderRule(rule, groupValues);
+      if (text === undefined) continue;
+
+      for (const groupIndex of indexes) {
+        formatted[groupIndex] = "";
+        consumed.add(groupIndex);
+      }
+      formatted[Math.min(...indexes)] = text;
+    }
+    return formatted;
+  };
+  return formatOne;
 }
 
 export function decodeStatDescriptionText(bytes: Uint8Array): string {
@@ -121,9 +160,14 @@ function unescapeTemplate(template: string): string {
   return template.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 }
 
-function matchesCondition(condition: string, value: number): boolean {
-  const range = condition.split(/\s+/).find((part) => part.includes("|") || part === "#" || isNumeric(part));
-  if (!range || range === "#") return true;
+function matchesCondition(condition: string, values: readonly number[]): boolean {
+  const ranges = condition.split(/\s+/);
+  return values.every((value, index) => matchesRange(ranges[index] ?? "#", value));
+}
+
+function matchesRange(range: string, value: number): boolean {
+  if (range === "#") return true;
+  if (range.startsWith("!") && isNumeric(range.slice(1))) return value !== Number(range.slice(1));
 
   const [minToken, maxToken] = range.includes("|") ? range.split("|") : [range, range];
   const min = minToken === "#" ? Number.NEGATIVE_INFINITY : Number(minToken);
@@ -137,20 +181,29 @@ function isNumeric(value: string): boolean {
   return value.trim() !== "" && Number.isFinite(Number(value));
 }
 
-function renderRule(rule: StatDescriptionRule, rawValue: number): string {
-  const value = transformValue(rawValue, rule.transforms);
-  return cleanupGameMarkup(
-    rule.template.replace(/\{(\d+)(?::([^}]+))?\}/g, (_match, index: string, format: string | undefined) => {
-      if (index !== "0") return "";
-      return formatValue(value, format);
-    }),
-  );
+function renderRule(rule: StatDescriptionRule, rawValues: readonly (number | undefined)[]): string | undefined {
+  let complete = true;
+  const text = rule.template.replace(/\{(\d*)(?::([^}]+))?\}/g, (_match, index: string, format: string | undefined) => {
+    const valueIndex = index === "" ? 0 : Number(index);
+    const value = rawValues[valueIndex];
+    if (value === undefined) {
+      complete = false;
+      return "";
+    }
+    return formatValue(transformValue(value, rule.transforms, valueIndex), format);
+  });
+  return complete ? cleanupGameMarkup(text) : undefined;
 }
 
-function transformValue(value: number, transforms: string[]): number {
+function transformValue(value: number, transforms: string[], valueIndex: number): number {
   let transformed = value;
   for (let index = 0; index < transforms.length; index += 1) {
     const transform = transforms[index];
+    const target = transforms[index + 1];
+    if (target !== undefined && isNumeric(target)) {
+      index += 1;
+      if (Number(target) !== valueIndex + 1) continue;
+    }
     if (transform === "negate") transformed = -transformed;
     else if (transform === "per_minute_to_per_second" || transform === "per_minute_to_per_second_2dp_if_required") {
       transformed /= 60;
@@ -199,7 +252,7 @@ function humanizeStatName(statName: string): string {
 }
 
 function hasExplicitMagnitude(statName: string): boolean {
-  return /(?:^|_)(?:max|maximum|base|additional|number|stacks?|allowed)(?:_|$)/.test(statName);
+  return /(?:^|_)(?:min|minimum|max|maximum|base|additional|number|stacks?|allowed)(?:_|$)/.test(statName);
 }
 
 function isNoDisplayStat(statName: string): boolean {

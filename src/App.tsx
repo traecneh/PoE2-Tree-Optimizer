@@ -21,6 +21,7 @@ import {
   type WeaponSetAllocationNodeIds,
 } from "./app/weaponSetAllocation";
 import { filterVisibleTreeGraph } from "./tree/treeVisibility";
+import { maxPassiveAllocationPointCount } from "./tree/passivePointBudget";
 import { BuildSummaryPanel } from "./viewer/BuildSummaryPanel";
 import { AppHeader } from "./viewer/AppHeader";
 import { SidePanel } from "./viewer/SidePanel";
@@ -28,7 +29,6 @@ import { TreeViewerPanel } from "./viewer/TreeViewerPanel";
 
 const nodeVisualScaleOptions = [1, 1.5, 2, 3] as const;
 const defaultNodeVisualScale = 3;
-const treeDataVersionLabel = "PoE2 0.5.0";
 
 export default function App() {
   const { allocationPlan, setAllocationPlan, resetAllocationPlan } = useAllocationPlanState();
@@ -36,6 +36,7 @@ export default function App() {
   const [weaponSetAllocationNodeIds, setWeaponSetAllocationNodeIds] = useState<WeaponSetAllocationNodeIds>(
     () => emptyWeaponSetAllocations(),
   );
+  const optimizerMainPointLimit = maxPassiveAllocationPointCount - Math.max(weaponSetAllocationNodeIds[1].length, weaponSetAllocationNodeIds[2].length);
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(defaultNodeVisualScale);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocusedNodeId, setSearchFocusedNodeId] = useState<string | undefined>();
@@ -58,6 +59,9 @@ export default function App() {
     pathStartNodeId,
     setPathStartNodeId,
   } = useGraphPathStartState();
+  const treeDataVersionLabel = graphLoadStatus === "loaded"
+    ? `PoE2 ${graph.gameVersion}`
+    : graphLoadStatus === "loading" ? "Loading..." : "Sample tree";
   const {
     setAscendancyAllocationNodeIds,
     activeAscendancyAllocationNodeIds,
@@ -93,6 +97,9 @@ export default function App() {
   );
   const {
     buildGoalNodeIds,
+    optimizerSettings,
+    updateOptimizerSettings,
+    restoreOptimizerSettings,
     setBuildGoalNodeIds,
     buildGoalNodeIdSet,
     buildGoalStatus,
@@ -112,6 +119,7 @@ export default function App() {
     selectOptimizedRoute,
     applyOptimizedRoute,
   } = useBuildGoalsState({
+    mainPointLimit: optimizerMainPointLimit,
     visibleGraph,
     allocationPlan,
     setAllocationPlan,
@@ -231,6 +239,7 @@ export default function App() {
     buildGoalNodeIdSet,
     setBuildGoalNodeIds,
     setAppliedOptimizedRouteChoice,
+    restoreOptimizerSettings,
     addBuildGoalNodeId,
     addBuildGoalNodeIds,
     removeBuildGoalNodeId,
@@ -258,6 +267,7 @@ export default function App() {
       allocationPlan,
       nodeVisualScale,
       buildGoalNodeIds,
+      optimizerSettings,
       ascendancyAllocationNodeIds: activeAscendancyAllocationNodeIds,
       activeAllocationMode,
       weaponSetAllocationNodeIds,
@@ -364,6 +374,9 @@ export default function App() {
           onHoverNode={updateHoverPreviewTarget}
         />
         <SidePanel
+          mainPointLimit={optimizerMainPointLimit}
+          optimizerSettings={optimizerSettings}
+          onOptimizerSettingsChange={updateOptimizerSettings}
           searchQuery={searchQuery}
           searchResults={searchResultsWithAllocationDistance}
           selectedNodeId={selectedNodeId}

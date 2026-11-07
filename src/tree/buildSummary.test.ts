@@ -92,6 +92,19 @@ const fixtureGraph: TreeGraph = {
   bounds: { minX: 0, maxX: 800, minY: 0, maxY: 0 },
 };
 
+function graphWithEffects(effects: Record<string, string[]>): TreeGraph {
+  return {
+    ...fixtureGraph,
+    nodes: Object.fromEntries(Object.entries(effects).map(([id, stats]) => [id, {
+      id,
+      name: id,
+      stats,
+      position: { x: 0, y: 0 },
+      flags: { small: true },
+    }])),
+  };
+}
+
 describe("buildSummary", () => {
   it("counts visible allocated passives without counting the class start", () => {
     const summary = buildSummary(fixtureGraph, ["start", "strength_small", "projectile_small"]);
@@ -164,5 +177,97 @@ describe("buildSummary", () => {
         sourceNodeNames: ["Minion Notable", "Stun Notable"],
       },
     ]);
+  });
+
+  it("combines matching damage ranges into totals with their source nodes", () => {
+    const graph = graphWithEffects({
+      "Lightning Small A": ["Adds 1 to 7 Lightning damage to Attacks"],
+      "Lightning Small B": ["Adds 1 to 7 Lightning damage to Attacks"],
+    });
+    const summary = buildSummary(graph, Object.keys(graph.nodes));
+
+    expect(summary.summedStats).toEqual([{
+      key: "damage-range:lightning damage to attacks",
+      label: "Lightning damage to Attacks",
+      minimum: 2,
+      maximum: 14,
+      text: "Adds 2 to 14 Lightning damage to Attacks",
+      sourceNodeIds: ["Lightning Small A", "Lightning Small B"],
+      sourceNodeNames: ["Lightning Small A", "Lightning Small B"],
+    }]);
+    expect(summary.otherStats).toEqual([]);
+  });
+
+  it("adds differing ranges and counts each allocated node only once", () => {
+    const graph = graphWithEffects({
+      smallA: ["Adds 1 to 7 Lightning damage to Attacks"],
+      smallB: ["Adds 1 to 7 Lightning damage to Attacks"],
+      notable: ["Adds 1 to 37 Lightning damage to Attacks"],
+    });
+    const summary = buildSummary(graph, ["smallA", "smallB", "notable", "smallA", "notable"]);
+
+    expect(summary.pointCount).toBe(3);
+    expect(summary.summedStats.map((stat) => stat.text)).toEqual(["Adds 3 to 51 Lightning damage to Attacks"]);
+    expect(summary.summedStats[0].sourceNodeIds).toEqual(["smallA", "smallB", "notable"]);
+  });
+
+  it("keeps damage types and attack, spell, and unspecified scopes separate", () => {
+    const effects = [
+      "Adds 1 to 7 Lightning damage to Attacks",
+      "Adds 1 to 7 Fire damage to Attacks",
+      "Adds 1 to 7 Cold damage to Attacks",
+      "Adds 1 to 7 Physical damage to Attacks",
+      "Adds 1 to 7 Chaos damage to Attacks",
+      "Adds 1 to 7 Lightning damage to Spells",
+      "Adds 1 to 7 Lightning damage to Attacks and Spells",
+      "Adds 1 to 7 Lightning damage",
+    ];
+    const graph = graphWithEffects({ damage: effects });
+    const summary = buildSummary(graph, ["damage"]);
+
+    expect(summary.summedStats.map((stat) => stat.text)).toEqual(effects);
+    expect(summary.otherStats).toEqual([]);
+  });
+
+  it("normalizes damage range whitespace and case while preserving first-source wording", () => {
+    const graph = graphWithEffects({
+      a: ["  Adds 1 to 7 Lightning damage to Attacks  "],
+      b: ["adds 2 to 8 lightning DAMAGE to attacks"],
+    });
+
+    expect(buildSummary(graph, ["a", "b"]).summedStats.map((stat) => stat.text)).toEqual([
+      "Adds 3 to 15 Lightning damage to Attacks",
+    ]);
+  });
+
+  it("handles zero and decimal damage bounds without floating-point display noise", () => {
+    const graph = graphWithEffects({
+      a: ["Adds 0 to 0.1 Fire damage to Spells"],
+      b: ["Adds 0.1 to 0.2 Fire damage to Spells"],
+      c: ["Adds 0.2 to 0.3 Fire damage to Spells"],
+    });
+
+    expect(buildSummary(graph, ["a", "b", "c"]).summedStats.map((stat) => stat.text)).toEqual([
+      "Adds 0.3 to 0.6 Fire damage to Spells",
+    ]);
+  });
+
+  it("does not guess at conditional, scaling, multi-effect, or invalid ranges", () => {
+    const effects = [
+      "Adds 1 to 7 Lightning damage to Attacks while on Full Life",
+      "Adds 1 to 7 Lightning damage to Attacks per 10 Intelligence",
+      "Minions deal 1 to 7 additional Lightning damage",
+      "Adds 1 to 7 Lightning damage and 2 to 8 Fire damage to Attacks",
+      "Adds 7 to 1 Lightning damage to Attacks",
+      "Adds -1 to 7 Lightning damage to Attacks",
+      "Adds 1% to 7% Lightning damage to Attacks",
+    ];
+    const graph = graphWithEffects({ a: effects, b: effects });
+    const summary = buildSummary(graph, ["a", "b"]);
+
+    expect(summary.summedStats).toEqual([]);
+    expect(summary.otherStats.map(({ text, count }) => ({ text, count }))).toEqual(
+      effects.map((text) => ({ text, count: 2 })),
+    );
   });
 });

@@ -4,10 +4,8 @@ import { defaultWeaponSetPointLimit, type AllocationMode } from "../app/weaponSe
 import type { ClassStartOption } from "../tree/classStartAliases";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { SavedBuild } from "../tree/savedBuilds";
+import { maxPassiveAllocationPointCount } from "../tree/passivePointBudget";
 import { ControlTooltip } from "./ControlTooltip";
-
-const maxPassiveAllocationPointCount = 123;
-
 type AppHeaderProps = {
   treeDataVersionLabel: string;
   savedBuilds: SavedBuild[];
@@ -113,7 +111,7 @@ export function AppHeader({
                 <li>Click nodes on the tree to preview allocation paths, then apply the path from the node inspector.</li>
                 <li>Use Passive search to find passives, add one result, or add all matching nodes with the same effect.</li>
                 <li>Import PoB goals to pull build goals from a Path of Building code.</li>
-                <li>Optimize route previews the shortest route through current Build goals; Apply optimized route commits it.</li>
+                <li>Optimize route previews a route through all Build goals. Shortest minimizes points; Passive preferences favors chosen effects within an extra-point budget. Apply commits the selected route.</li>
                 <li>Mode: Main edits the normal passive tree and is used by Build goals and Optimize route.</li>
                 <li>Mode: W1 and W2 edit weapon-set-specific passives manually; select W1 or W2, then left-click eligible nodes on the tree.</li>
                 <li>Check Hover path preview to see routes while hovering unallocated nodes.</li>

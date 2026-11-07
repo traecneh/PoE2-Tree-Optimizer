@@ -211,6 +211,15 @@ function normalizeFromPsg(input: {
   const grantedEffects = readOptionalJsonArray(join(dirname(input.skillsPath), "GrantedEffects.json")) as
     | Parameters<typeof normalizePoe2PassiveTreeData>[0]["grantedEffects"]
     | undefined;
+  const skillGems = readOptionalJsonArray(join(dirname(input.skillsPath), "SkillGems.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["skillGems"]
+    | undefined;
+  const gemEffects = readOptionalJsonArray(join(dirname(input.skillsPath), "GemEffects.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["gemEffects"]
+    | undefined;
+  const baseItemTypes = readOptionalJsonArray(join(dirname(input.skillsPath), "BaseItemTypes.json")) as
+    | Parameters<typeof normalizePoe2PassiveTreeData>[0]["baseItemTypes"]
+    | undefined;
   const activeSkills = readOptionalJsonArray(join(dirname(input.skillsPath), "ActiveSkills.json")) as
     | Parameters<typeof normalizePoe2PassiveTreeData>[0]["activeSkills"]
     | undefined;
@@ -218,11 +227,25 @@ function normalizeFromPsg(input: {
     | Parameters<typeof normalizePoe2PassiveTreeData>[0]["grantedEffectStatSets"]
     | undefined;
 
+  const stats = input.statsPath ? readStatsTable(input.statsPath) : [];
+  const descriptionSources = (input.statDescriptionPaths ?? []).map((path) => ({
+    path,
+    text: decodeStatDescriptionText(readBinary(path)),
+  }));
   const statFormatter =
     input.statsPath && input.statDescriptionPaths?.length
       ? createStatDescriptionFormatter({
-          stats: readStatsTable(input.statsPath),
-          descriptions: input.statDescriptionPaths.map((path) => decodeStatDescriptionText(readBinary(path))),
+          stats,
+          descriptions: [...descriptionSources]
+            .sort((left, right) => passiveDescriptionPriority(left.path) - passiveDescriptionPriority(right.path))
+            .map((source) => source.text),
+        })
+      : undefined;
+  const grantedSkillStatFormatter =
+    input.statsPath && descriptionSources.length
+      ? createStatDescriptionFormatter({
+          stats,
+          descriptions: descriptionSources.map((source) => source.text),
         })
       : undefined;
 
@@ -235,10 +258,20 @@ function normalizeFromPsg(input: {
     masteryEffects,
     ascendancies,
     grantedEffects,
+    skillGems,
+    gemEffects,
+    baseItemTypes,
     activeSkills,
     grantedEffectStatSets,
     statFormatter,
+    grantedSkillStatFormatter,
   });
+}
+
+function passiveDescriptionPriority(path: string): number {
+  if (/(?:^|[\\/@])passive_skill_stat_descriptions\.csd$/i.test(path)) return 2;
+  if (/(?:^|[\\/@])stat_descriptions\.csd$/i.test(path)) return 1;
+  return 0;
 }
 
 function readOptionalJsonArray(path: string): unknown[] | undefined {

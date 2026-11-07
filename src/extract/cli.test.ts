@@ -1,15 +1,35 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { TreeGraph } from "../tree/types";
 
 const repoRoot = process.cwd();
 const tsxCli = join(repoRoot, "node_modules", "tsx", "dist", "cli.mjs");
 const cliPath = join(repoRoot, "src", "extract", "cli.ts");
+const tempRoot = realpathSync(tmpdir());
+const originalDeployFiles = deployFileHashes();
+let workspace: string;
 
 describe("extract CLI", () => {
+  beforeEach(() => {
+    workspace = mkdtempSync(join(tempRoot, "poe2-cli-"));
+  });
+
+  afterEach(() => {
+    const target = realpathSync(workspace);
+    if (dirname(target) !== tempRoot || !basename(target).startsWith("poe2-cli-")) {
+      throw new Error(`Refusing to remove a directory outside the CLI test workspace: ${target}`);
+    }
+    rmSync(target, { recursive: true, force: true });
+  });
+
+  afterAll(() => {
+    expect(deployFileHashes()).toEqual(originalDeployFiles);
+  });
+
   it("exits 2 when a known flag is missing its value", () => {
     const result = runCli(["graph", "--install"]);
 
@@ -61,7 +81,6 @@ describe("extract CLI", () => {
   });
 
   it("exits 1 with concise output for malformed raw JSON", () => {
-    const workspace = mkdtempSync(join(tmpdir(), "poe2-cli-"));
     const installPath = join(workspace, "fake-poe2");
     const rawPath = join(workspace, "raw-passive-tree.json");
     const graphPath = join(workspace, "tree-graph.json");
@@ -79,7 +98,6 @@ describe("extract CLI", () => {
   });
 
   it("exits 1 with concise output for malformed PSG data", () => {
-    const workspace = mkdtempSync(join(tmpdir(), "poe2-cli-"));
     const installPath = join(workspace, "fake-poe2");
     const psgPath = join(workspace, "passive-tree.psg");
     const skillsPath = join(workspace, "PassiveSkills.json");
@@ -99,7 +117,6 @@ describe("extract CLI", () => {
   });
 
   it("uses an explicit game version when extracting a graph", () => {
-    const workspace = mkdtempSync(join(tmpdir(), "poe2-cli-"));
     const installPath = join(workspace, "fake-poe2");
     const rawPath = join(workspace, "raw-passive-tree.json");
     const graphPath = join(workspace, "tree-graph.json");
@@ -123,10 +140,38 @@ describe("extract CLI", () => {
     expect(result.status).toBe(0);
     const graph = JSON.parse(readFileSync(graphPath, "utf8")) as TreeGraph;
     expect(graph.gameVersion).toBe("0.5.0");
+    expect(JSON.parse(readFileSync(join(workspace, "public", "tree-graph.json"), "utf8"))).toEqual(graph);
+  });
+
+  it("keeps relative inputs and default graph outputs inside the test workspace", () => {
+    mkdirSync(join(workspace, "fake-poe2"));
+    writeFileSync(join(workspace, "fake-poe2", "Content.ggpk"), "", "utf8");
+    mkdirSync(join(workspace, "var", "cache"), { recursive: true });
+    writeFileSync(join(workspace, "var", "cache", "raw-passive-tree.json"), "{}", "utf8");
+
+    const result = runCli(["graph", "--install", "fake-poe2", "--game-version", "test-isolated"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    const output = JSON.parse(readFileSync(join(workspace, "var", "output", "tree-graph.json"), "utf8")) as TreeGraph;
+    const preview = JSON.parse(readFileSync(join(workspace, "public", "tree-graph.json"), "utf8")) as TreeGraph;
+    expect(output.gameVersion).toBe("test-isolated");
+    expect(preview).toEqual(output);
+    expect(deployFileHashes()).toEqual(originalDeployFiles);
+  });
+
+  it("keeps the default inventory report inside the test workspace", () => {
+    mkdirSync(join(workspace, "fake-poe2"));
+    writeFileSync(join(workspace, "fake-poe2", "Content.ggpk"), "", "utf8");
+
+    const result = runCli(["inventory", "--install", "fake-poe2"]);
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
+    expect(existsSync(join(workspace, "var", "output", "local-data-inventory.json"))).toBe(true);
   });
 
   it("exits 1 when validation reports issues", () => {
-    const workspace = mkdtempSync(join(tmpdir(), "poe2-cli-"));
     const graphPath = join(workspace, "tree-graph.json");
     const reportPath = join(workspace, "validation-report.json");
     const graph: TreeGraph = {
@@ -158,7 +203,6 @@ describe("extract CLI", () => {
   });
 
   it("exits 0 when validation only reports missing stat warnings", () => {
-    const workspace = mkdtempSync(join(tmpdir(), "poe2-cli-"));
     const graphPath = join(workspace, "tree-graph.json");
     const reportPath = join(workspace, "validation-report.json");
     const graph: TreeGraph = {
@@ -198,7 +242,19 @@ describe("extract CLI", () => {
 
 function runCli(args: string[]): ReturnType<typeof spawnSync> {
   return spawnSync(process.execPath, [tsxCli, cliPath, ...args], {
-    cwd: repoRoot,
+    cwd: workspace,
     encoding: "utf8",
   });
+}
+
+function deployFileHashes(): Record<string, string | null> {
+  return Object.fromEntries([
+    "data/tree-graph.json",
+    "data/tree-assets/icon-manifest.json",
+    "public/tree-graph.json",
+    "public/tree-assets/icon-manifest.json",
+  ].map((path) => {
+    const absolutePath = join(repoRoot, path);
+    return [path, existsSync(absolutePath) ? createHash("sha256").update(readFileSync(absolutePath)).digest("hex") : null];
+  }));
 }

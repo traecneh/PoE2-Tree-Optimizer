@@ -2,6 +2,7 @@ import type { AllocationPath } from "../tree/pathAllocation";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { TreeEdge, TreeNode } from "../tree/types";
 import type { AllocationMode } from "../app/weaponSetAllocation";
+import type { PassiveOptimizationSettings } from "../tree/passivePreferences";
 import {
   BuildGoalsPanel,
   type BuildGoalsPanelGoal,
@@ -14,6 +15,9 @@ import { NodeInspector } from "./NodeInspector";
 import { PassiveSearchPanel, type PassiveSearchPanelResult } from "./PassiveSearchPanel";
 
 type SidePanelProps = {
+  mainPointLimit?: number;
+  optimizerSettings?: PassiveOptimizationSettings;
+  onOptimizerSettingsChange?: (settings: PassiveOptimizationSettings) => void;
   searchQuery: string;
   searchResults: PassiveSearchPanelResult[];
   selectedNodeId: string | undefined;
@@ -55,6 +59,9 @@ type SidePanelProps = {
 };
 
 export function SidePanel({
+  mainPointLimit,
+  optimizerSettings,
+  onOptimizerSettingsChange,
   searchQuery,
   searchResults,
   selectedNodeId,
@@ -95,7 +102,7 @@ export function SidePanel({
   isSelectedNodeBuildGoal,
 }: SidePanelProps) {
   return (
-    <div className="side-panel">
+    <div className="side-panel" role="region" aria-label="Build controls" tabIndex={0}>
       <PassiveSearchPanel
         query={searchQuery}
         results={searchResults}
@@ -110,6 +117,9 @@ export function SidePanel({
         onAddMatchingBuildGoals={onAddMatchingBuildGoals}
       />
       <BuildGoalsPanel
+        mainPointLimit={mainPointLimit}
+        optimizerSettings={optimizerSettings}
+        onOptimizerSettingsChange={onOptimizerSettingsChange}
         goals={buildGoals}
         status={buildGoalStatus}
         pobImportCode={pobImportCode}

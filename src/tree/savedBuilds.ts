@@ -1,4 +1,5 @@
 import { normalizeOptimizedRouteChoice, type OptimizedRouteChoice } from "./optimizedRouteChoice";
+import { normalizePassiveOptimizationSettings, type PassiveOptimizationSettings } from "./passivePreferences";
 
 export const savedBuildsStorageKey = "poe2-skill-tree-optimizer.saved-builds.v1";
 const defaultNodeVisualScale = 3;
@@ -24,6 +25,7 @@ export type SavedBuildState = {
   activeAllocationMode: SavedBuildAllocationMode;
   weaponSetAllocationNodeIds: SavedBuildWeaponSetAllocationNodeIds;
   optimizedRouteChoice?: OptimizedRouteChoice;
+  optimizerSettings?: PassiveOptimizationSettings;
 };
 
 export type SavedBuildAllocationMode = "main" | "weapon1" | "weapon2";
@@ -120,6 +122,7 @@ function normalizeSavedBuild(value: unknown): SavedBuild[] {
       activeAllocationMode,
       weaponSetAllocationNodeIds,
       optimizedRouteChoice,
+      optimizerSettings: normalizePassiveOptimizationSettings(state.optimizerSettings),
     },
   }];
 }

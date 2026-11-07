@@ -184,14 +184,19 @@ description
           GrantedSkill: 20,
         },
       ],
-      grantedEffects: [{ _index: 20, Id: "RainOfBladesPlayer", ActiveSkill: 7, StatSet: 30 }],
+      skillGems: [{ _index: 20, GemEffects: [40] }],
+      gemEffects: [{ _index: 40, GrantedEffect: 200 }],
+      grantedEffects: [
+        { _index: 20, Id: "UnrelatedSkill", ActiveSkill: 8 },
+        { _index: 200, Id: "TimeSnapPlayer", ActiveSkill: 7, StatSet: 30 },
+      ],
       grantedEffectStatSets: [{ _index: 30, Id: "RainOfBladesPlayer", ConstantStats: [99], ConstantStatsValues: [5000] }],
       activeSkills: [
         {
           _index: 7,
-          Id: "rain_of_blades",
-          DisplayedName: "Rain of Blades",
-          Description: "Pour your [Ward|Runic Ward] into conjuring blades.",
+          Id: "time_snap",
+          DisplayedName: "Time Snap",
+          Description: "Reset [Cooldown|Cooldowns] of your other Skills.",
         },
       ],
       statFormatter: (statId, value) => {
@@ -205,8 +210,8 @@ description
     });
 
     expect(graph.nodes["101"].stats).toEqual([
-      "Grants Skill: Rain of Blades",
-      "Pour your Runic Ward into conjuring blades.",
+      "Grants Skill: Time Snap",
+      "Reset Cooldowns of your other Skills.",
     ]);
   });
 
@@ -230,7 +235,17 @@ description
           GrantedSkill: 20,
         },
       ],
-      grantedEffects: [{ _index: 20, Id: "SupportProjectileAccelerationPlayer", StatSet: 30 }],
+      skillGems: [{ _index: 20, GemEffects: [40, 41, 40] }],
+      gemEffects: [
+        { _index: 40, GrantedEffect: 200, AdditionalGrantedEffects: [202] },
+        { _index: 41, GrantedEffect: 201 },
+      ],
+      grantedEffects: [
+        { _index: 200, Id: "SupportProjectileAccelerationPlayer", StatSet: 30 },
+        { _index: 201, Id: "AdditionalSupport", StatSet: 31 },
+        { _index: 202, Id: "InternalSkill", ActiveSkill: 8 },
+      ],
+      activeSkills: [{ _index: 8, DisplayedName: "internal_skill" }],
       grantedEffectStatSets: [
         {
           _index: 30,
@@ -239,11 +254,13 @@ description
           ConstantStats: [2, 4],
           ConstantStatsValues: [40, -20],
         },
+        { _index: 31, ConstantStats: [5], ConstantStatsValues: [10] },
       ],
       statFormatter: (statId, value) => {
         if (statId === 2 && value === 40) return "Supported Skills have 40% more Projectile Speed";
         if (statId === 3) return "Projectiles can Chain";
         if (statId === 4 && value === -20) return "Supported Skills have 20% less Skill Speed";
+        if (statId === 5 && value === 10) return "Supported Skills deal 10% more Damage";
         return undefined;
       },
     } as Parameters<typeof normalizePoe2PassiveTreeData>[0] & {
@@ -255,6 +272,102 @@ description
       "Projectiles can Chain",
       "Supported Skills have 40% more Projectile Speed",
       "Supported Skills have 20% less Skill Speed",
+      "Supported Skills deal 10% more Damage",
+    ]);
+  });
+
+  it("does not substitute unrelated granted effects when a skill gem is missing", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [{ PassiveSkillGraphId: 101, GrantedSkill: 20 }],
+      grantedEffects: [{ _index: 20, Id: "WrongSkill", ActiveSkill: 7 }],
+      activeSkills: [{ _index: 7, DisplayedName: "Wrong Skill", Description: "Unrelated effect" }],
+    });
+
+    expect(graph.nodes["101"].stats).toEqual([]);
+  });
+
+  it("uses the skill gem name for command skills with templated display names", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [{ PassiveSkillGraphId: 101, GrantedSkill: 20 }],
+      skillGems: [{ _index: 20, BaseItemType: 50, GemEffects: [40] }],
+      baseItemTypes: [{ _index: 50, Name: "Navira's Fracturing" }],
+      gemEffects: [{ _index: 40, GrantedEffect: 200 }],
+      grantedEffects: [{ _index: 200, ActiveSkill: 7 }],
+      activeSkills: [{ _index: 7, DisplayedName: "Command: {0}" }],
+    });
+
+    expect(graph.nodes["101"].stats).toEqual(["Grants Skill: Navira's Fracturing"]);
+  });
+
+  it("keeps passive stat wording separate from supported-skill wording", () => {
+    const stats = [{ _index: 1, Id: "mana_cost_efficiency_+%" }];
+    const passiveDescription = 'description\n1 mana_cost_efficiency_+%\n1\n# "{0}% increased Mana Cost Efficiency"\n';
+    const skillDescription = 'description\n1 mana_cost_efficiency_+%\n1\n# "Supported Skills have {0}% increased Mana Cost Efficiency"\n';
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [{ PassiveSkillGraphId: 101, Stats: [1], Stat1Value: 15, GrantedSkill: 20 }],
+      skillGems: [{ _index: 20, GemEffects: [40] }],
+      gemEffects: [{ _index: 40, GrantedEffect: 200 }],
+      grantedEffects: [{ _index: 200, StatSet: 30 }],
+      grantedEffectStatSets: [{ _index: 30, ConstantStats: [1], ConstantStatsValues: [10] }],
+      statFormatter: createStatDescriptionFormatter({ stats, descriptions: [skillDescription, passiveDescription] }),
+      grantedSkillStatFormatter: createStatDescriptionFormatter({ stats, descriptions: [passiveDescription, skillDescription] }),
+    });
+
+    expect(graph.nodes["101"].stats).toEqual([
+      "15% increased Mana Cost Efficiency",
+      "Supported Skills have 10% increased Mana Cost Efficiency",
+    ]);
+  });
+
+  it("preserves all seven stat values from current passive rows", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [{
+        PassiveSkillGraphId: 101,
+        Stats: [1, 2, 3, 4, 5, 6, 7],
+        Stat1Value: 10, Stat2Value: 20, Stat3Value: 30, Stat4Value: 40,
+        Stat5Value: 50, Stat6Value: 60, Stat7Value: 70,
+      }],
+    });
+
+    expect(graph.nodes["101"].stats).toEqual([
+      "stat:1=10", "stat:2=20", "stat:3=30", "stat:4=40", "stat:5=50", "stat:6=60", "stat:7=70",
+    ]);
+  });
+
+  it("combines damage ranges in passive rows and granted-skill stat sets", () => {
+    const graph = normalizePoe2PassiveTreeData({
+      gameVersion: "fixture-version",
+      sourcePath: "fixture.psg",
+      graph: parsePassiveSkillGraph(makePsgFixture()),
+      passiveSkills: [{ PassiveSkillGraphId: 101, Stats: [59, 60], Stat1Value: 1, Stat2Value: 37, GrantedSkill: 20 }],
+      skillGems: [{ _index: 20, GemEffects: [40] }],
+      gemEffects: [{ _index: 40, GrantedEffect: 200 }],
+      grantedEffects: [{ _index: 200, StatSet: 30 }],
+      grantedEffectStatSets: [{ _index: 30, ConstantStats: [59, 60], ConstantStatsValues: [2, 9] }],
+      statFormatter: createStatDescriptionFormatter({
+        stats: [
+          { _index: 59, Id: "attack_minimum_added_lightning_damage" },
+          { _index: 60, Id: "attack_maximum_added_lightning_damage" },
+        ],
+        descriptions: ['description\n2 attack_minimum_added_lightning_damage attack_maximum_added_lightning_damage\n1\n# # "Adds {0} to {1} Lightning damage to Attacks"\n'],
+      }),
+    });
+
+    expect(graph.nodes["101"].stats).toEqual([
+      "Adds 1 to 37 Lightning damage to Attacks",
+      "Adds 2 to 9 Lightning damage to Attacks",
     ]);
   });
 

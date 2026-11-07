@@ -8,6 +8,22 @@ describe("BuildGoalsPanel", () => {
     vi.useRealTimers();
   });
 
+  it("resets the weighted countdown on score improvements even at the same point cost", () => {
+    vi.useFakeTimers();
+    const props = {
+      goals: [], pobImportCode: "", pobImportStatus: { kind: "idle" as const }, canApplyOptimizedRoute: true,
+      onPobImportCodeChange: vi.fn(), onImportPobBuildGoals: vi.fn(), onRemoveGoal: vi.fn(), onClearGoals: vi.fn(),
+      onOptimize: vi.fn(), onCancel: vi.fn(), onApplyOptimizedRoute: vi.fn(),
+    };
+    const weighted = { score: 4, baselinePointCost: 10, maxPointCost: 15, baselineExact: true, contributions: [] };
+    const { rerender } = render(<BuildGoalsPanel {...props} status={{ kind: "running", pointCost: 15, weighted, improvementHistory: [4] }} />);
+    act(() => { vi.advanceTimersByTime(20_000); });
+    expect(screen.getByText("Stopping in 40s unless a better route is found.")).not.toBeNull();
+    rerender(<BuildGoalsPanel {...props} status={{ kind: "running", pointCost: 15, weighted: { ...weighted, score: 6 }, improvementHistory: [4, 6] }} />);
+    expect(screen.getByText("Stopping in 60s unless a better route is found.")).not.toBeNull();
+    expect(screen.getByText("Score improved: 4 -> 6")).not.toBeNull();
+  });
+
   it("shows best-found progress and route candidate navigation while optimizing", () => {
     const onPreviousRoute = vi.fn();
     const onNextRoute = vi.fn();

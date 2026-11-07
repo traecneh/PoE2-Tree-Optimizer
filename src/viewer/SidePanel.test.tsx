@@ -11,6 +11,9 @@ describe("SidePanel", () => {
     expect(screen.getByRole("region", { name: "Build goals" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Precise Shot" })).not.toBeNull();
     expect(screen.getByText("25% increased Critical Hit Chance")).not.toBeNull();
+    const controls = screen.getByRole("region", { name: "Build controls" });
+    expect(controls.tabIndex).toBe(0);
+    expect(within(controls).getByRole("region", { name: "Build goals" })).not.toBeNull();
   });
 
   it("wires composed panel actions to their callbacks", () => {

@@ -3,6 +3,8 @@
 node_modules/
 dist/
 coverage/
+.playwright-cli/
+output/
 .env
 vite-dev.log
 vite-preview*.log

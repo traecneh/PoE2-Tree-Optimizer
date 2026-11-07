@@ -1,0 +1,39 @@
+{
+  "steam": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Path of Exile 2",
+  "translations": ["English"],
+  "tables": [
+    { "name": "PassiveSkillTrees", "columns": ["Id", "Name", "UIArt", "PassiveSkillGraph"] },
+    { "name": "Stats", "columns": ["Id"] },
+    {
+      "name": "PassiveSkills",
+      "columns": [
+        "Id", "Name", "Icon_DDSFile", "Stats",
+        "Stat1Value", "Stat2Value", "Stat3Value", "Stat4Value", "Stat5Value", "Stat6Value", "Stat7Value",
+        "PassiveSkillGraphId", "Characters", "FlavourText", "MasteryGroup", "Ascendancy",
+        "IsKeystone", "IsNotable", "IsJewelSocket", "IsAscendancyStartingNode", "IsJustIcon",
+        "ReminderStrings", "SkillPointsGranted", "IsMultipleChoice", "IsMultipleChoiceOption",
+        "PassiveSkillBuffs", "SkillType", "GrantedSkill", "WeaponPointsGranted", "IsFree",
+        "VisibleForAscendancy", "IsAttribute", "NodeFrameArt", "IsAnointmentOnly", "IsExpansion", "IsProxyPassive"
+      ]
+    },
+    { "name": "Ascendancy", "columns": ["Id", "Name", "Disabled"] },
+    { "name": "SkillGems", "columns": ["BaseItemType", "GemEffects"] },
+    { "name": "BaseItemTypes", "columns": ["Id", "Name"] },
+    { "name": "GemEffects", "columns": ["Id", "Name", "GrantedEffect", "AdditionalGrantedEffects", "SupportText"] },
+    { "name": "GrantedEffects", "columns": ["Id", "ActiveSkill", "StatSet", "AdditionalStatSets"] },
+    {
+      "name": "ActiveSkills",
+      "columns": ["Id", "DisplayedName", "Description", "WebsiteDescription", "ShortDescription", "GrantedEffect", "StatDescription", "StatDescriptionType"]
+    },
+    { "name": "GrantedEffectStatSets", "columns": ["Id", "ImplicitStats", "ConstantStats", "ConstantStatsValues"] }
+  ],
+  "files": [
+    "metadata/passiveskillgraph.psg",
+    "metadata/passiveskillgraphguidesettings.json",
+    "Data/StatDescriptions/stat_descriptions.csd",
+    "Data/StatDescriptions/passive_skill_stat_descriptions.csd",
+    "Data/StatDescriptions/gem_stat_descriptions.csd",
+    "Data/StatDescriptions/active_skill_gem_stat_descriptions.csd",
+    "Data/StatDescriptions/skill_stat_descriptions.csd"
+  ]
+}

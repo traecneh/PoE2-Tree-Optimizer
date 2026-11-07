@@ -1,6 +1,11 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { ClassStartOption } from "../tree/classStartAliases";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
+import {
+  defaultPassiveOptimizationSettings,
+  normalizePassiveOptimizationSettings,
+  type PassiveOptimizationSettings,
+} from "../tree/passivePreferences";
 import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import { sanitizeSavedAllocationPlan, type AllocationPlan } from "./allocationPlan";
@@ -33,6 +38,7 @@ type UseSavedBuildWorkflowOptions = {
   setBuildGoalNodeIds: Dispatch<SetStateAction<string[]>>;
   setAscendancyAllocationNodeIds: Dispatch<SetStateAction<string[]>>;
   setAppliedOptimizedRouteChoice: Dispatch<SetStateAction<OptimizedRouteChoice | undefined>>;
+  restoreOptimizerSettings?: (settings: PassiveOptimizationSettings) => void;
   resetAscendancyAllocation: () => void;
   clearOptimizedRouteState: () => void;
   clearPobImport: () => void;
@@ -60,6 +66,7 @@ export function useSavedBuildWorkflow({
   setBuildGoalNodeIds,
   setAscendancyAllocationNodeIds,
   setAppliedOptimizedRouteChoice,
+  restoreOptimizerSettings,
   resetAscendancyAllocation,
   clearOptimizedRouteState,
   clearPobImport,
@@ -80,6 +87,7 @@ export function useSavedBuildWorkflow({
     setActiveAllocationMode("main");
     setWeaponSetAllocationNodeIds(emptyWeaponSetAllocations());
     setAppliedOptimizedRouteChoice(undefined);
+    restoreOptimizerSettings?.(defaultPassiveOptimizationSettings());
     resetAscendancyAllocation();
     resetAllocationPlan(pathStartNodeId);
   }, [
@@ -89,6 +97,7 @@ export function useSavedBuildWorkflow({
     pathStartNodeId,
     resetAllocationPlan,
     resetAscendancyAllocation,
+    restoreOptimizerSettings,
     setAppliedOptimizedRouteChoice,
     setActiveAllocationMode,
     setBuildGoalNodeIds,
@@ -125,6 +134,7 @@ export function useSavedBuildWorkflow({
       return node && canAddBuildGoal(node, { allowAnyPassive: true });
     }));
     setAppliedOptimizedRouteChoice(build.state.optimizedRouteChoice);
+    restoreOptimizerSettings?.(normalizePassiveOptimizationSettings(build.state.optimizerSettings));
   }, [
     classStartOptions,
     clearOptimizedRouteState,
@@ -133,6 +143,7 @@ export function useSavedBuildWorkflow({
     defaultNodeVisualScale,
     graph,
     nodeVisualScaleOptions,
+    restoreOptimizerSettings,
     selectSavedBuild,
     setAllocationPlan,
     setAscendancyAllocationNodeIds,
