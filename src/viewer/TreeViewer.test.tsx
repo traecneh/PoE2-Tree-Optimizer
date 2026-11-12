@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { Profiler } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { sampleGraph } from "../tree/sampleGraph";
+import { withClassStartDisplayNames } from "../tree/classStartAliases";
 import type { TreeGraph } from "../tree/types";
 import { TreeViewer } from "./TreeViewer";
 
@@ -64,6 +65,17 @@ describe("TreeViewer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Fit tree" }));
 
     expect(transformLayer?.getAttribute("transform")).toBe("translate(0 0) scale(1)");
+  });
+
+  it("prevents browser scrolling when the tree handles a wheel gesture", () => {
+    render(<TreeViewer graph={sampleGraph} onSelectNode={vi.fn()} debug={debugOff} />);
+    const svg = screen.getByRole("img", { name: "PoE2 passive skill tree" });
+    const wheel = new WheelEvent("wheel", { deltaY: -100, bubbles: true, cancelable: true });
+
+    fireEvent(svg, wheel);
+
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(svg.querySelector("g")?.getAttribute("transform")).toBe("translate(0 0) scale(1.5)");
   });
 
   it("zooms with viewport controls and fits the tree", () => {
@@ -841,6 +853,30 @@ describe("TreeViewer", () => {
       "/tree-assets/icons/art-2dart-skillicons-explosivegrenade.png",
     );
     expect(node.querySelector(".node-glyph.class-start-glyph")).toBeNull();
+  });
+
+  it("retains class icons and hover titles after replacing legacy root names", () => {
+    const graph = withClassStartDisplayNames({ ...sampleGraph,
+      nodes: { ...sampleGraph.nodes,
+        mercenary_start: { ...sampleGraph.nodes.mercenary_start, name: "DUELIST" },
+        witch: { ...sampleGraph.nodes.mercenary_start, id: "witch", name: "WITCH" },
+        monk: { ...sampleGraph.nodes.mercenary_start, id: "monk", name: "SIX" },
+      }, classStarts: { DUELIST: "mercenary_start", WITCH: "witch", SIX: "monk" },
+    });
+    const onSelectNode = vi.fn();
+    const { rerender } = render(<TreeViewer graph={graph} onSelectNode={onSelectNode} debug={debugOff} />);
+    const witch = screen.getByRole("button", { name: "Witch / Sorceress" });
+    const monk = screen.getByRole("button", { name: "Monk" });
+    expect(witch.querySelector(".node-icon")?.getAttribute("href")).toContain("witchbonestorm");
+    expect(monk.querySelector(".node-icon")?.getAttribute("href")).toContain("monkelementalchakra");
+    expect(screen.getByRole("button", { name: "Mercenary" }).querySelector(".node-icon")?.getAttribute("href")).toContain("explosivegrenade");
+    fireEvent.mouseEnter(monk, { clientX: 100, clientY: 100 });
+    expect(screen.getByRole("tooltip").querySelector(".node-tooltip-title")?.textContent).toBe("Monk");
+    fireEvent.click(monk);
+    expect(onSelectNode).toHaveBeenCalledWith("monk");
+    rerender(<TreeViewer graph={graph} pathStartNodeId="witch" pathStartClassName="Sorceress" onSelectNode={onSelectNode} debug={debugOff} />);
+    expect(witch.querySelector(".node-icon")?.getAttribute("href")).toContain("sorceressinvocationspellskeystone");
+    expect(witch.getAttribute("aria-label")).toBe("Witch / Sorceress");
   });
 
   it("uses the selected shared class start icon for the active path start", () => {

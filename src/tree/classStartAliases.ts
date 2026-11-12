@@ -36,6 +36,25 @@ const poe2ClassStartAliases: Array<Omit<ClassStartOption, "nodeId" | "ascendancy
   { id: "druid", label: "Druid", className: "Druid", rootClassId: "TEMPLAR" },
 ];
 
+// Keep source IDs/class keys intact; only main-root display names are replaced.
+export function withClassStartDisplayNames(graph: TreeGraph): TreeGraph {
+  const namesByNodeId = new Map<NodeId, string[]>();
+  for (const alias of poe2ClassStartAliases) {
+    const nodeId = graph.classStarts[alias.rootClassId];
+    if (!nodeId) continue;
+    const node = graph.nodes[nodeId];
+    if (!node?.flags.classStart || node.flags.ascendancy) continue;
+    const names = namesByNodeId.get(nodeId) ?? [];
+    if (!names.includes(alias.className)) names.push(alias.className);
+    namesByNodeId.set(nodeId, names);
+  }
+  const changed = [...namesByNodeId].flatMap(([nodeId, names]) => {
+    const name = names.join(" / ");
+    return graph.nodes[nodeId].name === name ? [] : [[nodeId, { ...graph.nodes[nodeId], name }] as const];
+  });
+  return changed.length ? { ...graph, nodes: { ...graph.nodes, ...Object.fromEntries(changed) } } : graph;
+}
+
 export function buildClassStartOptions(graph: TreeGraph): ClassStartOption[] {
   const aliasOptions = poe2ClassStartAliases.flatMap((alias) => {
     const nodeId = graph.classStarts[alias.rootClassId];

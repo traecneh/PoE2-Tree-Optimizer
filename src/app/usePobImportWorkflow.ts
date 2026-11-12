@@ -4,6 +4,7 @@ import { importBuildGoalsFromPobCode } from "../tree/pobBuildImport";
 import type { TreeGraph } from "../tree/types";
 import type { PobBuildImportStatus } from "../viewer/BuildGoalsPanel";
 import { mergeNodeIds } from "./allocationPlan";
+import { deriveWeaponAttachments } from "../tree/allocationConstraints";
 import { sanitizeAscendancyAllocationNodeIds } from "./ascendancyAllocation";
 import { buildPobImportReportDetails, pobPathStartStatus } from "./pobImportStatus";
 import {
@@ -20,6 +21,7 @@ type UsePobImportWorkflowOptions = {
   pobImportCode: string;
   setAscendancyAllocationNodeIds: Dispatch<SetStateAction<string[]>>;
   setWeaponSetAllocationNodeIds: Dispatch<SetStateAction<WeaponSetAllocationNodeIds>>;
+  setWeaponSetAttachmentNodeIds?: Dispatch<SetStateAction<string[]>>;
   setPobImportStatus: Dispatch<SetStateAction<PobBuildImportStatus>>;
   applyClassStartOption: (option: ClassStartOption) => void;
   clearOptimizedRouteState: () => void;
@@ -34,6 +36,7 @@ export function usePobImportWorkflow({
   pobImportCode,
   setAscendancyAllocationNodeIds,
   setWeaponSetAllocationNodeIds,
+  setWeaponSetAttachmentNodeIds,
   setPobImportStatus,
   applyClassStartOption,
   clearOptimizedRouteState,
@@ -67,6 +70,7 @@ export function usePobImportWorkflow({
       }
       setAscendancyAllocationNodeIds(importedAscendancyNodeIds);
       setWeaponSetAllocationNodeIds(importedWeaponSetAllocationNodeIds);
+      setWeaponSetAttachmentNodeIds?.(deriveWeaponAttachments(graph, result.allocatedNodeIds, importedWeaponSetAllocationNodeIds, nextClassStartOption?.nodeId));
       setBuildGoalNodeIds((current) => mergeNodeIds(current, importedGoalNodeIds));
       setPobImportStatus({
         kind: "success",
@@ -104,6 +108,7 @@ export function usePobImportWorkflow({
     setBuildGoalNodeIds,
     setPobImportStatus,
     setWeaponSetAllocationNodeIds,
+    setWeaponSetAttachmentNodeIds,
   ]);
 
   return { importPobBuildGoals };

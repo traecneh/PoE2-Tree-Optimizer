@@ -1,6 +1,6 @@
 import type { AllocationPath } from "../tree/pathAllocation";
 import type { TreeEdge, TreeNode } from "../tree/types";
-import { ControlTooltip } from "./ControlTooltip";
+import { ControlTooltip, InfoTooltip } from "./ControlTooltip";
 
 export function NodeInspector({
   node,
@@ -40,7 +40,18 @@ export function NodeInspector({
 
   return (
     <aside className="inspector">
-      <h2>{node.name ?? node.id}</h2>
+      <div className="inspector-heading">
+        <h2>{node.name ?? node.id}</h2>
+        <InfoTooltip id="inspector-node-details" label="Node details">
+          <dl>
+            <dt>ID</dt><dd>{node.id}</dd>
+            <dt>Group</dt><dd>{node.groupId ?? "none"}</dd>
+            <dt>Position</dt><dd>{node.position.x}, {node.position.y}</dd>
+            <dt>Connected</dt><dd>{connected.join(", ") || "none"}</dd>
+          </dl>
+          <h4>Flags</h4><pre>{JSON.stringify(node.flags, null, 2)}</pre>
+        </InfoTooltip>
+      </div>
       {canAddBuildGoal ? (
         <ControlTooltip
           id="inspector-add-build-goal-tooltip"
@@ -57,18 +68,6 @@ export function NodeInspector({
           </button>
         </ControlTooltip>
       ) : null}
-      <dl>
-        <dt>ID</dt>
-        <dd>{node.id}</dd>
-        <dt>Group</dt>
-        <dd>{node.groupId ?? "none"}</dd>
-        <dt>Position</dt>
-        <dd>
-          {node.position.x}, {node.position.y}
-        </dd>
-        <dt>Connected</dt>
-        <dd>{connected.join(", ") || "none"}</dd>
-      </dl>
       <AllocationPathDetails
         path={allocationPath}
         nodeNames={allocationPathNodeNames}
@@ -79,8 +78,6 @@ export function NodeInspector({
       />
       <h3>Stats</h3>
       <ul>{node.stats.map((stat, index) => <li key={`${stat}-${index}`}>{stat}</li>)}</ul>
-      <h3>Flags</h3>
-      <pre>{JSON.stringify(node.flags, null, 2)}</pre>
     </aside>
   );
 }
@@ -111,9 +108,12 @@ function AllocationPathDetails({
 
   return (
     <section className="allocation-path-summary">
-      <h3>Allocation path</h3>
+      <div className="inspector-heading"><h3>Allocation path</h3>
+        <InfoTooltip id="allocation-path-nodes" label="Allocation path nodes">
+          <ol>{nodeNames.map((name, index) => <li key={index}>{name}</li>)}</ol>
+        </InfoTooltip>
+      </div>
       <p className="allocation-path-cost">{formatPointCost(path.pointCost)}</p>
-      <p className="allocation-path-route">{nodeNames.join(" -> ")}</p>
       <ControlTooltip
         id="allocate-path-tooltip"
         text="Commit this preview path to the current allocation."

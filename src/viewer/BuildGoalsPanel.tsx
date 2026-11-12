@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { AllocationMode } from "../app/weaponSetAllocation";
 import type { BuildSummary } from "../tree/buildSummary";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { TreeNode } from "../tree/types";
-import { ControlTooltip } from "./ControlTooltip";
+import { ControlTooltip, InfoTooltip } from "./ControlTooltip";
 import type { PassiveOptimizationSettings, WeightedRouteScore } from "../tree/passivePreferences";
 import { PassivePreferenceControls } from "./PassivePreferenceControls";
+import { normalizeSocketedGrenadeId } from "../tree/mortarCannonPreferences";
+import { isSocketedProxyFocus, normalizeSocketedProxySkillId } from "../tree/proxySkillPreferencePresets";
 
 export type BuildGoalsPanelGoal = {
   node: TreeNode;
@@ -184,6 +186,8 @@ export function BuildGoalsPanel({
       </div>
       <WeaponSetModeNotice mode={activeAllocationMode} />
       <div className="pob-import-control">
+        <details className="pob-import-disclosure">
+          <summary>Import PoB...</summary>
         <label className="pob-import-label" htmlFor="pob-build-code-input">PoB build code</label>
         <ControlTooltip
           id="pob-build-code-tooltip"
@@ -213,6 +217,7 @@ export function BuildGoalsPanel({
             Import PoB goals
           </button>
         </ControlTooltip>
+        </details>
         <PobImportStatusMessage status={pobImportStatus} />
       </div>
       {goals.length > 0 ? (
@@ -250,14 +255,20 @@ export function BuildGoalsPanel({
       <div className="build-goals-actions">
         <ControlTooltip
           id="optimize-route-tooltip"
-          text={optimizerSettings?.mode === "weighted" ? "Preview a preference-scored route through every goal, within the extra-point budget. Existing allocation stays fixed." : "Preview the shortest route through current goals from the visible allocation."}
+          text={optimizerSettings?.mode === "weighted" && optimizerSettings.focusSkillId === "mortar-cannon" && !optimizerSettings.socketedGrenadeId
+            ? "Select a socketed Grenade for Mortar Cannon before optimizing. Goals, allocation and manual priorities are preserved."
+            : optimizerSettings?.mode === "weighted" && isSocketedProxyFocus(optimizerSettings.focusSkillId) && !normalizeSocketedProxySkillId(optimizerSettings.focusSkillId,optimizerSettings.socketedProxySkillId)
+              ? "Choose a reviewed socketed skill for this focus before optimizing. Goals, allocation and manual priorities are preserved."
+              : optimizerSettings?.mode === "weighted" ? "Preview a preference-scored route through every goal, within the extra-point budget. Existing allocation stays fixed." : "Preview the shortest route through current goals from the visible allocation."}
         >
           <button
             className="tool-button"
             type="button"
             aria-describedby="optimize-route-tooltip"
             onClick={onOptimize}
-            disabled={goals.length === 0 || running || (optimizerSettings?.mode === "weighted" && optimizerSettings.preferences.length === 0)}
+            disabled={goals.length === 0 || running || (optimizerSettings?.mode === "weighted" && (optimizerSettings.preferences.length === 0
+              || optimizerSettings.focusSkillId === "mortar-cannon" && !normalizeSocketedGrenadeId(optimizerSettings.focusSkillId, optimizerSettings.socketedGrenadeId)
+              || isSocketedProxyFocus(optimizerSettings.focusSkillId) && !normalizeSocketedProxySkillId(optimizerSettings.focusSkillId,optimizerSettings.socketedProxySkillId)))}
           >
             Optimize route
           </button>
@@ -616,6 +627,10 @@ function OptimizedRouteDetails({ details }: { details: BuildGoalsRouteCandidateD
       <p className="optimized-route-details-count">{formatAddedPassiveCount(details.addedNodeCount)}</p>
       {details.weighted ? <>
         <WeightedScoreSummary score={details.weighted} />
+      </> : null}
+      <details className="route-comparison-disclosure">
+        <summary>Compare passives and effects</summary>
+        {details.weighted ? <>
         <ul className="preference-contributions" aria-label="Preference score breakdown">
           {details.weighted.contributions.map((row) => <li key={row.id}>{`${row.label}: ${formatScore(row.score)} (${row.nodeCount} ${row.nodeCount === 1 ? "node" : "nodes"})`}</li>)}
         </ul>
@@ -649,6 +664,7 @@ function OptimizedRouteDetails({ details }: { details: BuildGoalsRouteCandidateD
           emptyText="The unique passives here add no stat lines."
         />
       ) : null}
+      </details>
     </section>
   );
 }
@@ -791,10 +807,14 @@ function formatRouteCandidateDetail(candidate: BuildGoalsRouteCandidateSummary):
 function formatScore(value: number): string { return Number(value.toFixed(2)).toString(); }
 
 function WeightedScoreSummary({ score }: { score: WeightedRouteScore }) {
+  const id = useId();
   return <div className="weighted-score-summary">
     <p>{`Preference score: ${formatScore(score.score)}`}</p>
+    <InfoTooltip id={`${id}-route-score`} label="Route score details">
+    <p>Relative preference value, not Full DPS or total defence.</p>
     <p>{`Shortest baseline${score.baselineExact ? " (exact)" : " found"}: ${score.baselinePointCost} points. Limit: ${score.maxPointCost} added points.`}</p>
     {score.pointBudgetMode === "all-available" ? <p>{`Main-tree limit: ${score.totalPointLimit}. Existing main points: ${score.basePointCost}.`}</p> : null}
+    </InfoTooltip>
   </div>;
 }
 

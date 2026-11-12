@@ -39,6 +39,7 @@ type UseTreeInteractionStateOptions = {
   weaponSetAllocationNodeIds?: WeaponSetAllocationNodeIds;
   setWeaponSetAllocationNodeIds?: Dispatch<SetStateAction<WeaponSetAllocationNodeIds>>;
   clearOptimizedRouteState: () => void;
+  ascendancyAllocationNodeIds?: readonly string[];
   toggleAscendancyAllocationNode?: (node: TreeNode) => void;
 };
 
@@ -53,6 +54,7 @@ export function useTreeInteractionState({
   weaponSetAllocationNodeIds = { 1: [], 2: [] },
   setWeaponSetAllocationNodeIds,
   clearOptimizedRouteState,
+  ascendancyAllocationNodeIds = [],
   toggleAscendancyAllocationNode,
 }: UseTreeInteractionStateOptions) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>();
@@ -159,7 +161,7 @@ export function useTreeInteractionState({
     if (!node) return;
     const activeWeaponSetId = allocationModeWeaponSetId(activeAllocationMode);
     if (!activeWeaponSetId && node.flags.ascendancy) {
-      setSelectedNodeId(nodeId);
+      setSelectedNodeId(ascendancyAllocationNodeIds.includes(nodeId) ? undefined : nodeId);
       setHoverPreviewTargetNodeId(undefined);
       setTreeInteractionNotice(undefined);
       toggleAscendancyAllocationNode?.(node);
@@ -287,6 +289,7 @@ export function useTreeInteractionState({
     pathStartNodeId,
     setAllocationPlan,
     setWeaponSetAllocationNodeIds,
+    ascendancyAllocationNodeIds,
     toggleAscendancyAllocationNode,
     visibleGraph,
     weaponSetAllocationNodeIds,

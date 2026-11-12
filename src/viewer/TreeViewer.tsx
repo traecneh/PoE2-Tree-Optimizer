@@ -1,11 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject, WheelEvent } from "react";
+import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, RefObject, ReactNode } from "react";
+import { Maximize, Minus, Plus } from "lucide-react";
 import { passiveIconPublicPath } from "../tree/passiveIconAssets";
 import { treeEdgeKey } from "../tree/pathAllocation";
 import type { TreeEdge, TreeGraph, TreeNode } from "../tree/types";
 import type { AllocationMode } from "../app/weaponSetAllocation";
 import { buildTreeEdgePath } from "./treeEdgePath";
-import { buildFitViewBox } from "./treeViewBox";
+import { buildFitViewBox, buildTreeFitBounds } from "./treeViewBox";
+import { ascendancyIdFromTarget, useAscendancyInspection } from "./useAscendancyInspection";
 
 export type DebugOverlayState = {
   showNodeIds: boolean;
@@ -41,6 +43,7 @@ type TreeViewerProps = {
   onAddBuildGoal?: (nodeId: string) => void;
   onHoverNode?: (nodeId: string | undefined) => void;
   debug: DebugOverlayState;
+  viewportSettings?: ReactNode;
 };
 
 type Point = {
@@ -66,6 +69,7 @@ type RenderedTreeEdge = {
   routeOrbit: number | undefined;
   routeClass: string;
   ascendancyClass?: string;
+  ascendancyId?: string;
   label: string | undefined;
   labelPosition: Point;
 };
@@ -131,6 +135,7 @@ export function TreeViewer({
   onAddBuildGoal,
   onHoverNode,
   debug,
+  viewportSettings,
 }: TreeViewerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -139,6 +144,7 @@ export function TreeViewer({
   const viewportMovingTimer = useRef<number | undefined>(undefined);
   const lastPointer = useRef<{ point: Point; startX: number; startY: number; dragged: boolean } | null>(null);
   const pendingNodePress = useRef<PendingNodePress | null>(null);
+  const pendingAscendancyPress = useRef<{ id: string; nodeId?: string; touch: boolean } | null>(null);
   const suppressNextNodeClick = useRef(false);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const tooltipTitleRef = useRef<HTMLDivElement | null>(null);
@@ -146,11 +152,13 @@ export function TreeViewer({
   const onSelectNodeRef = useRef(onSelectNode);
   const onAddBuildGoalRef = useRef(onAddBuildGoal);
   const onHoverNodeRef = useRef(onHoverNode);
-  const viewBox = buildFitViewBox(graph.bounds, 160);
   const layoutProjection = useMemo(
     () => projectActiveAscendancyLayout(graph, activeAscendancyId),
     [activeAscendancyId, graph],
   );
+  const viewBox = useMemo(() => buildFitViewBox(buildTreeFitBounds(layoutProjection.nodes, activeAscendancyId, graph.bounds), 160), [layoutProjection.nodes, activeAscendancyId, graph.bounds]);
+  const interactionContext = useRef({ graph, activeAscendancyId });
+  interactionContext.current = { graph, activeAscendancyId };
 
   useEffect(() => {
     onSelectNodeRef.current = onSelectNode;
@@ -164,6 +172,10 @@ export function TreeViewer({
     onHoverNodeRef.current = onHoverNode;
   }, [onHoverNode]);
   const connectedNodeIds = useMemo(() => new Set(graph.edges.flatMap((edge) => [edge.from, edge.to])), [graph.edges]);
+  const rootClassNameByNodeId = useMemo(
+    () => new Map(Object.entries(graph.classStarts).map(([classId, nodeId]) => [nodeId, classId])),
+    [graph.classStarts],
+  );
   const renderedEdges = useMemo(
     () => graph.edges.flatMap((edge) => {
       const originalFrom = graph.nodes[edge.from];
@@ -180,12 +192,13 @@ export function TreeViewer({
         path: buildTreeEdgePath(from, to, group, edge),
         routeOrbit: edge.connectionOrbit,
         routeClass: edgeRouteClass(edge),
-        ascendancyClass: edgeAscendancyClass(originalFrom, originalTo, activeAscendancyId),
+        ascendancyClass: edgeAscendancyClass(originalFrom, originalTo, activeAscendancyId, pathStartClassName),
+        ascendancyId: originalFrom.flags.ascendancy && originalFrom.ascendancy?.id === originalTo.ascendancy?.id ? originalFrom.ascendancy?.id : undefined,
         label: formatEdgeRouteLabel(edge.connectionOrbit),
         labelPosition: midpoint(from, to),
       }];
     }),
-    [activeAscendancyId, graph.edges, graph.nodes, layoutProjection.groups, layoutProjection.nodes],
+    [activeAscendancyId, pathStartClassName, graph.edges, graph.nodes, layoutProjection.groups, layoutProjection.nodes],
   );
   const renderedEdgeByKey = useMemo(
     () => new Map(renderedEdges.map((edge) => [edge.key, edge])),
@@ -215,14 +228,15 @@ export function TreeViewer({
     () => Object.values(layoutProjection.nodes).map((node) => renderedNode(
       node,
       nodeVisualScale,
-      node.id === pathStartNodeId ? pathStartClassName : undefined,
+      node.id === pathStartNodeId && pathStartClassName ? pathStartClassName : rootClassNameByNodeId.get(node.id),
     )),
-    [layoutProjection.nodes, nodeVisualScale, pathStartClassName, pathStartNodeId],
+    [layoutProjection.nodes, nodeVisualScale, pathStartClassName, pathStartNodeId, rootClassNameByNodeId],
   );
   const renderedNodeById = useMemo(
     () => new Map(renderedNodes.map((node) => [node.node.id, node])),
     [renderedNodes],
   );
+  const inspectionRegions = useMemo(() => buildAscendancyInspectionRegions(renderedNodes, activeAscendancyId, nodeVisualScale), [renderedNodes, activeAscendancyId, nodeVisualScale]);
   const searchMatchNodes = useMemo(
     () => renderedNodesForIds(searchMatchNodeIds, renderedNodeById),
     [renderedNodeById, searchMatchNodeIds],
@@ -239,11 +253,19 @@ export function TreeViewer({
     }
   }, []);
 
-  function handleWheel(event: WheelEvent<SVGSVGElement>) {
-    event.preventDefault();
-    const pointer = clientPointToSvg(event.currentTarget, event.clientX, event.clientY);
-    zoomViewport(event.deltaY > 0 ? 1 / viewportZoomStep : viewportZoomStep, pointer);
-  }
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    // React's delegated wheel listener is passive; use a local listener so zoom
+    // can cancel page scrolling without browser warnings.
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const pointer = clientPointToSvg(svg, event.clientX, event.clientY);
+      zoomViewport(event.deltaY > 0 ? 1 / viewportZoomStep : viewportZoomStep, pointer);
+    };
+    svg.addEventListener("wheel", handleWheel, { passive: false });
+    return () => svg.removeEventListener("wheel", handleWheel);
+  }, []);
 
   function zoomViewport(scaleFactor: number, pivot: Point) {
     const current = viewportTransform.current;
@@ -266,6 +288,12 @@ export function TreeViewer({
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>) {
+    const id = ascendancyIdFromTarget(event.target);
+    pendingAscendancyPress.current = id && id !== activeAscendancyId ? {
+      id, touch: event.pointerType === "touch",
+      nodeId: (event.target as Element).closest("[data-node-id]")?.getAttribute("data-node-id") ?? undefined,
+    } : null;
+    if (pendingAscendancyPress.current) pendingNodePress.current = null;
     event.currentTarget.setPointerCapture?.(event.pointerId);
     lastPointer.current = {
       point: clientPointToSvg(event.currentTarget, event.clientX, event.clientY),
@@ -276,7 +304,10 @@ export function TreeViewer({
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>) {
-    if (!lastPointer.current) return;
+    if (!lastPointer.current) {
+      if (event.pointerType !== "touch") inspection.setPointer(ascendancyIdFromTarget(event.target));
+      return;
+    }
     const startDx = event.clientX - lastPointer.current.startX;
     const startDy = event.clientY - lastPointer.current.startY;
     const dragged = lastPointer.current.dragged || Math.hypot(startDx, startDy) > 4;
@@ -293,6 +324,7 @@ export function TreeViewer({
     if (dragged) suppressNextNodeClick.current = true;
 
     if (!dragged) return;
+    inspection.clear();
 
     const current = viewportTransform.current;
     setViewportTransform({
@@ -305,13 +337,25 @@ export function TreeViewer({
   function handlePointerUp(event: PointerEvent<SVGSVGElement>) {
     const dragged = lastPointer.current?.dragged;
     const pendingPress = pendingNodePress.current;
+    const ascendancyPress = pendingAscendancyPress.current;
     releasePointerCapture(event.currentTarget, event.pointerId);
     lastPointer.current = null;
     pendingNodePress.current = null;
+    pendingAscendancyPress.current = null;
     if (dragged) {
       window.setTimeout(() => {
         suppressNextNodeClick.current = false;
       }, 0);
+      return;
+    }
+    if (ascendancyPress) {
+      if (ascendancyPress.touch) inspection.pinTouch(ascendancyPress.id);
+      else inspection.setPointer(ascendancyPress.id);
+      const node = ascendancyPress.nodeId ? graph.nodes[ascendancyPress.nodeId] : undefined;
+      if (node) showTooltip(node, tooltipPositionFromClientPoint(event.clientX, event.clientY));
+      else hideTooltip();
+      suppressNextNodeClick.current = true;
+      window.setTimeout(() => { suppressNextNodeClick.current = false; }, 0);
       return;
     }
     if (pendingPress) {
@@ -331,6 +375,8 @@ export function TreeViewer({
     releasePointerCapture(event.currentTarget, event.pointerId);
     lastPointer.current = null;
     pendingNodePress.current = null;
+    pendingAscendancyPress.current = null;
+    inspection.clear();
   }
 
   function setViewportTransform(nextTransform: ViewportTransform) {
@@ -353,14 +399,6 @@ export function TreeViewer({
       viewportMovingTimer.current = undefined;
     }, viewportMovingIdleMs);
   }
-
-  const handleSelectNode = useCallback((nodeId: string) => {
-    if (suppressNextNodeClick.current) {
-      suppressNextNodeClick.current = false;
-      return;
-    }
-    onSelectNodeRef.current(nodeId);
-  }, []);
 
   const handleBeginNodePress = useCallback((nodeId: string, event: PointerEvent<SVGGElement>) => {
     if (event.button !== 0) return;
@@ -398,12 +436,36 @@ export function TreeViewer({
     }
   }, []);
 
+  const inspection = useAscendancyInspection(rootRef, layoutProjection.nodes, activeAscendancyId, hideTooltip);
+
+  const handleSelectNode = useCallback((nodeId: string) => {
+    if (suppressNextNodeClick.current) {
+      suppressNextNodeClick.current = false;
+      return;
+    }
+    const { graph: currentGraph, activeAscendancyId: activeId } = interactionContext.current;
+    const node = currentGraph.nodes[nodeId];
+    if (node?.flags.ascendancy && node.ascendancy?.id && node.ascendancy.id !== activeId) {
+      inspection.reveal(node.ascendancy.id);
+      return;
+    }
+    onSelectNodeRef.current(nodeId);
+  }, [inspection.reveal]);
+
   const handleHoverNode = useCallback((nodeId: string | undefined) => {
+    const { graph: currentGraph, activeAscendancyId: activeId } = interactionContext.current;
+    const node = nodeId ? currentGraph.nodes[nodeId] : undefined;
+    if (node?.flags.ascendancy && node.ascendancy?.id !== activeId) nodeId = undefined;
     onHoverNodeRef.current?.(nodeId);
   }, []);
 
   return (
-    <div ref={rootRef} className={`tree-viewer${activeAscendancyId ? " has-active-ascendancy" : ""}`}>
+    <div ref={rootRef} className={`tree-viewer${activeAscendancyId ? " has-active-ascendancy" : ""}`}
+      onFocusCapture={event => {
+        inspection.setFocus(ascendancyIdFromTarget(event.target));
+        if ((event.target as Element).classList.contains("ascendancy-inspection-hit")) hideTooltip();
+      }}
+      onBlurCapture={event => inspection.setFocus(rootRef.current?.contains(event.relatedTarget as Node) ? ascendancyIdFromTarget(event.relatedTarget) : undefined)}>
       <div className="viewport-toolbar" role="toolbar" aria-label="Tree viewport controls">
         <button
           className="tool-button viewport-button"
@@ -412,7 +474,7 @@ export function TreeViewer({
           title="Zoom out"
           onClick={() => zoomViewportAtCenter(1 / viewportZoomStep)}
         >
-          -
+          <Minus size={18} aria-hidden="true" />
         </button>
         <button
           className="tool-button viewport-button"
@@ -421,7 +483,7 @@ export function TreeViewer({
           title="Zoom in"
           onClick={() => zoomViewportAtCenter(viewportZoomStep)}
         >
-          +
+          <Plus size={18} aria-hidden="true" />
         </button>
         <button
           className="tool-button viewport-button"
@@ -430,11 +492,11 @@ export function TreeViewer({
           title="Fit tree"
           onClick={resetViewportTransform}
         >
-          <svg className="viewport-button-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M 8 4 H 4 V 8 M 16 4 H 20 V 8 M 20 16 V 20 H 16 M 8 20 H 4 V 16" />
-          </svg>
+          <Maximize size={18} aria-hidden="true" />
         </button>
+        {viewportSettings}
       </div>
+      <div className="ascendancy-inspection-name" role="status" aria-live="polite" aria-atomic="true" hidden />
       <NodeTooltipShell
         tooltipRef={tooltipRef}
         titleRef={tooltipTitleRef}
@@ -446,11 +508,16 @@ export function TreeViewer({
         viewBox={viewBox}
         role="img"
         aria-label="PoE2 passive skill tree"
-        onWheel={handleWheel}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
+        onPointerOver={event => { if (event.pointerType !== "touch" && !lastPointer.current?.dragged) inspection.setPointer(ascendancyIdFromTarget(event.target)); }}
+        onPointerOut={event => { if (event.pointerType !== "touch") inspection.setPointer(ascendancyIdFromTarget(event.relatedTarget)); }}
+        onPointerLeave={() => inspection.setPointer(undefined)}
+        onKeyDown={event => {
+          if ((event.key === "Enter" || event.key === " ") && (event.target as Element).classList.contains("ascendancy-inspection-hit")) event.preventDefault();
+        }}
       >
         <defs>
           <clipPath id={nodeIconClipPathId} className="node-icon-clip" clipPathUnits="objectBoundingBox">
@@ -458,12 +525,18 @@ export function TreeViewer({
           </clipPath>
         </defs>
         <g ref={viewportRef} transform={formatViewportTransform(viewportTransform.current)}>
+          <g className="ascendancy-inspection-layer">
+            {inspectionRegions.map(region => <rect key={region.id} className="ascendancy-inspection-hit" data-ascendancy-id={region.id}
+              x={region.minX} y={region.minY} width={region.maxX - region.minX} height={region.maxY - region.minY} rx={40 * nodeVisualScale}
+              role="button" tabIndex={0} aria-label={`Inspect ${region.name} ascendancy`} />)}
+          </g>
           <g className="edge-layer">
             {renderedEdges.map((edge) => (
               <path
                 key={edge.id}
                 className={edgeClassName(edge, allocatedEdgeKeys, allocationPathEdgeKeys, hoverAllocationPathEdgeKeys, debug)}
                 d={edge.path}
+                data-ascendancy-id={edge.ascendancyId}
                 data-route-orbit={debug.showEdgeRoutes ? edge.routeOrbit : undefined}
               />
             ))}
@@ -529,12 +602,12 @@ export function TreeViewer({
           ) : null}
           <g className="search-highlight-layer" aria-hidden="true">
             {searchMatchNodes.map((node) => (
-              <SearchMatchMarker key={`${node.node.id}-search-match`} renderedNode={node} nodeVisualScale={nodeVisualScale} />
+              <SearchMatchMarker key={`${node.node.id}-search-match`} renderedNode={node} nodeVisualScale={nodeVisualScale} ascendancyClass={nodeAscendancyClass(node.node, activeAscendancyId, pathStartClassName)} />
             ))}
           </g>
           <g className="search-focus-highlight-layer" aria-hidden="true">
             {searchFocusedNode ? (
-              <SearchFocusMarker renderedNode={searchFocusedNode} nodeVisualScale={nodeVisualScale} />
+              <SearchFocusMarker renderedNode={searchFocusedNode} nodeVisualScale={nodeVisualScale} ascendancyClass={nodeAscendancyClass(searchFocusedNode.node, activeAscendancyId, pathStartClassName)} />
             ) : null}
           </g>
           <g className="node-layer">
@@ -544,7 +617,7 @@ export function TreeViewer({
                 renderedNode={node}
                 selected={node.node.id === selectedNodeId}
                 pathStart={node.node.id === pathStartNodeId}
-                ascendancyClass={nodeAscendancyClass(node.node, activeAscendancyId)}
+                ascendancyClass={nodeAscendancyClass(node.node, activeAscendancyId, pathStartClassName)}
                 weaponSetClass={weaponSetNodeClass(
                   node.node.id,
                   weaponSet1NodeIds,
@@ -572,6 +645,22 @@ export function TreeViewer({
       </svg>
     </div>
   );
+}
+
+function buildAscendancyInspectionRegions(nodes: RenderedTreeNode[], activeId: string | undefined, scale: number) {
+  const regions = new Map<string, { id: string; name: string; minX: number; maxX: number; minY: number; maxY: number }>();
+  for (const { node, visual } of nodes) {
+    if (!node.flags.ascendancy || !node.ascendancy || node.ascendancy.id === activeId) continue;
+    const { id, name, className } = node.ascendancy;
+    const padding = visual.frameRadius + 16 * scale + 40;
+    const region = regions.get(id) ?? { id, name: `${className} - ${name}`, minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+    region.minX = Math.min(region.minX, node.position.x - padding);
+    region.maxX = Math.max(region.maxX, node.position.x + padding);
+    region.minY = Math.min(region.minY, node.position.y - padding);
+    region.maxY = Math.max(region.maxY, node.position.y + padding);
+    regions.set(id, region);
+  }
+  return [...regions.values()].sort((a, b) => (b.maxX - b.minX) * (b.maxY - b.minY) - (a.maxX - a.minX) * (a.maxY - a.minY));
 }
 
 function projectActiveAscendancyLayout(
@@ -796,9 +885,14 @@ function edgeClassName(
   return classNames.join(" ");
 }
 
-function nodeAscendancyClass(node: TreeNode, activeAscendancyId: string | undefined): string | undefined {
-  if (!activeAscendancyId || !node.flags.ascendancy) return undefined;
-  return node.ascendancy?.id === activeAscendancyId ? "active-ascendancy" : "inactive-ascendancy";
+function nodeAscendancyClass(node: TreeNode, activeAscendancyId: string | undefined, pathStartClassName: string | undefined): string | undefined {
+  if (!node.flags.ascendancy) return undefined;
+  if (activeAscendancyId && node.ascendancy?.id === activeAscendancyId) return "active-ascendancy";
+  return `inactive-ascendancy${!activeAscendancyId && belongsToPathStartClass(node, pathStartClassName) ? " class-ascendancy" : ""}`;
+}
+
+function belongsToPathStartClass(node: TreeNode, className: string | undefined): boolean {
+  return Boolean(className && node.ascendancy?.className.trim().toLowerCase() === className.trim().toLowerCase());
 }
 
 function weaponSetNodeClass(
@@ -841,12 +935,14 @@ function edgeAscendancyClass(
   from: TreeNode,
   to: TreeNode,
   activeAscendancyId: string | undefined,
+  pathStartClassName: string | undefined,
 ): string | undefined {
-  if (!activeAscendancyId || !from.flags.ascendancy || !to.flags.ascendancy) return undefined;
+  if (!from.flags.ascendancy || !to.flags.ascendancy) return undefined;
   const fromAscendancyId = from.ascendancy?.id;
   const toAscendancyId = to.ascendancy?.id;
   if (!fromAscendancyId || fromAscendancyId !== toAscendancyId) return undefined;
-  return fromAscendancyId === activeAscendancyId ? "active-ascendancy-edge" : "inactive-ascendancy-edge";
+  if (fromAscendancyId === activeAscendancyId) return "active-ascendancy-edge";
+  return `inactive-ascendancy-edge${!activeAscendancyId && belongsToPathStartClass(from, pathStartClassName) ? " class-ascendancy-edge" : ""}`;
 }
 
 function shouldDrawEdge(from: TreeNode | undefined, to: TreeNode | undefined): boolean {
@@ -996,6 +1092,8 @@ const ButtonNode = memo(function ButtonNode({
     <g
       className={`tree-node ${typeClass} ${visual.accentClass}${ascendancyClass ? ` ${ascendancyClass}` : ""}${weaponSetClass ? ` ${weaponSetClass}` : ""}${selected ? " selected" : ""}${pathStart ? " path-start" : ""}${noAllocationPath ? " no-allocation-path" : ""}${buildGoal ? " build-goal" : ""}${allocated ? " allocated" : ""}${allocationPath ? " allocation-path" : ""}${hoverAllocationPath ? " hover-allocation-path" : ""}${missingStats ? " missing-stats" : ""}${orphan ? " orphan-node" : ""}`}
       transform={`translate(${node.position.x} ${node.position.y})`}
+      data-node-id={node.id}
+      data-ascendancy-id={node.flags.ascendancy ? node.ascendancy?.id : undefined}
       role="button"
       tabIndex={0}
       aria-label={label}
@@ -1041,20 +1139,20 @@ const ButtonNode = memo(function ButtonNode({
   );
 });
 
-function SearchMatchMarker({ renderedNode, nodeVisualScale }: { renderedNode: RenderedTreeNode; nodeVisualScale: number }) {
+function SearchMatchMarker({ renderedNode, nodeVisualScale, ascendancyClass }: { renderedNode: RenderedTreeNode; nodeVisualScale: number; ascendancyClass?: string }) {
   const { node, visual } = renderedNode;
   return (
-    <g className="search-match-node" transform={`translate(${node.position.x} ${node.position.y})`}>
+    <g className={`search-match-node${ascendancyClass ? ` ${ascendancyClass}` : ""}`} data-ascendancy-id={node.flags.ascendancy ? node.ascendancy?.id : undefined} transform={`translate(${node.position.x} ${node.position.y})`}>
       <circle className="search-match-marker" r={visual.frameRadius + 7 * nodeVisualScale} />
       <circle className="search-match-core-marker" r={visual.coreRadius + 2 * nodeVisualScale} />
     </g>
   );
 }
 
-function SearchFocusMarker({ renderedNode, nodeVisualScale }: { renderedNode: RenderedTreeNode; nodeVisualScale: number }) {
+function SearchFocusMarker({ renderedNode, nodeVisualScale, ascendancyClass }: { renderedNode: RenderedTreeNode; nodeVisualScale: number; ascendancyClass?: string }) {
   const { node, visual } = renderedNode;
   return (
-    <g className="search-focus-node" transform={`translate(${node.position.x} ${node.position.y})`}>
+    <g className={`search-focus-node${ascendancyClass ? ` ${ascendancyClass}` : ""}`} data-ascendancy-id={node.flags.ascendancy ? node.ascendancy?.id : undefined} transform={`translate(${node.position.x} ${node.position.y})`}>
       <circle className="search-focus-marker" r={visual.frameRadius + 18 * nodeVisualScale} />
       <circle className="search-focus-core-marker" r={visual.coreRadius + 5 * nodeVisualScale} />
     </g>

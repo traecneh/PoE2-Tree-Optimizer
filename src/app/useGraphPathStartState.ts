@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   buildClassStartOptions,
+  withClassStartDisplayNames,
 } from "../tree/classStartAliases";
 import { publicAssetPath } from "../tree/publicAssetPaths";
 import { sampleGraph } from "../tree/sampleGraph";
@@ -17,7 +18,8 @@ export function useGraphPathStartState({
   initialGraph = sampleGraph,
   loadGraph = loadPublicTreeGraph,
 }: UseGraphPathStartStateOptions = {}) {
-  const [graph, setGraph] = useState<TreeGraph>(initialGraph);
+  const [sourceGraph, setGraph] = useState<TreeGraph>(initialGraph);
+  const graph = useMemo(() => withClassStartDisplayNames(sourceGraph), [sourceGraph]);
   const [graphLoadStatus, setGraphLoadStatus] = useState<GraphLoadStatus>("loading");
   const [selectedClassStartId, setSelectedClassStartId] = useState<string | undefined>();
   const [pathStartNodeId, setPathStartNodeId] = useState<string | undefined>();

@@ -1,0 +1,50 @@
+// Independent source identities and isolated PoB 0.23.1 observations from 52 MAIN calculations.
+export const poisonBowBleedSupportFixtures = [
+  { id: "bleed-i", name: "Bleed I", effectId: "SupportBleedPlayer", family: "Bleed", chance: 50, manaMultiplier: 20 },
+  { id: "bleed-ii", name: "Bleed II", effectId: "SupportBleedPlayerTwo", family: "Bleed", chance: 75, manaMultiplier: 0 },
+  { id: "bleed-iii", name: "Bleed III", effectId: "SupportBleedPlayerThree", family: "Bleed", chance: 100, manaMultiplier: 0 },
+] as const;
+
+export const poisonBowBleedNativeFixtures = [
+  { skill: "poisonburst-arrow", baselineHasBleedDamage: false, hit: 5.38125, tierHit: [5.38125, 5.38125, 5.38125],
+    tierChance: [50, 75, 100], tierRawChance: [50, 75, 100], tierBleed: [3.8992078125, 4.226893633354, 4.4994588462054],
+    independentChanceBleed: [3.8992078125, 4.226893633354, 4.4994588462054], tierBleedMagnitude: [1, 1, 1],
+    tierBleedDuration: [5, 5, 5], tierHasPoisonDamage: [false, false, false], enemyBleeding: [false, false, false], enemyPoisoned: [false, false, false],
+    rate: 1.2, tierRate: [1.2, 1.2, 1.2], mana: 38, tierMana: [45, 38, 38], efficiencyMana: 23,
+    overcapRaw: 150, overcapFinal: 100, overcapBleed: 4.4994588462054,
+    inherentNoHit: true, inherentPoison: 5.385766215481, tierInherentPoison: [5.385766215481, 5.385766215481, 5.385766215481],
+    inherentPoisonDuration: 3, tierInherentPoisonDuration: [3, 3, 3], skillDuration: 3.003, tierSkillDuration: [3.003, 3.003, 3.003],
+    radius: 24, tierRadius: [24, 24, 24], tierPoisonMagnitude: [1, 1, 1], tierPoisonChance: [100, 100, 100],
+    tierPoisonStacks: [1, 1, 1], sourceNoHitStats: ["display_statset_no_hit_damage", "display_fake_attack_hit_poison", "display_skill_poisons_without_hit"],
+    syntheticBleedFields: [3.8992078125, 4.226893633354, 4.4994588462054],
+    admixtureArrowBleed: 4.4994588462054, trioArrowBleed: 4.4994588462054, trioBleedingArrowBleed: 4.4994588462054,
+    trioPoisonedArrowBleed: 5.3993506154464, trioBothArrowBleed: 5.3993506154464,
+    trioArrowPoison: 4.5657724526838, trioBleedingArrowPoison: 6.5747123318647,
+    trioPoisonedArrowPoison: 4.5657724526838, trioBothArrowPoison: 6.5747123318647,
+    trioInherentPoison: 5.385766215481, trioBleedingInherentPoison: 7.7555033502926,
+    trioPoisonedInherentPoison: 5.385766215481, trioBothInherentPoison: 7.7555033502926,
+    trioEnemyBleeding: false, trioEnemyPoisoned: false, trioBleedingMagnitude: 1.44, trioPoisonedBleedMagnitude: 1.2, trioMana: 54 },
+  { skill: "gas-arrow", baselineHasBleedDamage: false, hit: 1.8375, tierHit: [1.8375, 1.8375, 1.8375],
+    tierChance: [50, 75, 100], tierRawChance: [50, 75, 100], tierBleed: [1.285453125, 1.3815527828861, 1.4636793837054],
+    independentChanceBleed: [1.285453125, 1.3815527828861, 1.4636793837054], tierBleedMagnitude: [1, 1, 1],
+    tierBleedDuration: [5, 5, 5], tierHasPoisonDamage: [false, false, false], enemyBleeding: [false, false, false], enemyPoisoned: [false, false, false],
+    rate: 1.2, tierRate: [1.2, 1.2, 1.2], mana: 62, tierMana: [74, 62, 62], efficiencyMana: 38,
+    overcapRaw: 150, overcapFinal: 100, overcapBleed: 1.4636793837054,
+    inherentNoHit: true, inherentPoison: 4.0038541776187, tierInherentPoison: [4.0038541776187, 4.0038541776187, 4.0038541776187],
+    inherentPoisonDuration: 2, tierInherentPoisonDuration: [2, 2, 2], skillDuration: 4.026, tierSkillDuration: [4.026, 4.026, 4.026],
+    radius: 18, tierRadius: [18, 18, 18], tierPoisonMagnitude: [1, 1, 1], tierPoisonChance: [100, 100, 100],
+    tierPoisonStacks: [1, 1, 1], sourceNoHitStats: ["display_statset_no_hit_damage", "display_fake_attack_hit_poison", "display_skill_poisons_without_hit"],
+    syntheticBleedFields: [3.1279359375, 3.3880937294588, 3.6049881117188],
+    admixtureArrowBleed: 1.4636793837054, trioArrowBleed: 1.4636793837054, trioBleedingArrowBleed: 1.4636793837054,
+    trioPoisonedArrowBleed: 1.7564152604464, trioBothArrowBleed: 1.7564152604464,
+    trioArrowPoison: 1.5383141032889, trioBleedingArrowPoison: 2.215172308736,
+    trioPoisonedArrowPoison: 1.5383141032889, trioBothArrowPoison: 2.215172308736,
+    trioInherentPoison: 4.0038541776187, trioBleedingInherentPoison: 5.765550015771,
+    trioPoisonedInherentPoison: 4.0038541776187, trioBothInherentPoison: 5.765550015771,
+    trioEnemyBleeding: false, trioEnemyPoisoned: false, trioBleedingMagnitude: 1.44, trioPoisonedBleedMagnitude: 1.2, trioMana: 89 },
+] as const;
+
+export const poisonBowBleedFireFixture = {
+  hit: 11.025, physicalHit: 0, tierHit: [11.025, 11.025, 11.025], tierChance: [50, 75, 100],
+  tierHasBleedDamage: [false, false, false], tierHasPoisonDamage: [false, false, false],
+} as const;

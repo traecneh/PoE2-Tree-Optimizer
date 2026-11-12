@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "unitsPerScore": 60,
+  "meaning": "Literal additions reviewed only after the branch-complete topology plan was frozen. Extend the existing four-profile ledger without changing its entries, profiles or production scoring. Unselected effects are not valueless in-game.",
+  "valued": [
+    { "text": "12% increased Armour", "units": { "warbringer-partial": 60 }, "reason": "12 / 12 * 1 * 60 = 60 for the selected unconditional player Armour preference. No Armour preference is selected in the other three profiles." }
+  ],
+  "zeroGroups": [
+    {
+      "reason": "Player maximum Energy Shield, Mana regeneration and event-based Mana recovery are not the selected Minion/Companion offence, Chaos damage/duration, Maximum Life or Armour preferences. Recovery on Kill is not Maximum Life or an unconditional recovery rate.",
+      "texts": ["12% increased maximum Energy Shield", "20% increased maximum Energy Shield", "15% increased Mana Regeneration Rate", "Recover 1% of maximum Mana on Kill", "Recover 2% of maximum Mana on Kill"]
+    },
+    {
+      "reason": "Outgoing player Freeze Buildup, incoming Freeze Threshold, incoming Freeze duration reduction and incoming Armour Break reduction are separate from the selected damage, speed, duration, Life and increased-Armour pools. They are not inherited by minions or companions through these generic player lines.",
+      "texts": ["15% increased Freeze Buildup", "25% increased Freeze Buildup", "15% increased Freeze Threshold", "25% increased Freeze Threshold", "25% reduced Armour Break taken", "25% reduced Freeze Duration on you"]
+    },
+    {
+      "reason": "Conditional Defend-with-Armour mechanics are not unconditional increased Armour. No Energy Shield uptime, equipment or mitigation assumptions are inserted into this additive preference audit.",
+      "texts": ["Defend with 120% of Armour while not on Low Energy Shield"]
+    }
+  ]
+}

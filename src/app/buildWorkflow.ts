@@ -20,6 +20,7 @@ export type CreateSavedBuildStateOptions = {
   ascendancyAllocationNodeIds: string[];
   activeAllocationMode?: AllocationMode;
   weaponSetAllocationNodeIds?: WeaponSetAllocationNodeIds;
+  weaponSetAttachmentNodeIds?: string[];
   optimizedRouteChoice?: OptimizedRouteChoice;
   optimizerSettings?: PassiveOptimizationSettings;
 };
@@ -33,6 +34,7 @@ export function createSavedBuildState({
   ascendancyAllocationNodeIds,
   activeAllocationMode = "main",
   weaponSetAllocationNodeIds = emptyWeaponSetAllocations(),
+  weaponSetAttachmentNodeIds,
   optimizedRouteChoice,
   optimizerSettings,
 }: CreateSavedBuildStateOptions): SavedBuildState {
@@ -45,6 +47,7 @@ export function createSavedBuildState({
     ascendancyAllocationNodeIds: [...ascendancyAllocationNodeIds],
     activeAllocationMode,
     weaponSetAllocationNodeIds: cloneWeaponSetAllocations(weaponSetAllocationNodeIds),
+    ...(weaponSetAttachmentNodeIds?.length ? { weaponSetAttachmentNodeIds: [...weaponSetAttachmentNodeIds] } : {}),
     optimizedRouteChoice,
     optimizerSettings: normalizePassiveOptimizationSettings(optimizerSettings),
   };
@@ -72,12 +75,10 @@ export function validNodeVisualScale(
 }
 
 export function isBuildGoalableNode(node: TreeNode): boolean {
-  return Boolean(node.flags.notable || node.flags.keystone || node.flags.jewelSocket);
+  return canAddBuildGoal(node, {});
 }
 
 export function canAddBuildGoal(node: TreeNode, options: { allowAnyPassive?: boolean }): boolean {
-  if (options.allowAnyPassive) {
-    return !node.flags.classStart;
-  }
-  return isBuildGoalableNode(node);
+  if (node.flags.classStart || node.flags.ascendancy || node.flags.mastery) return false;
+  return Boolean(options.allowAnyPassive || node.flags.notable || node.flags.keystone || node.flags.jewelSocket);
 }

@@ -24,6 +24,7 @@ export type SavedBuildState = {
   ascendancyAllocationNodeIds: string[];
   activeAllocationMode: SavedBuildAllocationMode;
   weaponSetAllocationNodeIds: SavedBuildWeaponSetAllocationNodeIds;
+  weaponSetAttachmentNodeIds?: string[];
   optimizedRouteChoice?: OptimizedRouteChoice;
   optimizerSettings?: PassiveOptimizationSettings;
 };
@@ -121,6 +122,7 @@ function normalizeSavedBuild(value: unknown): SavedBuild[] {
       ascendancyAllocationNodeIds,
       activeAllocationMode,
       weaponSetAllocationNodeIds,
+      ...(isStringArray(state.weaponSetAttachmentNodeIds) && state.weaponSetAttachmentNodeIds.length ? { weaponSetAttachmentNodeIds: [...new Set(state.weaponSetAttachmentNodeIds)] } : {}),
       optimizedRouteChoice,
       optimizerSettings: normalizePassiveOptimizationSettings(state.optimizerSettings),
     },

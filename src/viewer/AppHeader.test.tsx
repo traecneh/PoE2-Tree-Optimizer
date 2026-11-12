@@ -10,62 +10,61 @@ describe("AppHeader", () => {
 
     expect(screen.getByRole("heading", { name: "PoE2 Tree Optimizer for Boomslang" })).not.toBeNull();
     expect(screen.getByText("Tree data: PoE2 0.5.0")).not.toBeNull();
-    const siteHelpText = screen.getByRole("tooltip", { name: "Site usage help" }).textContent;
+    const siteHelpText = document.getElementById("site-help-tooltip")?.textContent;
     expect(siteHelpText).toContain("Ctrl + left click");
     expect(siteHelpText).toContain("Mode: Main edits the normal passive tree and is used by Build goals and Optimize route.");
     expect(siteHelpText).toContain("Mode: W1 and W2 edit weapon-set-specific passives manually; select W1 or W2, then left-click eligible nodes on the tree.");
 
     const buildGroup = screen.getByRole("group", { name: "Build management" });
     expect(within(buildGroup).getByLabelText("Saved build")).not.toBeNull();
-    expect(within(buildGroup).getByLabelText("Build name")).not.toBeNull();
+    expect(within(buildGroup).queryByLabelText("Build name")).toBeNull();
     expect(within(buildGroup).getByRole("button", { name: "New build" })).not.toBeNull();
-    expect(within(buildGroup).getByRole("button", { name: "Export builds" })).not.toBeNull();
-    expect(within(buildGroup).getByRole("button", { name: "Import builds" })).not.toBeNull();
+    expect(within(buildGroup).getByRole("button", { name: "Build actions" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Export builds" })).toBeNull();
 
     const treeSetupGroup = screen.getByRole("group", { name: "Tree setup" });
     expect(within(treeSetupGroup).getByLabelText("Path start")).not.toBeNull();
-    expect(within(treeSetupGroup).getByLabelText("Node size")).not.toBeNull();
+    expect(within(treeSetupGroup).queryByLabelText("Node size")).toBeNull();
     expect(within(treeSetupGroup).getByRole("button", { name: "Main allocation mode" })).not.toBeNull();
     expect(within(treeSetupGroup).getByRole("button", { name: "Weapon Set 1 allocation mode" })).not.toBeNull();
     expect(within(treeSetupGroup).getByRole("button", { name: "Weapon Set 2 allocation mode" })).not.toBeNull();
-    expect(within(treeSetupGroup).getByLabelText("Hover path preview")).not.toBeNull();
+    expect(within(treeSetupGroup).queryByLabelText("Hover path preview")).toBeNull();
 
     const allocationGroup = screen.getByRole("group", { name: "Allocation summary" });
     expect(within(allocationGroup).getByText("Allocated 4/123")).not.toBeNull();
-    expect(within(allocationGroup).getByText("Main 4/123")).not.toBeNull();
+    expect(within(allocationGroup).queryByText("Main 4/123")).toBeNull();
     expect(within(allocationGroup).getByText("W1 1/24 · W2 2/24")).not.toBeNull();
     expect(within(allocationGroup).getByText("Ascendancy 2/8")).not.toBeNull();
   });
 
-  it("wires header controls to their callbacks", () => {
+  it("wires header controls to their callbacks", async () => {
     const props = defaultProps();
     render(<AppHeader {...props} />);
 
     fireEvent.change(screen.getByLabelText("Saved build"), { target: { value: "saved-1" } });
-    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: "Updated build" } });
     fireEvent.click(screen.getByRole("button", { name: "New build" }));
     fireEvent.click(screen.getByRole("button", { name: "Save build" }));
-    fireEvent.click(screen.getByRole("button", { name: "Delete build" }));
-    fireEvent.click(screen.getByRole("button", { name: "Export builds" }));
+    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: "Updated build" } });
+    fireEvent.submit(screen.getByLabelText("Build name").closest("form")!);
+    fireEvent.click(screen.getByRole("button", { name: "Build actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete build" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delete build" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Export builds" }));
     const importFile = new File(["{}"], "builds.json", { type: "application/json" });
     fireEvent.change(screen.getByLabelText("Import builds file"), { target: { files: [importFile] } });
     fireEvent.change(screen.getByLabelText("Path start"), { target: { value: "witch" } });
-    fireEvent.change(screen.getByLabelText("Node size"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "Weapon Set 1 allocation mode" }));
-    fireEvent.click(screen.getByLabelText("Hover path preview"));
     fireEvent.click(screen.getByRole("button", { name: "Reset allocation" }));
 
     expect(props.onLoadSavedBuild).toHaveBeenCalledWith("saved-1");
-    expect(props.onSavedBuildNameChange).toHaveBeenCalledWith("Updated build");
     expect(props.onNewUnsavedBuild).toHaveBeenCalled();
-    expect(props.onSaveCurrentBuild).toHaveBeenCalled();
+    expect(props.onSaveCurrentBuild).toHaveBeenCalledWith("Updated build");
     expect(props.onDeleteSelectedBuild).toHaveBeenCalled();
     expect(props.onExportSavedBuilds).toHaveBeenCalled();
     expect(props.onImportSavedBuildsFile).toHaveBeenCalledWith(importFile);
     expect(props.onChangeSelectedClassStart).toHaveBeenCalledWith("witch");
-    expect(props.onNodeVisualScaleChange).toHaveBeenCalledWith(2);
     expect(props.onChangeActiveAllocationMode).toHaveBeenCalledWith("weapon1");
-    expect(props.onToggleHoverPathPreview).toHaveBeenCalledWith(false);
     expect(props.onResetAllocation).toHaveBeenCalled();
   });
 
@@ -95,9 +94,51 @@ describe("AppHeader", () => {
     expect(Array.from(savedBuildSelect.options).map((option) => option.textContent)).toEqual([
       "Unsaved build",
       "Manual build",
-      "Optimized build - optimized route",
+      "Optimized build",
     ]);
     expect(screen.getByText("Saved optimized route: route 3 of 4, 42 points, +1 vs best.")).not.toBeNull();
+    expect(document.querySelector(".saved-build-route-choice")).toBeNull();
+  });
+
+  it("only shows contextual allocation counts", () => {
+    const props = { ...defaultProps(), weaponSet1PointCount: 0, weaponSet2PointCount: 0, hasSelectedAscendancy: false };
+    const { rerender } = render(<AppHeader {...props} />);
+    expect(screen.queryByText(/W1 .*24/)).toBeNull();
+    expect(screen.queryByText(/Ascendancy --/)).toBeNull();
+    rerender(<AppHeader {...props} activeAllocationMode="weapon1" />);
+    expect(screen.getByText("W1 0/24 · W2 0/24")).not.toBeNull();
+    rerender(<AppHeader {...props} allocatedPointCount={6} weaponSet2PointCount={2} />);
+    expect(screen.getByText("Main 4/123")).not.toBeNull();
+  });
+
+  it("saves existing builds directly but cancels blank first-save names", async () => {
+    const props = defaultProps();
+    const { rerender } = render(<AppHeader {...props} selectedSavedBuildId="saved-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Save build" }));
+    expect(props.onSaveCurrentBuild).toHaveBeenCalledWith();
+    expect(screen.queryByLabelText("Build name")).toBeNull();
+    rerender(<AppHeader {...props} savedBuildName="" />);
+    fireEvent.click(screen.getByRole("button", { name: "Save build" }));
+    expect((await screen.findByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("Build name")).toBeNull();
+    expect(props.onSaveCurrentBuild).toHaveBeenCalledTimes(1);
+  });
+
+  it("renames through Build actions without saving or deleting the build", async () => {
+    const props = defaultProps();
+    render(<AppHeader {...props} selectedSavedBuildId="saved-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Build actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Rename build" }));
+    expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("Saved build");
+    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: " Renamed " } });
+    fireEvent.submit(screen.getByLabelText("Build name").closest("form")!);
+    expect(props.onRenameSelectedBuild).toHaveBeenCalledWith("Renamed");
+    expect(props.onSaveCurrentBuild).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Build actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete build" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(props.onDeleteSelectedBuild).not.toHaveBeenCalled();
   });
 });
 
@@ -129,6 +170,7 @@ function defaultProps() {
     onSavedBuildNameChange: vi.fn(),
     onNewUnsavedBuild: vi.fn(),
     onSaveCurrentBuild: vi.fn(),
+    onRenameSelectedBuild: vi.fn(),
     onDeleteSelectedBuild: vi.fn(),
     onExportSavedBuilds: vi.fn(),
     onImportSavedBuildsFile: vi.fn(),

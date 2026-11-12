@@ -36,6 +36,7 @@ export default function App() {
   const [weaponSetAllocationNodeIds, setWeaponSetAllocationNodeIds] = useState<WeaponSetAllocationNodeIds>(
     () => emptyWeaponSetAllocations(),
   );
+  const [weaponSetAttachmentNodeIds, setWeaponSetAttachmentNodeIds] = useState<string[]>([]);
   const optimizerMainPointLimit = maxPassiveAllocationPointCount - Math.max(weaponSetAllocationNodeIds[1].length, weaponSetAllocationNodeIds[2].length);
   const [nodeVisualScale, setNodeVisualScale] = useState<number>(defaultNodeVisualScale);
   const [searchQuery, setSearchQuery] = useState("");
@@ -76,12 +77,11 @@ export default function App() {
     selectedSavedBuild,
     selectedSavedBuildId,
     savedBuildName,
-    setSavedBuildName,
     savedBuildStatus,
     savedBuildStatusFeedbackKey,
-    canSaveCurrentBuild,
     canExportSavedBuilds,
     saveCurrentBuild,
+    renameSelectedBuild,
     loadSavedBuild: selectSavedBuild,
     newUnsavedBuild: markNewUnsavedBuild,
     deleteSelectedBuild: deleteSelectedSavedBuild,
@@ -119,7 +119,12 @@ export default function App() {
     selectOptimizedRoute,
     applyOptimizedRoute,
   } = useBuildGoalsState({
+    rootNodeId: pathStartNodeId,
+    selectedAscendancyId: selectedAscendancy?.id,
+    allocatedAscendancyNodeIds: activeAscendancyAllocationNodeIds,
     mainPointLimit: optimizerMainPointLimit,
+    weaponSetAllocationNodeIds,
+    weaponSetAttachmentNodeIds,
     visibleGraph,
     allocationPlan,
     setAllocationPlan,
@@ -191,6 +196,7 @@ export default function App() {
     weaponSetAllocationNodeIds,
     setWeaponSetAllocationNodeIds,
     clearOptimizedRouteState,
+    ascendancyAllocationNodeIds: activeAscendancyAllocationNodeIds,
     toggleAscendancyAllocationNode,
   });
   const {
@@ -235,6 +241,7 @@ export default function App() {
     setActiveAllocationMode,
     weaponSetAllocationNodeIds,
     setWeaponSetAllocationNodeIds,
+    setWeaponSetAttachmentNodeIds,
     buildGoalNodeIds,
     buildGoalNodeIdSet,
     setBuildGoalNodeIds,
@@ -271,6 +278,7 @@ export default function App() {
       ascendancyAllocationNodeIds: activeAscendancyAllocationNodeIds,
       activeAllocationMode,
       weaponSetAllocationNodeIds,
+      weaponSetAttachmentNodeIds,
       optimizedRouteChoice: appliedOptimizedRouteChoice,
     });
   }
@@ -308,15 +316,11 @@ export default function App() {
         savedBuildName={savedBuildName}
         savedBuildStatus={savedBuildStatus}
         savedBuildStatusFeedbackKey={savedBuildStatusFeedbackKey}
-        canSaveCurrentBuild={canSaveCurrentBuild}
         canDeleteSelectedBuild={Boolean(selectedSavedBuild)}
         canExportSavedBuilds={canExportSavedBuilds}
         classStartOptions={classStartOptions}
         selectedClassStartId={selectedClassStartId}
-        nodeVisualScale={nodeVisualScale}
-        nodeVisualScaleOptions={nodeVisualScaleOptions}
         activeAllocationMode={activeAllocationMode}
-        hoverPathPreviewEnabled={hoverPathPreviewEnabled}
         allocatedPointCount={allocatedPointCount}
         mainPassivePointCount={mainPassivePointCount}
         weaponSet1PointCount={weaponSet1PointCount}
@@ -325,16 +329,14 @@ export default function App() {
         hasSelectedAscendancy={Boolean(selectedAscendancy)}
         canResetAllocation={canResetAllocation}
         onLoadSavedBuild={loadSavedBuild}
-        onSavedBuildNameChange={setSavedBuildName}
         onNewUnsavedBuild={newUnsavedBuild}
         onSaveCurrentBuild={saveCurrentBuild}
+        onRenameSelectedBuild={renameSelectedBuild}
         onDeleteSelectedBuild={deleteSelectedBuild}
         onExportSavedBuilds={exportSavedBuildsFile}
         onImportSavedBuildsFile={importSavedBuildsFile}
         onChangeSelectedClassStart={changeSelectedClassStart}
-        onNodeVisualScaleChange={setNodeVisualScale}
         onChangeActiveAllocationMode={setActiveAllocationMode}
-        onToggleHoverPathPreview={toggleHoverPathPreview}
         onResetAllocation={resetAllocation}
       />
       {graphLoadStatus === "fallback" ? (
@@ -354,6 +356,10 @@ export default function App() {
           activeAscendancyId={selectedAscendancy?.id}
           noAllocationPathNodeId={noAllocationPathNodeId}
           nodeVisualScale={nodeVisualScale}
+          nodeVisualScaleOptions={nodeVisualScaleOptions}
+          hoverPathPreviewEnabled={hoverPathPreviewEnabled}
+          onNodeVisualScaleChange={setNodeVisualScale}
+          onToggleHoverPathPreview={toggleHoverPathPreview}
           searchMatchNodeIds={searchMatchNodeIds}
           searchFocusedNodeId={searchFocusedNodeId}
           buildGoalNodeIds={buildGoalNodeIdSet}

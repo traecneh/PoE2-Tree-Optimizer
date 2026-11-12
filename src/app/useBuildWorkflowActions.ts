@@ -29,6 +29,7 @@ type UseBuildWorkflowActionsOptions = {
   setActiveAllocationMode: Dispatch<SetStateAction<AllocationMode>>;
   weaponSetAllocationNodeIds: WeaponSetAllocationNodeIds;
   setWeaponSetAllocationNodeIds: Dispatch<SetStateAction<WeaponSetAllocationNodeIds>>;
+  setWeaponSetAttachmentNodeIds?: Dispatch<SetStateAction<string[]>>;
   buildGoalNodeIds: string[];
   buildGoalNodeIdSet: ReadonlySet<string>;
   setBuildGoalNodeIds: Dispatch<SetStateAction<string[]>>;
@@ -71,6 +72,7 @@ export function useBuildWorkflowActions({
   setActiveAllocationMode,
   weaponSetAllocationNodeIds,
   setWeaponSetAllocationNodeIds,
+  setWeaponSetAttachmentNodeIds,
   buildGoalNodeIds,
   buildGoalNodeIdSet,
   setBuildGoalNodeIds,
@@ -110,7 +112,7 @@ export function useBuildWorkflowActions({
     resetAllocationPlan,
     resetAscendancyAllocation,
     weaponSetAllocationNodeIds,
-    resetWeaponSetAllocations: () => setWeaponSetAllocationNodeIds(emptyWeaponSetAllocations()),
+    resetWeaponSetAllocations: () => { setWeaponSetAllocationNodeIds(emptyWeaponSetAllocations()); setWeaponSetAttachmentNodeIds?.([]); },
     clearOptimizedRouteState,
     clearTreeInteractionState,
   });
@@ -133,6 +135,7 @@ export function useBuildWorkflowActions({
     setNodeVisualScale,
     setActiveAllocationMode,
     setWeaponSetAllocationNodeIds,
+    setWeaponSetAttachmentNodeIds,
     setBuildGoalNodeIds,
     setAscendancyAllocationNodeIds,
     setAppliedOptimizedRouteChoice,
@@ -176,6 +179,7 @@ export function useBuildWorkflowActions({
     pobImportCode,
     setAscendancyAllocationNodeIds,
     setWeaponSetAllocationNodeIds,
+    setWeaponSetAttachmentNodeIds,
     setPobImportStatus,
     applyClassStartOption,
     clearOptimizedRouteState,

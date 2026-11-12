@@ -63,8 +63,8 @@ export function useSavedBuildState({
     }, toastDurationMs);
   }, [toastDurationMs]);
 
-  const saveCurrentBuild = useCallback(() => {
-    const name = savedBuildName.trim();
+  const saveCurrentBuild = useCallback((requestedName?: string) => {
+    const name = (requestedName ?? savedBuildName).trim();
     if (!name) return undefined;
 
     const now = new Date().toISOString();
@@ -115,6 +115,15 @@ export function useSavedBuildState({
     showSavedBuildStatus(`Loaded ${build.name}`);
     return build;
   }, [clearSavedBuildStatus, savedBuilds, showSavedBuildStatus]);
+
+  const renameSelectedBuild = useCallback((requestedName: string) => {
+    const name = requestedName.trim();
+    if (!selectedSavedBuild || !name) return;
+    const renamedBuild = { ...selectedSavedBuild, name, updatedAt: new Date().toISOString() };
+    updateSavedBuilds(savedBuilds.map(build => build.id === renamedBuild.id ? renamedBuild : build));
+    setSavedBuildName(name);
+    showSavedBuildStatus(`Renamed ${name}`);
+  }, [savedBuilds, selectedSavedBuild, showSavedBuildStatus, updateSavedBuilds]);
 
   const newUnsavedBuild = useCallback((nextStatus = "New unsaved build") => {
     setSelectedSavedBuildId("");
@@ -187,6 +196,7 @@ export function useSavedBuildState({
     canSaveCurrentBuild,
     canExportSavedBuilds,
     saveCurrentBuild,
+    renameSelectedBuild,
     loadSavedBuild,
     newUnsavedBuild,
     deleteSelectedBuild,

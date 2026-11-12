@@ -13,6 +13,8 @@ import {
 import { buildSummary } from "../tree/buildSummary";
 import { defaultPassiveOptimizationSettings, normalizePassiveOptimizationSettings, type PassiveOptimizationSettings } from "../tree/passivePreferences";
 import { maxPassiveAllocationPointCount } from "../tree/passivePointBudget";
+import { deriveWeaponAttachments, filterWeaponAttachments, type FixedWeaponSets } from "../tree/allocationConstraints";
+import { buildGoalsValidationFailure, createBuildGoalsValidation, optimizerTreeFingerprint, type BuildGoalsValidation } from "../tree/buildGoalsValidation";
 import type { OptimizedRouteChoice } from "../tree/optimizedRouteChoice";
 import type { TreeGraph } from "../tree/types";
 import type { AllocationPlan } from "./allocationPlan";
@@ -29,6 +31,11 @@ type UseBuildGoalsStateOptions = {
   setAllocationPlan: Dispatch<SetStateAction<AllocationPlan>>;
   runOptimization?: RunBuildGoalsOptimization;
   mainPointLimit?: number;
+  rootNodeId?: string;
+  selectedAscendancyId?: string;
+  allocatedAscendancyNodeIds?: string[];
+  weaponSetAllocationNodeIds?: FixedWeaponSets["allocations"];
+  weaponSetAttachmentNodeIds?: string[];
 };
 
 export function useBuildGoalsState({
@@ -37,6 +44,11 @@ export function useBuildGoalsState({
   setAllocationPlan,
   runOptimization = runDefaultBuildGoalsOptimization,
   mainPointLimit = maxPassiveAllocationPointCount,
+  rootNodeId,
+  selectedAscendancyId,
+  allocatedAscendancyNodeIds,
+  weaponSetAllocationNodeIds = { 1: [], 2: [] },
+  weaponSetAttachmentNodeIds = [],
 }: UseBuildGoalsStateOptions) {
   const [buildGoalNodeIds, setBuildGoalNodeIds] = useState<string[]>([]);
   const [optimizerSettings, setOptimizerSettings] = useState(defaultPassiveOptimizationSettings);
@@ -46,6 +58,13 @@ export function useBuildGoalsState({
   const [appliedOptimizedRouteChoice, setAppliedOptimizedRouteChoice] = useState<OptimizedRouteChoice | undefined>();
   const optimizerRun = useRef<BuildGoalsOptimizationRun | undefined>(undefined);
   const allocationBeforeOptimization = useRef<AllocationPlan | undefined>(undefined);
+  const optimizationRequest = useRef<BuildGoalsOptimizeRequest | undefined>(undefined);
+  const treeFingerprint = useMemo(() => optimizerTreeFingerprint(visibleGraph), [visibleGraph]);
+  const validationKey = JSON.stringify([treeFingerprint, rootNodeId, selectedAscendancyId, [...(allocatedAscendancyNodeIds ?? [])].sort(), mainPointLimit,
+    weaponSetAllocationNodeIds[1], weaponSetAllocationNodeIds[2], weaponSetAttachmentNodeIds]);
+  const currentValidationState = useRef({ visibleGraph, rootNodeId, selectedAscendancyId, allocatedAscendancyNodeIds, mainPointLimit, treeFingerprint, validationKey, weaponSetAllocationNodeIds, weaponSetAttachmentNodeIds });
+  currentValidationState.current = { visibleGraph, rootNodeId, selectedAscendancyId, allocatedAscendancyNodeIds, mainPointLimit, treeFingerprint, validationKey, weaponSetAllocationNodeIds, weaponSetAttachmentNodeIds };
+  const validationCache = useRef<{ request: BuildGoalsOptimizeRequest; key: string; validation: BuildGoalsValidation } | undefined>(undefined);
 
   const buildGoalNodeIdSet = useMemo(
     () => new Set(buildGoalNodeIds),
@@ -71,6 +90,8 @@ export function useBuildGoalsState({
     setAppliedOptimizedRouteChoice(undefined);
     setBuildGoalStatus(nextStatus);
     allocationBeforeOptimization.current = undefined;
+    optimizationRequest.current = undefined;
+    validationCache.current = undefined;
   }, []);
 
   const restoreOptimizerSettings = useCallback((settings: PassiveOptimizationSettings) => {
@@ -127,7 +148,45 @@ export function useBuildGoalsState({
     }));
   }, [setAllocationPlan]);
 
-  const handleOptimizedResult = useCallback((result: BuildGoalsOptimizeResult) => {
+  const validateCurrentResult = useCallback((result: BuildGoalsOptimizeResult): BuildGoalsOptimizeResult => {
+    if (result.status !== "success") return result;
+    const request = optimizationRequest.current;
+    if (!request) return buildGoalsValidationFailure([{ code: "stale-run", kind: "invalid", message: "This route has no active optimization request. Optimize again." }]);
+    const current = currentValidationState.current;
+    const cached = validationCache.current;
+    const validation = cached?.request === request && cached.key === current.validationKey ? cached.validation : createBuildGoalsValidation({
+      ...request, graph: current.visibleGraph, rootNodeId: current.rootNodeId ?? request.rootNodeId,
+      visibility: { selectedAscendancyId: current.selectedAscendancyId, allocatedAscendancyNodeIds: current.allocatedAscendancyNodeIds },
+      totalPointLimit: current.mainPointLimit,
+      weaponSets: fixedWeapons(current.visibleGraph, current.weaponSetAllocationNodeIds, current.weaponSetAttachmentNodeIds, request.baseNodeIds, current.rootNodeId),
+    });
+    validationCache.current = { request, key: current.validationKey, validation };
+    const issues = validation.validateResult(result, true);
+    return issues.length ? buildGoalsValidationFailure(issues) : result;
+  }, []);
+
+  const rejectOptimizedResult = useCallback((result: BuildGoalsOptimizeResult) => {
+    optimizerRun.current?.cancel();
+    optimizerRun.current = undefined;
+    setOptimizedPreview(undefined);
+    setOptimizedRouteIndex(0);
+    setAppliedOptimizedRouteChoice(undefined);
+    const original = allocationBeforeOptimization.current;
+    const request = optimizationRequest.current;
+    if (original) setAllocationPlan((current) => {
+      const sameCommitted = current.committedNodePath.length === original.committedNodePath.length
+        && current.committedNodePath.every((id, i) => id === original.committedNodePath[i])
+        && current.committedEdgeKeys.length === original.committedEdgeKeys.length
+        && current.committedEdgeKeys.every((id, i) => id === original.committedEdgeKeys[i]);
+      if (!sameCommitted) return current;
+      if (request?.treeFingerprint === currentValidationState.current.treeFingerprint) return original;
+      return { ...current, previewNodePath: [], previewEdgeKeys: [], previewRouteNodePath: [], previewHighlightNodeIds: [], previewHighlightEdgeKeys: [] };
+    });
+    setBuildGoalStatus({ kind: "error", message: result.message ?? "The optimized route failed validation. Optimize again." });
+  }, [setAllocationPlan]);
+
+  const handleOptimizedResult = useCallback((incoming: BuildGoalsOptimizeResult) => {
+    const result = validateCurrentResult(incoming);
     if (result.status === "cancelled") {
       setAppliedOptimizedRouteChoice(undefined);
       setBuildGoalStatus({ kind: "cancelled" });
@@ -135,8 +194,7 @@ export function useBuildGoalsState({
     }
 
     if (result.status === "error") {
-      setAppliedOptimizedRouteChoice(undefined);
-      setBuildGoalStatus({ kind: "error", message: result.message ?? "Build goal optimization failed." });
+      rejectOptimizedResult(result);
       return;
     }
 
@@ -170,9 +228,11 @@ export function useBuildGoalsState({
       weighted: result.weighted,
       message: result.message,
     });
-  }, [showOptimizedRoutePreview, visibleGraph.nodes]);
+  }, [showOptimizedRoutePreview, visibleGraph.nodes, validateCurrentResult, rejectOptimizedResult]);
 
-  const handleOptimizedProgress = useCallback((result: BuildGoalsOptimizeResult) => {
+  const handleOptimizedProgress = useCallback((incoming: BuildGoalsOptimizeResult) => {
+    const result = validateCurrentResult(incoming);
+    if (result.status === "error") { rejectOptimizedResult(result); return; }
     if (result.weighted?.stage === "baseline") {
       setBuildGoalStatus({ kind: "running", weighted: result.weighted });
       return;
@@ -188,7 +248,7 @@ export function useBuildGoalsState({
       improvementHistory: result.improvementHistory,
       weighted: result.weighted,
     });
-  }, [showOptimizedRoutePreview]);
+  }, [showOptimizedRoutePreview, validateCurrentResult, rejectOptimizedResult]);
 
   const optimizeBuildGoalsRoute = useCallback(() => {
     if (buildGoalNodeIds.length === 0) return;
@@ -204,21 +264,36 @@ export function useBuildGoalsState({
     const baseNodeIds = baseAllocation.previewNodePath.length > 0
       ? baseAllocation.previewNodePath
       : baseAllocation.committedNodePath;
-    const baseEdgeKeys = baseAllocation.previewEdgeKeys.length > 0
+    const baseEdgeKeys = baseAllocation.previewNodePath.length > 0
       ? baseAllocation.previewEdgeKeys
       : baseAllocation.committedEdgeKeys;
-    const run = runOptimization({
+    const request: BuildGoalsOptimizeRequest = {
       graph: visibleGraph,
       baseNodeIds,
       baseEdgeKeys,
       goalNodeIds: buildGoalNodeIds,
       mode: optimizerSettings.mode,
+      allocationPool: "main",
+      rootNodeId: rootNodeId ?? baseNodeIds[0],
+      treeFingerprint,
+      visibility: { selectedAscendancyId, allocatedAscendancyNodeIds },
+      totalPointLimit: mainPointLimit,
+      weaponSets: fixedWeapons(visibleGraph, weaponSetAllocationNodeIds, weaponSetAttachmentNodeIds, baseNodeIds, rootNodeId),
       ...(optimizerSettings.mode === "weighted" ? {
         preferences: optimizerSettings.preferences,
+        ...(optimizerSettings.focusSkillId ? { focusSkillId: optimizerSettings.focusSkillId } : {}),
+        ...(optimizerSettings.supportGemIds?.length ? { supportGemIds: optimizerSettings.supportGemIds } : {}),
+        ...(optimizerSettings.socketedGrenadeId ? { socketedGrenadeId: optimizerSettings.socketedGrenadeId } : {}),
+        ...(optimizerSettings.socketedProxySkillId ? { socketedProxySkillId: optimizerSettings.socketedProxySkillId } : {}),
         extraPointBudget: optimizerSettings.extraPointBudget,
         ...(optimizerSettings.pointBudgetMode === "all-available" ? { pointBudgetMode: "all-available" as const, totalPointLimit: mainPointLimit } : {}),
       } : {}),
-    }, {
+    };
+    optimizationRequest.current = request;
+    const validation = createBuildGoalsValidation(request);
+    validationCache.current = { request, key: currentValidationState.current.validationKey, validation };
+    if (validation.issues.length) { rejectOptimizedResult(buildGoalsValidationFailure(validation.issues)); return; }
+    const run = runOptimization(request, {
       onProgress: (result) => {
         if (optimizerRun.current !== run) return;
         handleOptimizedProgress(result);
@@ -245,6 +320,13 @@ export function useBuildGoalsState({
     mainPointLimit,
     optimizedPreview,
     visibleGraph,
+    rootNodeId,
+    treeFingerprint,
+    selectedAscendancyId,
+    allocatedAscendancyNodeIds,
+    rejectOptimizedResult,
+    weaponSetAllocationNodeIds,
+    weaponSetAttachmentNodeIds,
   ]);
 
   const cancelBuildGoalsOptimization = useCallback(() => {
@@ -256,14 +338,18 @@ export function useBuildGoalsState({
 
   const selectOptimizedRoute = useCallback((routeIndex: number) => {
     if (!optimizedPreview) return;
+    const checked = validateCurrentResult(optimizedPreview);
+    if (checked.status === "error") { rejectOptimizedResult(checked); return; }
     const routeCount = optimizedPreview.routeCandidates?.length ?? 1;
     const nextRouteIndex = (routeIndex + routeCount) % routeCount;
     setOptimizedRouteIndex(nextRouteIndex);
     showOptimizedRoutePreview(optimizedPreview, nextRouteIndex);
-  }, [optimizedPreview, showOptimizedRoutePreview]);
+  }, [optimizedPreview, showOptimizedRoutePreview, validateCurrentResult, rejectOptimizedResult]);
 
   const applyOptimizedRoute = useCallback(() => {
     if (!optimizedPreview || optimizedPreview.pointCost === 0) return;
+    const checked = validateCurrentResult(optimizedPreview);
+    if (checked.status === "error") { rejectOptimizedResult(checked); return; }
     const route = optimizedRouteCandidate(optimizedPreview, optimizedRouteIndex);
     const routeChoice = buildOptimizedRouteChoice(optimizedPreview, optimizedRouteIndex);
 
@@ -280,8 +366,9 @@ export function useBuildGoalsState({
     setOptimizedRouteIndex(0);
     setAppliedOptimizedRouteChoice(routeChoice);
     allocationBeforeOptimization.current = undefined;
+    optimizationRequest.current = undefined;
     setBuildGoalStatus({ kind: "already-reached" });
-  }, [optimizedPreview, optimizedRouteIndex, setAllocationPlan]);
+  }, [optimizedPreview, optimizedRouteIndex, setAllocationPlan, validateCurrentResult, rejectOptimizedResult]);
 
   useEffect(() => () => {
     optimizerRun.current?.cancel();
@@ -315,6 +402,13 @@ export function useBuildGoalsState({
     selectOptimizedRoute,
     applyOptimizedRoute,
   };
+}
+
+function fixedWeapons(graph: TreeGraph, allocations: FixedWeaponSets["allocations"], recorded: string[], base: string[], root: string | undefined): FixedWeaponSets | undefined {
+  if (!allocations[1].length && !allocations[2].length) return undefined;
+  return { allocations: { 1: [...allocations[1]], 2: [...allocations[2]] }, attachmentNodeIds: [...new Set([
+    ...filterWeaponAttachments(graph, recorded, allocations), ...deriveWeaponAttachments(graph, base, allocations, root ?? base[0]),
+  ])] };
 }
 
 function optimizedRouteCandidate(result: BuildGoalsOptimizeResult, routeIndex: number): BuildGoalsRouteCandidate {

@@ -42,12 +42,14 @@ describe("useSavedBuildWorkflow", () => {
       updatedAt: "2026-06-02T00:00:00.000Z",
       state: savedBuildState(),
     };
+    savedBuild.state.weaponSetAttachmentNodeIds = ["protected-attachment"];
     if (optimizerSettings) savedBuild.state.optimizerSettings = optimizerSettings;
     const selectSavedBuild = vi.fn(() => savedBuild);
     const restoreOptimizerSettings = vi.fn();
     const clearOptimizedRouteState = vi.fn();
     const clearPobImport = vi.fn();
     const clearTreeInteractionState = vi.fn();
+    const setWeaponSetAttachmentNodeIds = vi.fn();
 
     const { result } = renderHook(() => {
       const [selectedClassStartId, setSelectedClassStartId] = useState<string | undefined>("witch");
@@ -84,6 +86,7 @@ describe("useSavedBuildWorkflow", () => {
         setNodeVisualScale,
         setActiveAllocationMode,
         setWeaponSetAllocationNodeIds,
+        setWeaponSetAttachmentNodeIds,
         setBuildGoalNodeIds,
         setAscendancyAllocationNodeIds,
         setAppliedOptimizedRouteChoice,
@@ -120,6 +123,7 @@ describe("useSavedBuildWorkflow", () => {
     });
 
     expect(selectSavedBuild).toHaveBeenCalledWith("saved-1");
+    expect(setWeaponSetAttachmentNodeIds).toHaveBeenCalledWith(["protected-attachment"]);
     expect(restoreOptimizerSettings).toHaveBeenCalledExactlyOnceWith(
       normalizePassiveOptimizationSettings(optimizerSettings),
     );

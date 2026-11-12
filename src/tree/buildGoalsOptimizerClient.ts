@@ -4,6 +4,7 @@ import {
   type BuildGoalsOptimizeResult,
 } from "./buildGoalsOptimizer";
 import { optimizeWeightedBuildGoals } from "./weightedBuildGoalsOptimizer";
+import { buildGoalsValidationFailure, createBuildGoalsValidation } from "./buildGoalsValidation";
 import type {
   BuildGoalsOptimizerWorkerRequest,
   BuildGoalsOptimizerWorkerResponse,
@@ -24,27 +25,52 @@ export function runBuildGoalsOptimization(
   request: BuildGoalsOptimizeRequest,
   callbacks: BuildGoalsOptimizationCallbacks = {},
 ): BuildGoalsOptimizationRun {
+  const validation = createBuildGoalsValidation(request);
+  if (validation.issues.length) return { promise: Promise.resolve(buildGoalsValidationFailure(validation.issues)), cancel: () => undefined };
+  const checkedResult = (result: BuildGoalsOptimizeResult) => {
+    const issues = validation.validateResult(result, true);
+    return issues.length ? buildGoalsValidationFailure(issues) : result;
+  };
+  const checkedCallbacks = { onProgress: (result: BuildGoalsOptimizeResult) => callbacks.onProgress?.(checkedResult(result)) };
   if (typeof Worker === "undefined") {
-    return runInCurrentThread(request, callbacks);
+    const run = runInCurrentThread(request, checkedCallbacks);
+    return { ...run, promise: run.promise.then(checkedResult) };
   }
 
-  const worker = new Worker(new URL("./buildGoalsOptimizer.worker.ts", import.meta.url), { type: "module" });
+  let worker: Worker;
+  try {
+    worker = new Worker(new URL("./buildGoalsOptimizer.worker.ts", import.meta.url), { type: "module" });
+  } catch (error) {
+    return { promise: Promise.resolve(buildGoalsValidationFailure([{ code: "worker-start", kind: "invalid", message: error instanceof Error ? error.message : "The optimizer worker could not start." }])), cancel: () => undefined };
+  }
   const id = nextWorkerRequestId;
   nextWorkerRequestId += 1;
   let settled = false;
+  let resolveRun: (result: BuildGoalsOptimizeResult) => void = () => undefined;
 
   const promise = new Promise<BuildGoalsOptimizeResult>((resolve) => {
+    resolveRun = resolve;
     worker.onmessage = (event: MessageEvent<BuildGoalsOptimizerWorkerResponse>) => {
-      if (event.data.id !== id) return;
+      if (settled || event.data?.id !== id) return;
+      const result = event.data.type === "progress" || event.data.type === "complete"
+        ? checkedResult(event.data.result)
+        : buildGoalsValidationFailure([{ code: "worker-message", kind: "invalid", message: "The optimizer returned an unknown worker message." }]);
+      if (result.status === "error") {
+        settled = true;
+        worker.terminate();
+        resolve(result);
+        return;
+      }
       if (event.data.type === "progress") {
-        callbacks.onProgress?.(event.data.result);
+        callbacks.onProgress?.(result);
         return;
       }
       settled = true;
       worker.terminate();
-      resolve(event.data.result);
+      resolve(result);
     };
     worker.onerror = (event) => {
+      if (settled) return;
       settled = true;
       worker.terminate();
       resolve({
@@ -59,7 +85,13 @@ export function runBuildGoalsOptimization(
         message: event.message || "Build goal optimization failed.",
       });
     };
-    worker.postMessage({ id, request } satisfies BuildGoalsOptimizerWorkerRequest);
+    try {
+      worker.postMessage({ id, request: { ...request, treeFingerprint: validation.fingerprint } } satisfies BuildGoalsOptimizerWorkerRequest);
+    } catch (error) {
+      settled = true;
+      worker.terminate();
+      resolve(buildGoalsValidationFailure([{ code: "worker-request", kind: "invalid", message: error instanceof Error ? error.message : "The optimizer request could not be sent to its worker." }]));
+    }
   });
 
   return {
@@ -68,6 +100,7 @@ export function runBuildGoalsOptimization(
       if (settled) return;
       settled = true;
       worker.terminate();
+      resolveRun({ status: "cancelled", completeReason: "cancelled", addedNodeIds: [], addedEdgeKeys: [], totalNodeIds: [], totalEdgeKeys: [], orderedNodeIds: [], pointCost: 0, unreachableGoalNodeIds: [] });
     },
   };
 }

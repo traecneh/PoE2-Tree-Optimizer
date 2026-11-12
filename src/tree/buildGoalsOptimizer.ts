@@ -1,6 +1,9 @@
 import { isAllocatableTreeEdge, treeEdgeKey } from "./pathAllocation";
 import type { NodeId, TreeGraph } from "./types";
 import type { PassivePreference, WeightedRouteScore } from "./passivePreferences";
+import { runValidatedBuildGoalsOptimization, type BuildGoalsValidationIssue } from "./buildGoalsValidation";
+import { availableMainPointLimit, hasMainPointCap, type FixedWeaponSets } from "./allocationConstraints";
+import { countMainPassivePoints } from "./passivePointBudget";
 
 export type BuildGoalsOptimizeMode = "shortest" | "weighted";
 
@@ -11,9 +14,19 @@ export type BuildGoalsOptimizeRequest = {
   goalNodeIds: NodeId[];
   mode: BuildGoalsOptimizeMode;
   preferences?: PassivePreference[];
+  focusSkillId?: string;
+  supportGemIds?: string[];
+  socketedGrenadeId?: string;
+  socketedProxySkillId?: string;
   extraPointBudget?: number;
   pointBudgetMode?: "extra" | "all-available";
   totalPointLimit?: number;
+  weaponSets?: FixedWeaponSets;
+  rootNodeId?: NodeId;
+  allocationPool?: "main" | "weapon1" | "weapon2" | "ascendancy";
+  excludedNodeIds?: NodeId[];
+  treeFingerprint?: string;
+  visibility?: { selectedAscendancyId?: string; allocatedAscendancyNodeIds?: NodeId[] };
 };
 
 export type BuildGoalsOptimizeResult = {
@@ -31,6 +44,8 @@ export type BuildGoalsOptimizeResult = {
   routeCandidates?: BuildGoalsRouteCandidate[];
   improvementHistory?: number[];
   weighted?: WeightedRouteScore;
+  treeFingerprint?: string;
+  validationIssues?: BuildGoalsValidationIssue[];
 };
 
 export type BuildGoalsRouteCandidate = {
@@ -51,6 +66,7 @@ export type BuildGoalsAnytimeOptions = {
   randomSeedStart?: number;
   now?: () => number;
   shouldCancel?: () => boolean;
+  enableLocalSearch?: boolean;
 };
 
 type DpParent =
@@ -101,6 +117,21 @@ const defaultRouteCandidateLimit = 18;
 const defaultRouteCandidateVariantLimitPerCost = 3;
 
 export function optimizeBuildGoals(request: BuildGoalsOptimizeRequest): BuildGoalsOptimizeResult {
+  return runValidatedBuildGoalsOptimization(request, (prepared) => capShortestResult(prepared, optimizeBuildGoalsUnchecked(prepared)));
+}
+
+function remainingPointCap(request: BuildGoalsOptimizeRequest): number {
+  return hasMainPointCap(request) ? availableMainPointLimit(request) - countMainPassivePoints(request.graph, request.baseNodeIds) : Infinity;
+}
+function capShortestResult(request: BuildGoalsOptimizeRequest, result: BuildGoalsOptimizeResult): BuildGoalsOptimizeResult {
+  const cap = remainingPointCap(request);
+  if ((result.status === "success" || result.status === "cancelled") && result.pointCost > cap) {
+    return emptyResult(result.status === "cancelled" ? "cancelled" : "error", `The route found needs ${result.pointCost} new points, but only ${cap} remain within the main-tree point limit. Reduce goals or free allocated points.`);
+  }
+  return result.routeCandidates ? { ...result, routeCandidates: result.routeCandidates.filter((candidate) => candidate.pointCost <= cap) } : result;
+}
+
+function optimizeBuildGoalsUnchecked(request: BuildGoalsOptimizeRequest): BuildGoalsOptimizeResult {
   if (request.mode !== "shortest") {
     return emptyResult("error", "Unsupported build goal optimization mode.");
   }
@@ -161,6 +192,17 @@ export function optimizeBuildGoalsAnytime(
   onProgress: (result: BuildGoalsOptimizeResult) => void = () => undefined,
   options: BuildGoalsAnytimeOptions = {},
 ): BuildGoalsOptimizeResult {
+  return runValidatedBuildGoalsOptimization(request,
+    (prepared, progress) => capShortestResult(prepared, optimizeBuildGoalsAnytimeUnchecked(prepared, (result) => {
+      if (result.pointCost <= remainingPointCap(prepared)) progress(capShortestResult(prepared, result));
+    }, options)), onProgress);
+}
+
+function optimizeBuildGoalsAnytimeUnchecked(
+  request: BuildGoalsOptimizeRequest,
+  onProgress: (result: BuildGoalsOptimizeResult) => void,
+  options: BuildGoalsAnytimeOptions,
+): BuildGoalsOptimizeResult {
   if (request.mode !== "shortest") {
     const result = emptyResult("error", "Unsupported build goal optimization mode.");
     onProgress(result);
@@ -174,7 +216,7 @@ export function optimizeBuildGoalsAnytime(
   const baseEdgeKeys = uniqueEdgeKeys(request.baseEdgeKeys);
 
   if (baseNodeIds.length === 0 || shouldUseExactShortestTree(request.graph, goalNodeIds.length)) {
-    const result = annotateCompletedResult(optimizeBuildGoals(request), shouldUseExactShortestTree(request.graph, goalNodeIds.length) ? "exact" : undefined);
+    const result = annotateCompletedResult(optimizeBuildGoalsUnchecked(request), shouldUseExactShortestTree(request.graph, goalNodeIds.length) ? "exact" : undefined);
     onProgress(result);
     return result;
   }
@@ -182,7 +224,7 @@ export function optimizeBuildGoalsAnytime(
   const adjacency = buildAdjacency(request.graph);
   const unreachableGoalNodeIds = unreachableGoals(adjacency, baseNodeSet, goalNodeIds);
   if (unreachableGoalNodeIds.length > 0 || goalNodeIds.length === 0) {
-    const result = annotateCompletedResult(optimizeBuildGoals(request), "bounded");
+    const result = annotateCompletedResult(optimizeBuildGoalsUnchecked(request), "bounded");
     onProgress(result);
     return result;
   }
@@ -196,13 +238,14 @@ export function optimizeBuildGoalsAnytime(
   const routeCandidates: BuildGoalsRouteCandidate[] = [];
   const candidateSignatures = new Set<string>();
   const improvementHistory: number[] = [];
+  const pointCap = remainingPointCap(request);
   let bestResult: BuildGoalsOptimizeResult | undefined;
   let lastImprovementAt = now();
 
   function considerCandidate(candidate: BuildGoalsRouteCandidate): boolean {
     if (!Number.isFinite(candidate.pointCost)) return false;
     const signature = routeCandidateSignature(candidate);
-    if (!candidateSignatures.has(signature)) {
+    if (candidate.pointCost <= pointCap && !candidateSignatures.has(signature)) {
       candidateSignatures.add(signature);
       routeCandidates.push(candidate);
       routeCandidates.splice(
@@ -214,7 +257,7 @@ export function optimizeBuildGoalsAnytime(
 
     if (bestResult && candidate.pointCost >= bestResult.pointCost) return false;
 
-    improvementHistory.push(candidate.pointCost);
+    if (candidate.pointCost <= pointCap) improvementHistory.push(candidate.pointCost);
     bestResult = resultFromRouteCandidate(candidate, {
       routeCandidates,
       improvementHistory,
@@ -243,6 +286,13 @@ export function optimizeBuildGoalsAnytime(
   const maxIterations = options.maxIterations;
   let iteration = 0;
   let seed = options.randomSeedStart ?? 1;
+  let junctions: number[] | undefined;
+  let nextJunction = 0;
+  let branchRevision = "";
+  let branchSolution: SolutionSets | undefined;
+  let branchChains: number[][] = [];
+  let nextChain = 0;
+  let branchAttempts = 0;
 
   while (!options.shouldCancel?.()) {
     if (maxIterations === undefined) {
@@ -266,6 +316,34 @@ export function optimizeBuildGoalsAnytime(
       baseEdgeKeys,
       indexedGraph,
     ));
+
+    // Keep the fast incumbents and original restarts; spend bounded extra work on new neighborhoods.
+    if (options.enableLocalSearch !== false && iteration % 4 === 0 && bestResult && !options.shouldCancel?.()) {
+      const revision = routeCandidateSignature(bestResult);
+      if (branchAttempts < 64 && revision !== branchRevision) {
+        branchRevision = revision;
+        branchSolution = compactRequiredSolution({
+          nodeIndexes: new Set(bestResult.totalNodeIds.map((id) => indexedGraph.nodeIndexById.get(id)!)),
+          edgeKeys: new Set(bestResult.totalEdgeKeys),
+        }, terminals, indexedGraph, baseEdgeKeys);
+        branchChains = branchSolution ? removableTravelChains(branchSolution, terminals, indexedGraph).slice(0, 64) : [];
+        nextChain = 0;
+        if (branchSolution) considerCandidate(routeCandidateFromSolution("connected-branch cleanup", branchSolution, baseNodeIds, baseEdgeKeys, indexedGraph));
+      }
+      for (let attempt = 0; attempt < 2 && nextChain < branchChains.length && branchAttempts < 64 && !options.shouldCancel?.(); attempt += 1) {
+        branchAttempts += 1;
+        const replacement = reconnectTravelChain(branchSolution!, branchChains[nextChain++], terminals, indexedGraph, baseEdgeKeys);
+        if (replacement) considerCandidate(routeCandidateFromSolution("connected-branch replacement", replacement, baseNodeIds, baseEdgeKeys, indexedGraph));
+      }
+      if (!options.shouldCancel?.()) {
+        junctions ??= rankedSharedJunctions(terminals, indexedGraph).slice(0, 32);
+        const junction = junctions[nextJunction++];
+        if (junction !== undefined) {
+          const shared = sharedJunctionSolution(junction, terminals, indexedGraph, baseEdgeKeys, options.shouldCancel);
+          if (shared) considerCandidate(routeCandidateFromSolution("shared-junction route", shared, baseNodeIds, baseEdgeKeys, indexedGraph));
+        }
+      }
+    }
 
     iteration += 1;
     seed += 1;
@@ -298,6 +376,141 @@ export function optimizeBuildGoalsAnytime(
 function shouldUseExactShortestTree(graph: TreeGraph, goalCount: number): boolean {
   return goalCount <= maxExactGoalCount
     && (2 ** goalCount) * Object.keys(graph.nodes).length <= maxExactStateCount;
+}
+
+function requiredNodeIndexes(terminals: Terminal[], graph: IndexedGraph): Set<number> {
+  return new Set([
+    ...[...graph.baseNodeSet].map((id) => graph.nodeIndexById.get(id)!),
+    ...terminals.flatMap((terminal) => terminal.nodeIndex === undefined ? [] : [terminal.nodeIndex]),
+  ]);
+}
+
+function solutionAdjacency(solution: SolutionSets, graph: IndexedGraph): Map<number, number[]> {
+  const adjacency = new Map<number, number[]>();
+  for (const key of solution.edgeKeys) {
+    const [from, to] = edgeKeyNodeIds(key);
+    const a = graph.nodeIndexById.get(from), b = graph.nodeIndexById.get(to);
+    if (a === undefined || b === undefined || !solution.nodeIndexes.has(a) || !solution.nodeIndexes.has(b)) continue;
+    for (const [left, right] of [[a, b], [b, a]]) {
+      const neighbors = adjacency.get(left) ?? [];
+      neighbors.push(right);
+      adjacency.set(left, neighbors);
+    }
+  }
+  for (const neighbors of adjacency.values()) neighbors.sort((a, b) => a - b);
+  return adjacency;
+}
+
+function compactRequiredSolution(
+  solution: SolutionSets, terminals: Terminal[], graph: IndexedGraph, baseEdgeKeys: string[],
+): SolutionSets | undefined {
+  const adjacency = solutionAdjacency(solution, graph);
+  const nodes = new Set([...graph.baseNodeSet].map((id) => graph.nodeIndexById.get(id)!));
+  const edges = new Set(baseEdgeKeys);
+  const queue = [...nodes];
+  for (let i = 0; i < queue.length; i += 1) for (const next of adjacency.get(queue[i]) ?? []) {
+    if (nodes.has(next)) continue;
+    nodes.add(next); queue.push(next);
+    edges.add(treeEdgeKey(graph.nodeIds[queue[i]], graph.nodeIds[next]));
+  }
+  if ([...requiredNodeIndexes(terminals, graph)].some((index) => !nodes.has(index))) return undefined;
+  return pruneSolution({ nodeIndexes: nodes, edgeKeys: edges }, terminals, graph);
+}
+
+function rankedSharedJunctions(terminals: Terminal[], graph: IndexedGraph): number[] {
+  const required = requiredNodeIndexes(terminals, graph);
+  const ranked: { index: number; saving: number; distance: number }[] = [];
+  for (let index = 0; index < graph.nodeIds.length; index += 1) {
+    if (required.has(index) || graph.adjacency[index].length < 3) continue;
+    const nearest: { terminal: number; distance: number }[] = [];
+    for (let t = 0; t < terminals.length; t += 1) {
+      const distance = terminals[t].search.costs[index];
+      if (!Number.isFinite(distance)) continue;
+      if (nearest.length < 3 || distance < nearest[2].distance) {
+        nearest.push({ terminal: t, distance });
+        nearest.sort((a, b) => a.distance - b.distance || a.terminal - b.terminal);
+        nearest.length = Math.min(3, nearest.length);
+      }
+    }
+    if (nearest.length !== 3) continue;
+    const pairCosts = [[0, 1], [0, 2], [1, 2]].map(([a, b]) => {
+      const from = Math.min(nearest[a].terminal, nearest[b].terminal);
+      const to = Math.max(nearest[a].terminal, nearest[b].terminal);
+      return terminals[from].search.costs[terminals[to].nodeIndex!];
+    }).sort((a, b) => a - b);
+    // Ranking only: actual unique-node cost is measured after materialization, not inferred here.
+    const starCost = nearest.reduce((sum, item) => sum + item.distance, 0) - 2 * graph.nodeCosts[index];
+    ranked.push({ index, saving: pairCosts[0] + pairCosts[1] - starCost, distance: starCost });
+  }
+  return ranked.sort((a, b) => b.saving - a.saving || a.distance - b.distance || a.index - b.index).map((item) => item.index);
+}
+
+function sharedJunctionSolution(
+  junction: number, terminals: Terminal[], graph: IndexedGraph, baseEdgeKeys: string[], shouldCancel?: () => boolean,
+): SolutionSets | undefined {
+  const solution: SolutionSets = {
+    nodeIndexes: new Set([...graph.baseNodeSet].map((id) => graph.nodeIndexById.get(id)!)),
+    edgeKeys: new Set(baseEdgeKeys),
+  };
+  for (const terminal of terminals) {
+    if (shouldCancel?.() || !Number.isFinite(terminal.search.costs[junction])) return undefined;
+    const path = routeNodeIndexesFromSearch(terminal.search, junction);
+    path.forEach((index) => solution.nodeIndexes.add(index));
+    addRouteEdgeKeys(path, graph.nodeIds, solution.edgeKeys);
+  }
+  return compactRequiredSolution(solution, terminals, graph, baseEdgeKeys);
+}
+
+function removableTravelChains(solution: SolutionSets, terminals: Terminal[], graph: IndexedGraph): number[][] {
+  const adjacency = solutionAdjacency(solution, graph);
+  const fixed = requiredNodeIndexes(terminals, graph);
+  const anchors = new Set([...solution.nodeIndexes].filter((index) => fixed.has(index) || adjacency.get(index)?.length !== 2));
+  const visited = new Set<string>();
+  const chains: number[][] = [];
+  for (const anchor of [...anchors].sort((a, b) => a - b)) for (const neighbor of adjacency.get(anchor) ?? []) {
+    const firstKey = treeEdgeKey(graph.nodeIds[anchor], graph.nodeIds[neighbor]);
+    if (visited.has(firstKey)) continue;
+    visited.add(firstKey);
+    const interior: number[] = [];
+    let previous = anchor, current = neighbor;
+    while (!anchors.has(current)) {
+      interior.push(current);
+      const next = adjacency.get(current)!.find((index) => index !== previous)!;
+      const key = treeEdgeKey(graph.nodeIds[current], graph.nodeIds[next]);
+      if (visited.has(key)) break;
+      visited.add(key);
+      previous = current; current = next;
+    }
+    if (interior.length) chains.push(interior);
+  }
+  return chains.sort((a, b) => b.length - a.length || a[0] - b[0]);
+}
+
+function reconnectTravelChain(
+  solution: SolutionSets, removed: number[], terminals: Terminal[], graph: IndexedGraph, baseEdgeKeys: string[],
+): SolutionSets | undefined {
+  const removedSet = new Set(removed);
+  const remaining: SolutionSets = {
+    nodeIndexes: new Set([...solution.nodeIndexes].filter((index) => !removedSet.has(index))),
+    edgeKeys: new Set([...solution.edgeKeys].filter((key) => edgeKeyNodeIds(key).every((id) => !removedSet.has(graph.nodeIndexById.get(id)!)))),
+  };
+  const adjacency = solutionAdjacency(remaining, graph);
+  const root = graph.nodeIndexById.get([...graph.baseNodeSet][0])!;
+  const connected = new Set([root]), queue = [root];
+  for (let i = 0; i < queue.length; i += 1) for (const next of adjacency.get(queue[i]) ?? []) {
+    if (!connected.has(next)) { connected.add(next); queue.push(next); }
+  }
+  const detached = [...remaining.nodeIndexes].filter((index) => !connected.has(index));
+  if (detached.length) {
+    const costs = graph.nodeCosts.map((cost, index) => remaining.nodeIndexes.has(index) ? 0 : cost);
+    const search = findShortestNodeCostRoutes([...connected], graph.adjacency, costs);
+    const target = detached.reduce((best, index) => search.costs[index] < search.costs[best] ? index : best, detached[0]);
+    if (!Number.isFinite(search.costs[target]) || search.costs[target] >= removed.length) return undefined;
+    const path = routeNodeIndexesFromSearch(search, target);
+    path.forEach((index) => remaining.nodeIndexes.add(index));
+    addRouteEdgeKeys(path, graph.nodeIds, remaining.edgeKeys);
+  }
+  return compactRequiredSolution(remaining, terminals, graph, baseEdgeKeys);
 }
 
 function buildRouteTerminals(goalNodeIds: NodeId[], indexedGraph: IndexedGraph): Terminal[] {

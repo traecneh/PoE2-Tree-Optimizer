@@ -1,3 +1,4 @@
+import { selectPickerOption } from "./testUtils/selectPickerOption";
 import { deflateSync } from "node:zlib";
 import { act, configure, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -56,7 +57,7 @@ describe("App", () => {
     render(<App />);
 
     const helpButton = screen.getByRole("button", { name: "How to use the site" });
-    const tooltip = screen.getByRole("tooltip", { name: "Site usage help" });
+    const tooltip = document.getElementById("site-help-tooltip")!;
 
     expect(helpButton.getAttribute("aria-describedby")).toBe("site-help-tooltip");
     expect(tooltip.textContent).toContain("Ctrl + left click");
@@ -77,15 +78,16 @@ describe("App", () => {
     const savedBuildSelect = within(buildGroup).getByLabelText("Saved build");
     expect(savedBuildSelect).not.toBeNull();
     expectTooltipText(savedBuildSelect, "Load a saved build");
-    expectTooltipText(within(buildGroup).getByLabelText("Build name"), "Name used when saving");
+    expect(within(buildGroup).queryByLabelText("Build name")).toBeNull();
     expectTooltipText(within(buildGroup).getByRole("button", { name: "New build" }), "Start a new unsaved build");
     expectTooltipText(within(buildGroup).getByRole("button", { name: "Save build" }), "Save the current build");
-    expectTooltipText(within(buildGroup).getByRole("button", { name: "Delete build" }), "Delete the selected saved build");
+    expectTooltipText(within(buildGroup).getByRole("button", { name: "Build actions" }), "Rename or delete");
 
     const treeSetupGroup = screen.getByRole("group", { name: "Tree setup" });
     expectTooltipText(within(treeSetupGroup).getByLabelText("Path start"), "class or ascendancy start");
-    expectTooltipText(within(treeSetupGroup).getByLabelText("Node size"), "Scale passive node icons");
-    expectTooltipText(within(treeSetupGroup).getByLabelText("Hover path preview"), "temporary path preview");
+    fireEvent.click(screen.getByRole("button", { name: "View settings" }));
+    expectTooltipText(screen.getByLabelText("Node size"), "Scale passive node icons");
+    expectTooltipText(screen.getByLabelText("Hover path preview"), "temporary path preview");
 
     const allocationGroup = screen.getByRole("group", { name: "Allocation summary" });
     expect(within(allocationGroup).getByText("Allocated 0/123")).not.toBeNull();
@@ -738,14 +740,16 @@ describe("App", () => {
   }
 
   function enableHoverPathPreview() {
+    fireEvent.click(screen.getByRole("button", { name: "View settings" }));
     const toggle = screen.getByLabelText("Hover path preview") as HTMLInputElement;
     fireEvent.click(toggle);
     expect(toggle.checked).toBe(true);
   }
 
   function saveCurrentBuildAs(name: string) {
-    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: name } });
     fireEvent.click(screen.getByRole("button", { name: "Save build" }));
+    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: name } });
+    fireEvent.submit(screen.getByLabelText("Build name").closest("form")!);
   }
 
   function selectSavedBuild(name: string) {
@@ -761,6 +765,7 @@ describe("App", () => {
     render(<App />);
 
     const classStart = screen.getByRole("button", { name: "Mercenary" });
+    fireEvent.click(screen.getByRole("button", { name: "View settings" }));
     expect((screen.getByLabelText("Node size") as HTMLSelectElement).value).toBe("3");
     expect(classStart.querySelector(".node-core")?.getAttribute("r")).toBe("78");
 
@@ -878,7 +883,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "New build" }));
 
     expect(screen.getByText("Allocated 0/123")).not.toBeNull();
-    expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByLabelText("Build name")).toBeNull();
     expect(within(screen.getByRole("region", { name: "Build goals" })).getByText("No build goals selected.")).not.toBeNull();
 
     selectSavedBuild("Crit starter");
@@ -886,7 +891,7 @@ describe("App", () => {
     expect(screen.getByText("Allocated 2/123")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Precise Shot" }).classList.contains("allocated")).toBe(true);
     expect(within(screen.getByRole("region", { name: "Build goals" })).getByText("Precise Shot")).not.toBeNull();
-    expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("Crit starter");
+    expect((screen.getByLabelText("Saved build") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("Crit starter");
   });
 
   it("shows saved build feedback as a temporary toast when saving the same build again", () => {
@@ -924,7 +929,7 @@ describe("App", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("updates, deletes, and persists saved builds across remounts", () => {
+  it("updates, deletes, and persists saved builds across remounts", async () => {
     stubTreeFetch();
 
     const { unmount } = render(<App />);
@@ -941,7 +946,10 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Rename build" }));
     fireEvent.change(screen.getByLabelText("Build name"), { target: { value: "Updated pass" } });
+    fireEvent.submit(screen.getByLabelText("Build name").closest("form")!);
     fireEvent.click(screen.getByRole("button", { name: "Save build" }));
 
     fireEvent.click(screen.getByRole("button", { name: "New build" }));
@@ -950,11 +958,13 @@ describe("App", () => {
     expect(screen.getByText("Allocated 3/123")).not.toBeNull();
     expect(screen.queryByText("First pass")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete build" }));
+    fireEvent.click(screen.getByRole("button", { name: "Build actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete build" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delete build" }));
 
     expect(screen.getByRole("status").textContent).toBe("Deleted Updated pass");
     expect(screen.queryByText("Updated pass")).toBeNull();
-    expect((screen.getByLabelText("Build name") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByLabelText("Build name")).toBeNull();
     expect(screen.getByText("Allocated 0/123")).not.toBeNull();
   });
 
@@ -981,7 +991,7 @@ describe("App", () => {
     fireEvent.change(pathStartSelect, { target: { value: "sorceress" } });
 
     expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Sorceress");
-    expect(screen.getByRole("button", { name: "WITCH" }).classList.contains("path-start")).toBe(true);
+    expect(screen.getByRole("button", { name: "Witch / Sorceress" }).classList.contains("path-start")).toBe(true);
 
     saveCurrentBuildAs("Sorceress alias");
     fireEvent.change(pathStartSelect, { target: { value: "ranger" } });
@@ -990,7 +1000,7 @@ describe("App", () => {
     selectSavedBuild("Sorceress alias");
 
     expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Sorceress");
-    expect(screen.getByRole("button", { name: "WITCH" }).classList.contains("path-start")).toBe(true);
+    expect(screen.getByRole("button", { name: "Witch / Sorceress" }).classList.contains("path-start")).toBe(true);
   });
 
   it("selects ascendancy nodes only for the active combined class option and caps them at eight", async () => {
@@ -1007,7 +1017,7 @@ describe("App", () => {
     fireEvent.change(pathStartSelect, { target: { value: "mercenary:Mercenary3" } });
 
     expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Mercenary - Gemling Legionnaire");
-    expect(screen.getByRole("button", { name: "DUELIST" }).classList.contains("path-start")).toBe(true);
+    expect(screen.getByRole("button", { name: "Mercenary" }).classList.contains("path-start")).toBe(true);
     expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("active-ascendancy")).toBe(true);
     expect(screen.getByRole("button", { name: "Witchhunter Passive" }).classList.contains("inactive-ascendancy")).toBe(true);
     expect(screen.getByText("Ascendancy 0/8")).not.toBeNull();
@@ -1032,8 +1042,9 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 1" }));
 
-    expect(screen.getByText("Ascendancy 1/8")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("allocated")).toBe(true);
+    expect(screen.getByText("Ascendancy 0/8")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("allocated")).toBe(false);
+    expect(screen.getByRole("button", { name: "Gemling Passive 1" }).classList.contains("selected")).toBe(false);
     expect(screen.getByRole("button", { name: "Gemling Passive 2" }).classList.contains("allocated")).toBe(false);
   });
 
@@ -1057,12 +1068,20 @@ describe("App", () => {
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(3);
     expect(document.querySelectorAll(".allocated-highlight-layer .allocated-edge")).toHaveLength(3);
 
-    fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 3" }));
 
     expect(screen.getByText("Ascendancy 2/8")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Gemling Passive 2" }).classList.contains("allocated")).toBe(true);
     expect(screen.getByRole("button", { name: "Gemling Passive 3" }).classList.contains("allocated")).toBe(false);
+    expect(screen.getByRole("button", { name: "Gemling Passive 3" }).classList.contains("selected")).toBe(false);
     expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 3" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gemling Passive 2" }));
+
+    expect(screen.getByText("Ascendancy 1/8")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Gemling Passive 2" }).classList.contains("allocated")).toBe(false);
+    expect(screen.getByRole("button", { name: "Gemling Passive 3" }).classList.contains("allocated")).toBe(false);
+    expect(document.querySelectorAll(".tree-edge.allocated")).toHaveLength(1);
   });
 
   it("counts ascendancy choice nodes as part of their parent point", async () => {
@@ -1321,6 +1340,7 @@ describe("App", () => {
 
     await screen.findByRole("button", { name: "Required Notable" });
 
+    fireEvent.click(screen.getByText("Import PoB...", { selector: "summary" }));
     fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
     fireEvent.click(screen.getByRole("button", { name: "Import PoB goals" }));
 
@@ -1358,6 +1378,7 @@ describe("App", () => {
 
     await screen.findByRole("button", { name: "Weapon Set One Damage" });
 
+    fireEvent.click(screen.getByText("Import PoB...", { selector: "summary" }));
     fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
     const importButton = screen.getByRole("button", { name: "Import PoB goals" }) as HTMLButtonElement;
     await waitFor(() => {
@@ -1407,6 +1428,7 @@ describe("App", () => {
       expect(Array.from(pathStartSelect.options).map((option) => option.textContent)).toContain("Mercenary - Gemling Legionnaire");
     });
 
+    fireEvent.click(screen.getByText("Import PoB...", { selector: "summary" }));
     fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
     fireEvent.click(screen.getByRole("button", { name: "Import PoB goals" }));
 
@@ -1443,12 +1465,13 @@ describe("App", () => {
 
     expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Witch");
 
+    fireEvent.click(screen.getByText("Import PoB...", { selector: "summary" }));
     fireEvent.change(screen.getByLabelText("PoB build code"), { target: { value: code } });
     fireEvent.click(screen.getByRole("button", { name: "Import PoB goals" }));
 
     expect(await screen.findByText(/Path start set to Huntress from PoB/i)).not.toBeNull();
     expect(pathStartSelect.selectedOptions[0]?.textContent).toBe("Huntress");
-    expect(screen.getByRole("button", { name: "RANGER" }).classList.contains("path-start")).toBe(true);
+    expect(screen.getByRole("button", { name: "Ranger / Huntress" }).classList.contains("path-start")).toBe(true);
     expect(screen.getByRole("button", { name: "Required Huntress Notable" }).classList.contains("build-goal")).toBe(true);
   });
 
@@ -1458,10 +1481,10 @@ describe("App", () => {
     expect((screen.getByRole("radio", { name: "Shortest" }) as HTMLInputElement).checked).toBe(true);
     fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
     fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
-    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
     expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "jewelSockets" } });
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "jewelSockets");
     fireEvent.change(screen.getByLabelText("Jewel Sockets priority"), { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
     await screen.findByText("Best route found: 3 points");
@@ -1482,9 +1505,9 @@ describe("App", () => {
     await screen.findByRole("button", { name: "Second Socket" });
     fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
     fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
-    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
     fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "jewelSockets" } });
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "jewelSockets");
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
     await screen.findByText("Best route found: 3 points");
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
@@ -1500,9 +1523,9 @@ describe("App", () => {
     fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
     await screen.findByText("Optimized route: 2 points");
-    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(0);
-    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "jewelSockets" } });
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "jewelSockets");
     fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
     await screen.findByText("Best route found: 3 points");
@@ -1514,8 +1537,8 @@ describe("App", () => {
     render(<App />);
     fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
     fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
-    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
-    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "jewelSockets" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "jewelSockets");
     fireEvent.change(screen.getByLabelText("Point budget"), { target: { value: "all-available" } });
     expect(screen.queryByLabelText("Extra points")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Optimize route" }));
@@ -1528,20 +1551,158 @@ describe("App", () => {
   it("saves and restores weighted settings with a build, and resets them for a new build", () => {
     stubTreeFetch();
     render(<App />);
-    fireEvent.click(screen.getByRole("radio", { name: "Passive preferences" }));
-    fireEvent.change(screen.getByLabelText("Add effect preference"), { target: { value: "energyShield" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "energyShield");
     fireEvent.change(screen.getByLabelText("Energy Shield priority"), { target: { value: "3" } });
     fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "7" } });
-    fireEvent.change(screen.getByLabelText("Build name"), { target: { value: "Weighted shield" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save build" }));
+    saveCurrentBuildAs("Weighted shield");
     const select = screen.getByLabelText("Saved build") as HTMLSelectElement;
     const savedId = select.value;
     fireEvent.click(screen.getByRole("button", { name: "New build" }));
     expect((screen.getByRole("radio", { name: "Shortest" }) as HTMLInputElement).checked).toBe(true);
     fireEvent.change(select, { target: { value: savedId } });
-    expect((screen.getByRole("radio", { name: "Passive preferences" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: "Build Focus" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByLabelText("Extra points") as HTMLInputElement).value).toBe("7");
     expect((screen.getByLabelText("Energy Shield priority") as HTMLSelectElement).value).toBe("3");
+  });
+
+  it("saves a reviewed skill focus and merges suggestions without changing goals, budget or manual priorities", () => {
+    stubTreeFetch();
+    render(<App />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "energyShield");
+    fireEvent.change(screen.getByLabelText("Energy Shield priority"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "7" } });
+    selectPickerOption(screen.getByLabelText("Skill"), "enfeeble");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search reviewed supports" }), { target: { value: "Ritualistic Curse" } });
+    expect(screen.queryByLabelText("Curse Magnitudes priority")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add suggestions" }));
+    expect((screen.getByLabelText("Curse Magnitudes priority") as HTMLSelectElement).value).toBe("3");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use Ritualistic Curse" }));
+    expect((screen.getByLabelText("Curse Activation Speed priority") as HTMLSelectElement).value).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Apply support priorities" }));
+    expect((screen.getByLabelText("Curse Activation Speed priority") as HTMLSelectElement).value).toBe("2");
+    expect((screen.getByLabelText("Energy Shield priority") as HTMLSelectElement).value).toBe("3");
+    expect((screen.getByLabelText("Extra points") as HTMLInputElement).value).toBe("7");
+    expect(screen.getByRole("button", { name: "Remove Precise Shot build goal" })).not.toBeNull();
+    saveCurrentBuildAs("Curse focus");
+    const savedId = (screen.getByLabelText("Saved build") as HTMLSelectElement).value;
+    fireEvent.click(screen.getByRole("button", { name: "New build" }));
+    expect(screen.queryByLabelText("Skill")).toBeNull();
+    fireEvent.change(screen.getByLabelText("Saved build"), { target: { value: savedId } });
+    expect((screen.getByLabelText("Skill") as HTMLSelectElement).value).toBe("enfeeble");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selected supports only" }));
+    expect((screen.getByRole("checkbox", { name: "Use Ritualistic Curse" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText("Curse Activation Speed priority") as HTMLSelectElement).value).toBe("2");
+    expect((screen.getByLabelText("Energy Shield priority") as HTMLSelectElement).value).toBe("3");
+    expect((screen.getByLabelText("Extra points") as HTMLInputElement).value).toBe("7");
+    expect(screen.getByRole("button", { name: "Remove Precise Shot build goal" })).not.toBeNull();
+  });
+
+  it("saves a melee preset and its reviewed supports without changing manual defenses, goals or budget", () => {
+    stubTreeFetch();
+    render(<App />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "energyShield");
+    fireEvent.change(screen.getByLabelText("Energy Shield priority"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "7" } });
+    selectPickerOption(screen.getByLabelText("Skill"), "ice-strike");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search reviewed supports" }), { target: { value: "Concentrated Area" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add suggestions" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use Concentrated Area" }));
+    expect((screen.getByLabelText("Area of Effect priority") as HTMLSelectElement).value).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Apply support priorities" }));
+    expect((screen.getByLabelText("Area of Effect priority") as HTMLSelectElement).value).toBe("2");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search reviewed supports" }), { target: { value: "Rapid Attacks" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use Rapid Attacks I" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use Rapid Attacks II" }));
+    expect((screen.getByRole("checkbox", { name: "Use Rapid Attacks I" }) as HTMLInputElement).checked).toBe(false);
+    saveCurrentBuildAs("Melee focus");
+    const savedId = (screen.getByLabelText("Saved build") as HTMLSelectElement).value;
+    fireEvent.click(screen.getByRole("button", { name: "New build" }));
+    fireEvent.change(screen.getByLabelText("Saved build"), { target: { value: savedId } });
+    expect((screen.getByLabelText("Skill") as HTMLSelectElement).value).toBe("ice-strike");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selected supports only" }));
+    expect((screen.getByLabelText("Area of Effect priority") as HTMLSelectElement).value).toBe("2");
+    expect((screen.getByLabelText("Energy Shield priority") as HTMLSelectElement).value).toBe("3");
+    expect((screen.getByLabelText("Extra points") as HTMLInputElement).value).toBe("7");
+    expect((screen.getByRole("checkbox", { name: "Use Concentrated Area" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("checkbox", { name: "Use Rapid Attacks II" }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Remove Precise Shot build goal" })).not.toBeNull();
+  });
+
+  it("saves a ranged preset with explicitly applied support priorities without changing manual defenses or goals", () => {
+    stubTreeFetch();
+    render(<App />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "energyShield");
+    fireEvent.change(screen.getByLabelText("Energy Shield priority"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "4" } });
+    selectPickerOption(screen.getByLabelText("Skill"), "lightning-spear");
+    fireEvent.click(screen.getByRole("button", { name: "Add suggestions" }));
+    expect(screen.queryByRole("checkbox", { name: "Use Concentrated Area" })).toBeNull();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search reviewed supports" }), { target: { value: "Projectile Acceleration" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use Projectile Acceleration III" }));
+    expect((screen.getByLabelText("Projectile Speed priority") as HTMLSelectElement).value).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "Apply support priorities" }));
+    expect((screen.getByLabelText("Projectile Speed priority") as HTMLSelectElement).value).toBe("3");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search reviewed supports" }), { target: { value: "Rapid Attacks" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use Rapid Attacks I" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Use Rapid Attacks II" }));
+    expect((screen.getByRole("checkbox", { name: "Use Rapid Attacks I" }) as HTMLInputElement).checked).toBe(false);
+    saveCurrentBuildAs("Spear focus");
+    const savedId = (screen.getByLabelText("Saved build") as HTMLSelectElement).value;
+    fireEvent.click(screen.getByRole("button", { name: "New build" }));
+    fireEvent.change(screen.getByLabelText("Saved build"), { target: { value: savedId } });
+    expect((screen.getByLabelText("Skill") as HTMLSelectElement).value).toBe("lightning-spear");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selected supports only" }));
+    expect((screen.getByLabelText("Projectile Speed priority") as HTMLSelectElement).value).toBe("3");
+    expect((screen.getByLabelText("Energy Shield priority") as HTMLSelectElement).value).toBe("3");
+    expect((screen.getByLabelText("Extra points") as HTMLInputElement).value).toBe("4");
+    expect((screen.getByRole("checkbox", { name: "Use Projectile Acceleration III" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("checkbox", { name: "Use Rapid Attacks II" }) as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Remove Precise Shot build goal" })).not.toBeNull();
+  });
+
+  it("keeps weapon critical chance opt-in across suggestions, focus changes and saved builds", () => {
+    stubTreeFetch();
+    render(<App />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "energyShield");
+    fireEvent.change(screen.getByLabelText("Energy Shield priority"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "7" } });
+    selectPickerOption(screen.getByLabelText("Skill"), "ice-strike");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selected supports only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add suggestions" }));
+    expect(screen.queryByLabelText("Critical Hit Chance priority")).toBeNull();
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "criticalChance");
+    fireEvent.change(screen.getByLabelText("Critical Hit Chance priority"), { target: { value: "2" } });
+    expect(document.getElementById("preference-criticalChance-tooltip")?.textContent).toContain("Critical Hit Chance with Quarterstaves once");
+    selectPickerOption(screen.getByLabelText("Skill"), "lightning-spear");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selected supports only" }));
+    expect((screen.getByLabelText("Critical Hit Chance priority") as HTMLSelectElement).value).toBe("2");
+    expect(document.getElementById("preference-criticalChance-tooltip")?.textContent).toContain("Critical Hit Chance with Spears once");
+    saveCurrentBuildAs("Optional weapon crit");
+    const savedId = (screen.getByLabelText("Saved build") as HTMLSelectElement).value;
+    fireEvent.click(screen.getByRole("button", { name: "New build" }));
+    fireEvent.change(screen.getByLabelText("Saved build"), { target: { value: savedId } });
+    expect((screen.getByLabelText("Skill") as HTMLSelectElement).value).toBe("lightning-spear");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selected supports only" }));
+    expect((screen.getByLabelText("Critical Hit Chance priority") as HTMLSelectElement).value).toBe("2");
+    fireEvent.click(screen.getByRole("button", { name: "Remove Critical Hit Chance preference" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add suggestions" }));
+    expect(screen.queryByLabelText("Critical Hit Chance priority")).toBeNull();
+    expect((screen.getByLabelText("Energy Shield priority") as HTMLSelectElement).value).toBe("3");
+    expect((screen.getByLabelText("Extra points") as HTMLInputElement).value).toBe("7");
+    expect(screen.getByRole("button", { name: "Remove Precise Shot build goal" })).not.toBeNull();
   });
 
   it("optimizes build goals into a preview without applying the route", async () => {
@@ -1637,7 +1798,7 @@ describe("App", () => {
 
     expect(screen.getByText("Allocation path")).not.toBeNull();
     expect(screen.getByText("2 points")).not.toBeNull();
-    expect(screen.getByText("Mercenary -> Projectile Damage -> Precise Shot")).not.toBeNull();
+    expect([...document.querySelectorAll("#allocation-path-nodes li")].map(node => node.textContent)).toEqual(["Mercenary", "Projectile Damage", "Precise Shot"]);
     expect(screen.getByRole("button", { name: "Projectile Damage" }).classList.contains("allocation-path")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(2);
   });
@@ -1679,6 +1840,7 @@ describe("App", () => {
     expect(target.classList.contains("hover-allocation-path")).toBe(false);
     expect(document.querySelectorAll(".tree-edge.hover-allocation-path")).toHaveLength(0);
 
+    fireEvent.click(screen.getByRole("button", { name: "View settings" }));
     fireEvent.click(screen.getByLabelText("Hover path preview"));
     fireEvent.mouseEnter(target, { clientX: 220, clientY: 140 });
 
@@ -1780,7 +1942,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
 
     expect(screen.getByText("1 point")).not.toBeNull();
-    expect(screen.getByText("Precise Shot -> Jewel Socket")).not.toBeNull();
+    expect([...document.querySelectorAll("#allocation-path-nodes li")].map(node => node.textContent)).toEqual(["Precise Shot", "Jewel Socket"]);
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(1);
   });
 
@@ -1842,7 +2004,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
 
     expect(screen.getByText("1 point")).not.toBeNull();
-    expect(screen.getByText("Mercenary -> Near Start Branch")).not.toBeNull();
+    expect([...document.querySelectorAll("#allocation-path-nodes li")].map(node => node.textContent)).toEqual(["Mercenary", "Near Start Branch"]);
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Allocate path" }));
@@ -1863,13 +2025,13 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Jewel Socket" }));
 
     expect(screen.getByText("3 points")).not.toBeNull();
-    expect(screen.getByText("Mercenary -> Projectile Damage -> Precise Shot -> Jewel Socket")).not.toBeNull();
+    expect([...document.querySelectorAll("#allocation-path-nodes li")].map(node => node.textContent)).toEqual(["Mercenary", "Projectile Damage", "Precise Shot", "Jewel Socket"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Near Start Branch" }));
 
     expect(screen.getByText("Allocated 0/123")).not.toBeNull();
     expect(screen.getByText("1 point")).not.toBeNull();
-    expect(screen.getByText("Mercenary -> Near Start Branch")).not.toBeNull();
+    expect([...document.querySelectorAll("#allocation-path-nodes li")].map(node => node.textContent)).toEqual(["Mercenary", "Near Start Branch"]);
     expect(screen.getByRole("button", { name: "Jewel Socket" }).classList.contains("allocation-path")).toBe(true);
     expect(screen.getByRole("button", { name: "Near Start Branch" }).classList.contains("allocation-path")).toBe(true);
     expect(document.querySelectorAll(".tree-edge.allocation-path")).toHaveLength(4);

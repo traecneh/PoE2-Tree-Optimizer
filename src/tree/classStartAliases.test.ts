@@ -1,6 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { buildClassStartOptions, resolveClassStartOptionFromPobMetadata } from "./classStartAliases";
+import { buildClassStartOptions, resolveClassStartOptionFromPobMetadata, withClassStartDisplayNames } from "./classStartAliases";
+import { searchPassiveTree } from "./passiveSearch";
 import type { TreeGraph } from "./types";
+
+describe("main class-start display names", () => {
+  it("labels all six physical roots using current class aliases, including both shared starts", () => {
+    const graph = fixtureGraph({ WITCH: "w", RANGER: "r", MARAUDER: "m", DUELIST: "d", SIX: "s", TEMPLAR: "t" });
+    const display = withClassStartDisplayNames(graph);
+    expect(Object.fromEntries(Object.values(display.nodes).map((n) => [n.id, n.name]))).toEqual({
+      w: "Witch / Sorceress", r: "Ranger / Huntress", m: "Warrior", d: "Mercenary", s: "Monk", t: "Druid",
+    });
+    expect(buildClassStartOptions(display)).toEqual(buildClassStartOptions(graph));
+    expect(display.classStarts).toBe(graph.classStarts);
+    expect(display.edges).toBe(graph.edges);
+    expect(display.groups).toBe(graph.groups);
+    expect(display.bounds).toBe(graph.bounds);
+    for (const id of Object.keys(graph.nodes)) {
+      expect(display.nodes[id]).toEqual({ ...graph.nodes[id], name: display.nodes[id].name });
+      expect(display.nodes[id].position).toBe(graph.nodes[id].position);
+    }
+    expect(graph.nodes.s.name).toBe("SIX");
+    expect(graph.nodes.m.name).toBe("MARAUDER");
+    expect(withClassStartDisplayNames(display)).toBe(display);
+  });
+
+  it("supports searching by either shared class without exposing legacy labels", () => {
+    const graph = withClassStartDisplayNames(fixtureGraph({ WITCH: "w", RANGER: "r", MARAUDER: "m", DUELIST: "d", SIX: "s", TEMPLAR: "t" }));
+    for (const [query, id] of [["witch", "w"], ["sorceress", "w"], ["ranger", "r"], ["huntress", "r"], ["warrior", "m"], ["mercenary", "d"], ["monk", "s"], ["druid", "t"]]) {
+      expect(searchPassiveTree(graph, query).map((r) => r.node.id)).toEqual([id]);
+    }
+    for (const query of ["six", "duelist", "marauder", "templar"]) expect(searchPassiveTree(graph, query)).toEqual([]);
+  });
+
+  it("leaves unknown roots, ordinary passives and ascendancy starts unchanged", () => {
+    const graph = fixtureGraph({ WITCH: "w", SIX: "s", Unknown: "u" });
+    graph.nodes.w.flags = { classStart: true, ascendancy: true };
+    graph.nodes.s.flags = { notable: true };
+    expect(withClassStartDisplayNames(graph)).toBe(graph);
+  });
+});
 
 describe("buildClassStartOptions", () => {
   it("exposes current PoE2 classes while sharing the six physical graph roots", () => {

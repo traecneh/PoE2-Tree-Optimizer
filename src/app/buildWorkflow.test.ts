@@ -148,6 +148,14 @@ describe("build workflow helpers", () => {
     expect(canAddBuildGoal(treeNode("small", { small: true }), { allowAnyPassive: true })).toBe(true);
     expect(canAddBuildGoal(treeNode("start", { classStart: true }), { allowAnyPassive: true })).toBe(false);
   });
+  it.each([
+    { ascendancy: true, small: true }, { ascendancy: true, notable: true }, { mastery: true, notable: true }, { classStart: true, notable: true },
+  ])("keeps manual-only/start nodes out of every goal-entry action: %j", (flags) => {
+    const node = treeNode("manual-only", flags);
+    expect(isBuildGoalableNode(node)).toBe(false);
+    expect(canAddBuildGoal(node, { allowAnyPassive: true })).toBe(false);
+    expect(canAddBuildGoal(node, {})).toBe(false);
+  });
 });
 
 function classStartOption(id: string, label: string, nodeId: string): ClassStartOption {

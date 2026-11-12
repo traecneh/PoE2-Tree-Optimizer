@@ -60,13 +60,11 @@ describe("BuildSummaryPanel", () => {
     expect(screen.getByText("20% increased Projectile Damage")).not.toBeNull();
     expect(screen.getByText("+15 to Strength")).not.toBeNull();
     expect(screen.getByText("Minions have 6% increased Attack Speed")).not.toBeNull();
-    expect(screen.getByText("Minions have 6% increased Attack Speed").closest("li")?.getAttribute("title")).toBe(
-      "2 sources: Minion Speed Small; Minion Speed Notable",
-    );
+    expect(screen.getByRole("button", { name: "Sources for Minions have 6% increased Attack Speed" }).getAttribute("aria-describedby")).toBeTruthy();
+    expect(screen.getByText("Minions have 6% increased Attack Speed").closest("li")?.textContent).toContain("Minion Speed Small");
     expect(screen.getByText("Cannot be Stunned")).not.toBeNull();
-    expect(screen.getByText("Cannot be Stunned").closest("li")?.getAttribute("title")).toBe(
-      "2 sources: Notable A; Notable B",
-    );
+    expect(screen.getByRole("button", { name: "Sources for Cannot be Stunned" })).not.toBeNull();
+    expect(screen.getByText("Cannot be Stunned").closest("li")?.textContent).toContain("Notable B");
     expect(screen.getByText("x2")).not.toBeNull();
   });
 
@@ -104,7 +102,8 @@ describe("BuildSummaryPanel", () => {
 
     const effect = screen.getByText("Adds 2 to 14 Lightning damage to Attacks");
     expect(effect.closest("section")?.querySelector("h3")?.textContent).toBe("Totals");
-    expect(effect.closest("li")?.getAttribute("title")).toBe("2 sources: Projectile Damage; Precise Shot");
+    expect(screen.getByRole("button", { name: "Sources for Adds 2 to 14 Lightning damage to Attacks" })).not.toBeNull();
+    expect(effect.closest("li")?.textContent).toContain("Precise Shot");
     expect(screen.queryByText("Adds 1 to 7 Lightning damage to Attacks")).toBeNull();
     expect(screen.queryByText("x2")).toBeNull();
     expect(screen.getByText("2 allocated points")).not.toBeNull();

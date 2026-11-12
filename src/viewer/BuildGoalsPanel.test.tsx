@@ -4,6 +4,36 @@ import { sampleGraph } from "../tree/sampleGraph";
 import { BuildGoalsPanel } from "./BuildGoalsPanel";
 
 describe("BuildGoalsPanel", () => {
+  it.each(["spell-totem","ancestral-warrior-totem","mirage-archer","cast-on-critical","blasphemy","feral-invocation"])("requires %s's source for weighted mode only", focusSkillId => {
+    const props = { goals: [{ node: Object.values(sampleGraph.nodes).find(n => !n.flags.classStart)!, reached: false }],
+      status: { kind: "idle" as const }, pobImportCode: "", pobImportStatus: { kind: "idle" as const }, canApplyOptimizedRoute: false,
+      onPobImportCodeChange: vi.fn(), onImportPobBuildGoals: vi.fn(), onRemoveGoal: vi.fn(), onClearGoals: vi.fn(),
+      onOptimize: vi.fn(), onCancel: vi.fn(), onApplyOptimizedRoute: vi.fn(), onOptimizerSettingsChange: vi.fn() };
+    const settings = { mode: "weighted" as const, focusSkillId, extraPointBudget: 3, preferences: [{ id: "totemDamage" as const, weight: 3 }] };
+    const { rerender } = render(<BuildGoalsPanel {...props} optimizerSettings={settings} />);
+    expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(true);
+    rerender(<BuildGoalsPanel {...props} optimizerSettings={{ ...settings, socketedProxySkillId: focusSkillId === "blasphemy" ? "enfeeble" : focusSkillId === "feral-invocation" ? "maul" : focusSkillId === "mirage-archer" ? "lightning-arrow" : ["spell-totem","cast-on-critical"].includes(focusSkillId) ? "fireball" : "armour-breaker" }} />);
+    expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(false);
+    rerender(<BuildGoalsPanel {...props} optimizerSettings={{ ...settings, socketedProxySkillId: "spark" }} />);
+    expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(true);
+    rerender(<BuildGoalsPanel {...props} optimizerSettings={{ ...settings, mode: "shortest" }} />);
+    expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("requires Mortar's reviewed Grenade before weighted optimization, but not Shortest", () => {
+    const props = { goals: [{ node: Object.values(sampleGraph.nodes).find((n) => !n.flags.classStart)!, reached: false }],
+      status: { kind: "idle" as const }, pobImportCode: "", pobImportStatus: { kind: "idle" as const }, canApplyOptimizedRoute: false,
+      onPobImportCodeChange: vi.fn(), onImportPobBuildGoals: vi.fn(), onRemoveGoal: vi.fn(), onClearGoals: vi.fn(),
+      onOptimize: vi.fn(), onCancel: vi.fn(), onApplyOptimizedRoute: vi.fn(), onOptimizerSettingsChange: vi.fn() };
+    const settings = { mode: "weighted" as const, focusSkillId: "mortar-cannon", extraPointBudget: 3, preferences: [{ id: "totemDamage" as const, weight: 3 }] };
+    const { rerender } = render(<BuildGoalsPanel {...props} optimizerSettings={settings} />);
+    expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(true);
+    rerender(<BuildGoalsPanel {...props} optimizerSettings={{ ...settings, socketedGrenadeId: "explosive-grenade" }} />);
+    expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(false);
+    rerender(<BuildGoalsPanel {...props} optimizerSettings={{ ...settings, mode: "shortest" }} />);
+    expect((screen.getByRole("button", { name: "Optimize route" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -301,6 +331,8 @@ describe("BuildGoalsPanel", () => {
     );
 
     expectTooltipText(screen.getByRole("button", { name: "Clear goals" }), "Remove every selected build goal");
+    expect(document.querySelector(".pob-import-disclosure")?.hasAttribute("open")).toBe(false);
+    fireEvent.click(screen.getByText("Import PoB...", { selector: "summary" }));
     expectTooltipText(screen.getByLabelText("PoB build code"), "Paste a Path of Building code");
     expectTooltipText(screen.getByRole("button", { name: "Import PoB goals" }), "Decode the pasted PoB code");
     expectTooltipText(screen.getByRole("button", { name: "Remove Precise Shot build goal" }), "Remove this goal");

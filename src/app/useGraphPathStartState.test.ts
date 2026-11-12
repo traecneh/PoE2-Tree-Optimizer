@@ -25,7 +25,10 @@ describe("useGraphPathStartState", () => {
 
     await waitFor(() => expect(result.current.graphLoadStatus).toBe("loaded"));
 
-    expect(result.current.graph).toBe(loadedGraph);
+    expect(result.current.graph.nodes.mercenary_start.name).toBe("Mercenary");
+    expect(result.current.graph.nodes.ranger_start.name).toBe("Ranger / Huntress");
+    expect(result.current.graph.edges).toBe(loadedGraph.edges);
+    expect(loadedGraph.nodes.mercenary_start.name).toBe("DUELIST");
     expect(result.current.selectedClassStartOption?.label).toBe("Mercenary");
     expect(result.current.pathStartNodeId).toBe("mercenary_start");
   });

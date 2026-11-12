@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "unitsPerScore": 60,
+  "meaning": "Literal per-stat proxy rewards reviewed for the four frozen profiles, not game DPS. Unlisted lines are errors, never automatic zero. Fixed outside-node rewards are constant and do not affect the local comparison.",
+  "profiles": {
+    "spectres": { "minionDamage": { "weight": 2, "scale": 10 }, "minionSpeed": { "weight": 1, "scale": 3 } },
+    "wolfpack": { "companionDamage": { "weight": 2, "scale": 10 }, "companionAttackSpeed": { "weight": 1, "scale": 3 }, "minionDamage": { "weight": 1, "scale": 10 } },
+    "chaos-dot": { "chaosDamage": { "weight": 2, "scale": 10 }, "damageOverTime": { "weight": 2, "scale": 10 }, "skillDuration": { "weight": 1, "scale": 10 } },
+    "warbringer-partial": { "life": { "weight": 2, "scale": 3 }, "armour": { "weight": 1, "scale": 12 } }
+  },
+  "valued": [
+    { "text": "10% increased Armour", "units": { "warbringer-partial": 50 }, "reason": "10 / 12 * 1 * 60 = 50; unconditional player Armour." },
+    { "text": "15% increased Armour", "units": { "warbringer-partial": 75 }, "reason": "15 / 12 * 1 * 60 = 75." },
+    { "text": "18% increased Armour", "units": { "warbringer-partial": 90 }, "reason": "18 / 12 * 1 * 60 = 90." },
+    { "text": "30% increased Armour", "units": { "warbringer-partial": 150 }, "reason": "30 / 12 * 1 * 60 = 150." },
+    { "text": "7% increased Chaos Damage", "units": { "chaos-dot": 84 }, "reason": "7 / 10 * 2 * 60 = 84; player Chaos Damage, not minion damage." },
+    { "text": "Minions deal 10% increased Damage", "units": { "spectres": 120, "wolfpack": 60 }, "reason": "10 / 10 * selected weight * 60; the two profiles deliberately give this preference different weights." },
+    { "text": "Minions have 5% increased Attack and Cast Speed", "units": { "spectres": 200 }, "reason": "(5 / 3 + 5 / 3) * 60 = 200 for the explicitly combined Minion Speed preference. Wolf Pack selects Companion Attack Speed, not Minion Speed; no automatic preference expansion." }
+  ],
+  "zeroGroups": [
+    {
+      "reason": "Unselected player offence, attribute or area preferences; not inherited by the selected minion preferences and not the requested DoT/Life/Armour modifiers.",
+      "texts": ["+5 to any Attribute", "10% increased Elemental Damage", "10% increased Physical Damage", "10% increased Thorns damage", "12% increased Fire Damage", "14% increased Damage with Maces", "16% increased Thorns damage", "18% increased Stun Buildup with Maces", "2% increased Cast Speed", "3% increased Cast Speed", "6% increased Area of Effect", "6% increased Area of Effect for Attacks", "6% increased Spell Damage", "6% increased Spell Damage with Spells that cost Life", "Gain 2 Rage when Hit by an Enemy"]
+    },
+    {
+      "reason": "Unselected player recovery, Energy Shield, Block or incoming-debuff mechanics. Regeneration, Recoup and leech are not Maximum Life. These are not assumed valueless in-game.",
+      "texts": ["10% increased Life Regeneration rate", "12% increased amount of Life Leeched", "15% increased maximum Energy Shield", "4% increased Block chance", "5% increased Block chance", "5% of Physical Damage prevented Recouped as Life", "5% reduced Slowing Potency of Debuffs on You", "8% of Spell Mana Cost Converted to Life Cost", "Gain additional Ailment Threshold equal to 8% of maximum Energy Shield", "Gain additional Stun Threshold equal to 8% of maximum Energy Shield", "Leech Life 5% slower"]
+    },
+    {
+      "reason": "Conditional Armour, Armour application or equipment-derived Armour are outside the selected unconditional increased-Armour proxy; no mitigation or equipment assumptions are inserted.",
+      "texts": ["+15% of Armour also applies to Cold Damage", "+15% of Armour also applies to Fire Damage", "20% increased Armour if you have been Hit Recently", "20% increased Armour if you haven't been Hit Recently", "Gain Armour equal to 150% of total Strength Requirements of Equipped Boots, Gloves and Helmet"]
+    },
+    {
+      "reason": "Minion Life/recovery, Stun and Command-specific preferences were not selected in these offence audit profiles; Command damage is not generic Minion Damage. No persistent-minion count is assumed.",
+      "texts": ["Minions cause 15% increased Stun Buildup", "Minions deal 10% increased Damage with Command Skills for each different type of Persistent Minion in your Presence", "Minions deal 15% increased Damage with Command Skills", "Minions deal 20% increased Damage with Command Skills", "Minions have 10% increased maximum Life", "Minions have 10% reduced Life Recovery rate", "Minions have 20% increased Cooldown Recovery Rate for Command Skills", "Minions have 40% increased maximum Life"]
+    }
+  ]
+}

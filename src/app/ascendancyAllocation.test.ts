@@ -10,6 +10,24 @@ import {
 } from "./ascendancyAllocation";
 
 describe("ascendancy allocation", () => {
+  it("removes the clicked endpoint and its free choice option", () => {
+    const graph = fixtureGraph();
+    const selectedAscendancy = fixtureAscendancy();
+
+    expect(toggleAscendancyAllocationNodeIds(
+      graph.nodes.choice_option_a,
+      ["choice_parent", "choice_option_a"],
+      graph,
+      selectedAscendancy,
+    )).toEqual(["choice_parent"]);
+    expect(toggleAscendancyAllocationNodeIds(
+      graph.nodes.choice_parent,
+      ["choice_parent", "choice_option_a"],
+      graph,
+      selectedAscendancy,
+    )).toEqual([]);
+  });
+
   it("treats choice parent and selected option as one ascendancy point", () => {
     const graph = fixtureGraph();
     const selectedAscendancy = fixtureAscendancy();

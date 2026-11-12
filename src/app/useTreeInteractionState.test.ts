@@ -7,6 +7,41 @@ import { useTreeInteractionState } from "./useTreeInteractionState";
 import type { WeaponSetAllocationNodeIds } from "./weaponSetAllocation";
 
 describe("useTreeInteractionState", () => {
+  it("clears the selection marker when removing an allocated ascendancy node", () => {
+    const toggleAscendancyAllocationNode = vi.fn();
+    const ascendancyNode = {
+      ...sampleGraph.nodes.precise_shot,
+      flags: { ...sampleGraph.nodes.precise_shot.flags, ascendancy: true },
+    };
+    const graph = {
+      ...sampleGraph,
+      nodes: { ...sampleGraph.nodes, precise_shot: ascendancyNode },
+    };
+    const { result, rerender } = renderHook(({ allocated }: { allocated: string[] }) => {
+      const [allocationPlan, setAllocationPlan] = useState<AllocationPlan>(
+        emptyAllocationPlanForStart("mercenary_start"),
+      );
+      return useTreeInteractionState({
+        visibleGraph: graph,
+        allocationPlan,
+        setAllocationPlan,
+        pathStartNodeId: "mercenary_start",
+        allocationDistanceNodeIds: allocationNodes(allocationPlan),
+        currentAllocationEdgeKeys: allocationEdges(allocationPlan),
+        clearOptimizedRouteState: () => undefined,
+        ascendancyAllocationNodeIds: allocated,
+        toggleAscendancyAllocationNode,
+      });
+    }, { initialProps: { allocated: [] as string[] } });
+
+    act(() => result.current.selectTreeNode("precise_shot"));
+    expect(result.current.selectedNodeId).toBe("precise_shot");
+    rerender({ allocated: ["precise_shot"] });
+    act(() => result.current.selectTreeNode("precise_shot"));
+    expect(result.current.selectedNodeId).toBeUndefined();
+    expect(toggleAscendancyAllocationNode).toHaveBeenCalledTimes(2);
+  });
+
   it("previews and applies allocation paths from the current start", () => {
     const clearOptimizedRouteState = vi.fn();
     const { result } = renderHook(() => {

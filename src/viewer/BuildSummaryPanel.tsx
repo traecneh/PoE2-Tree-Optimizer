@@ -1,11 +1,13 @@
-import { Children, type ReactNode } from "react";
+import { Children, memo, useId, type ReactNode } from "react";
 import type { BuildSummary } from "../tree/buildSummary";
+import { InfoTooltip } from "./ControlTooltip";
 
 type BuildSummaryPanelProps = {
   summary: BuildSummary;
 };
 
-export function BuildSummaryPanel({ summary }: BuildSummaryPanelProps) {
+export const BuildSummaryPanel = memo(function BuildSummaryPanel({ summary }: BuildSummaryPanelProps) {
+  const sourceId = useId();
   const hasStats = summary.summedStats.length > 0 || summary.otherStats.length > 0;
 
   return (
@@ -19,17 +21,19 @@ export function BuildSummaryPanel({ summary }: BuildSummaryPanelProps) {
       ) : (
         <>
           <SummarySection title="Totals" emptyText="No numeric effects yet.">
-            {summary.summedStats.map((stat) => (
-              <li key={stat.key} className="build-summary-stat" title={formatSourceTitle(stat.sourceNodeNames)}>
+            {summary.summedStats.map((stat, index) => (
+              <li key={stat.key} className="build-summary-stat">
                 <span>{stat.text}</span>
+                <InfoTooltip id={`${sourceId}-total-${index}`} label={`Sources for ${stat.text}`}><SourceList names={stat.sourceNodeNames} /></InfoTooltip>
               </li>
             ))}
           </SummarySection>
           <SummarySection title="Other effects" emptyText="No other effects.">
-            {summary.otherStats.map((stat) => (
-              <li key={stat.text} className="build-summary-stat" title={formatSourceTitle(stat.sourceNodeNames)}>
+            {summary.otherStats.map((stat, index) => (
+              <li key={stat.text} className="build-summary-stat">
                 <span>{stat.text}</span>
                 {stat.count > 1 ? <span className="build-summary-count">{`x${stat.count}`}</span> : null}
+                <InfoTooltip id={`${sourceId}-other-${index}`} label={`Sources for ${stat.text}`}><SourceList names={stat.sourceNodeNames} /></InfoTooltip>
               </li>
             ))}
           </SummarySection>
@@ -37,7 +41,7 @@ export function BuildSummaryPanel({ summary }: BuildSummaryPanelProps) {
       )}
     </aside>
   );
-}
+});
 
 type SummarySectionProps = {
   title: string;
@@ -64,7 +68,6 @@ function formatPointCount(pointCount: number): string {
   return `${pointCount} allocated ${pointCount === 1 ? "point" : "points"}`;
 }
 
-function formatSourceTitle(sourceNodeNames: string[]): string | undefined {
-  if (sourceNodeNames.length < 2) return undefined;
-  return `${sourceNodeNames.length} sources: ${sourceNodeNames.join("; ")}`;
+function SourceList({ names }: { names: string[] }) {
+  return <><p>{names.length} {names.length === 1 ? "source" : "sources"}</p><ul>{names.map((name, index) => <li key={index}>{name}</li>)}</ul></>;
 }

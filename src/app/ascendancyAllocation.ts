@@ -109,7 +109,7 @@ export function toggleAscendancyAllocationNodeIds(
   const validCurrent = sanitizeAscendancyAllocationNodeIds(nodeIds, graph, selectedAscendancy);
   const allocatedNodeIndex = validCurrent.indexOf(node.id);
   if (allocatedNodeIndex !== -1) {
-    return validCurrent.slice(0, allocatedNodeIndex + 1);
+    return validCurrent.slice(0, allocatedNodeIndex);
   }
 
   const nextPath = findAscendancyAllocationPath(graph, selectedAscendancy, validCurrent, node.id);

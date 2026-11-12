@@ -9,6 +9,7 @@ import {
 import type { SavedBuild } from "../tree/savedBuilds";
 import type { TreeGraph } from "../tree/types";
 import { sanitizeSavedAllocationPlan, type AllocationPlan } from "./allocationPlan";
+import { deriveWeaponAttachments } from "../tree/allocationConstraints";
 import { sanitizeAscendancyAllocationNodeIds } from "./ascendancyAllocation";
 import {
   canAddBuildGoal,
@@ -35,6 +36,7 @@ type UseSavedBuildWorkflowOptions = {
   setNodeVisualScale: Dispatch<SetStateAction<number>>;
   setActiveAllocationMode: Dispatch<SetStateAction<AllocationMode>>;
   setWeaponSetAllocationNodeIds: Dispatch<SetStateAction<WeaponSetAllocationNodeIds>>;
+  setWeaponSetAttachmentNodeIds?: Dispatch<SetStateAction<string[]>>;
   setBuildGoalNodeIds: Dispatch<SetStateAction<string[]>>;
   setAscendancyAllocationNodeIds: Dispatch<SetStateAction<string[]>>;
   setAppliedOptimizedRouteChoice: Dispatch<SetStateAction<OptimizedRouteChoice | undefined>>;
@@ -63,6 +65,7 @@ export function useSavedBuildWorkflow({
   setNodeVisualScale,
   setActiveAllocationMode,
   setWeaponSetAllocationNodeIds,
+  setWeaponSetAttachmentNodeIds,
   setBuildGoalNodeIds,
   setAscendancyAllocationNodeIds,
   setAppliedOptimizedRouteChoice,
@@ -86,6 +89,7 @@ export function useSavedBuildWorkflow({
     setBuildGoalNodeIds([]);
     setActiveAllocationMode("main");
     setWeaponSetAllocationNodeIds(emptyWeaponSetAllocations());
+    setWeaponSetAttachmentNodeIds?.([]);
     setAppliedOptimizedRouteChoice(undefined);
     restoreOptimizerSettings?.(defaultPassiveOptimizationSettings());
     resetAscendancyAllocation();
@@ -102,6 +106,7 @@ export function useSavedBuildWorkflow({
     setActiveAllocationMode,
     setBuildGoalNodeIds,
     setWeaponSetAllocationNodeIds,
+    setWeaponSetAttachmentNodeIds,
     setSearchFocusedNodeId,
     setSearchQuery,
   ]);
@@ -129,6 +134,9 @@ export function useSavedBuildWorkflow({
     setNodeVisualScale(validNodeVisualScale(build.state.nodeVisualScale, nodeVisualScaleOptions, defaultNodeVisualScale));
     setActiveAllocationMode(build.state.activeAllocationMode);
     setWeaponSetAllocationNodeIds(sanitizeWeaponSetAllocations(build.state.weaponSetAllocationNodeIds, graph));
+    setWeaponSetAttachmentNodeIds?.(build.state.weaponSetAttachmentNodeIds ?? deriveWeaponAttachments(graph,
+      build.state.allocationPlan.previewNodePath.length ? build.state.allocationPlan.previewNodePath : build.state.allocationPlan.committedNodePath,
+      sanitizeWeaponSetAllocations(build.state.weaponSetAllocationNodeIds, graph), nextPathStartNodeId));
     setBuildGoalNodeIds(build.state.buildGoalNodeIds.filter((nodeId) => {
       const node = graph.nodes[nodeId];
       return node && canAddBuildGoal(node, { allowAnyPassive: true });
@@ -156,6 +164,7 @@ export function useSavedBuildWorkflow({
     setSearchQuery,
     setSelectedClassStartId,
     setWeaponSetAllocationNodeIds,
+    setWeaponSetAttachmentNodeIds,
   ]);
 
   const newUnsavedBuild = useCallback((nextStatus = "New unsaved build") => {

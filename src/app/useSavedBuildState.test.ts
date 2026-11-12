@@ -4,6 +4,39 @@ import type { SavedBuildState } from "../tree/savedBuilds";
 import { useSavedBuildState } from "./useSavedBuildState";
 
 describe("useSavedBuildState", () => {
+  it("saves a supplied first-save name atomically and ignores blank names", () => {
+    const store = vi.fn();
+    const { result } = renderHook(() => useSavedBuildState({ createSavedBuildId: () => "new",
+      loadSavedBuilds: () => [], storeSavedBuilds: store, getCurrentState: () => savedBuildState() }));
+    act(() => { result.current.saveCurrentBuild("  "); });
+    expect(store).not.toHaveBeenCalled();
+    act(() => { result.current.saveCurrentBuild(" First save "); });
+    expect(result.current.savedBuilds[0].name).toBe("First save");
+    expect(result.current.savedBuildName).toBe("First save");
+    expect(store).toHaveBeenCalledTimes(1);
+  });
+
+  it("renames only saved metadata, preserving saved state and ignoring blank names", () => {
+    const savedState = savedBuildState();
+    const unsavedState = savedBuildState({ buildGoalNodeIds: ["unsaved-goal"] });
+    const getCurrentState = vi.fn(() => unsavedState);
+    const store = vi.fn();
+    const { result } = renderHook(() => useSavedBuildState({ loadSavedBuilds: () => [{ id: "saved",
+      name: "Original", createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z", state: savedState }],
+      storeSavedBuilds: store, getCurrentState }));
+    act(() => { result.current.loadSavedBuild("saved"); });
+    act(() => { result.current.renameSelectedBuild(" "); });
+    expect(store).not.toHaveBeenCalled();
+    act(() => { result.current.renameSelectedBuild(" Renamed "); });
+    expect(result.current.savedBuilds[0]).toMatchObject({ id: "saved", name: "Renamed", state: savedState });
+    expect(result.current.savedBuilds[0].state).toBe(savedState);
+    expect(result.current.savedBuildName).toBe("Renamed");
+    expect(result.current.savedBuildStatus).toBe("Renamed Renamed");
+    expect(getCurrentState).not.toHaveBeenCalled();
+    act(() => { result.current.saveCurrentBuild(); });
+    expect(result.current.savedBuilds[0].state).toBe(unsavedState);
+  });
+
   it("saves new builds, updates selected builds, and stores changes", () => {
     const storedBuilds: unknown[] = [];
     const storeSavedBuilds = vi.fn((builds: unknown[]) => {

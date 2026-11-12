@@ -2,6 +2,7 @@ import type { TreeGraph } from "../tree/types";
 import type { TreeInteractionNotice } from "../app/useTreeInteractionState";
 import type { AllocationMode } from "../app/weaponSetAllocation";
 import { TreeViewer, type DebugOverlayState } from "./TreeViewer";
+import { ViewSettings } from "./ViewSettings";
 
 type TreeViewerPanelLoadStatus = "loading" | "loaded" | "fallback";
 
@@ -14,6 +15,10 @@ type TreeViewerPanelProps = {
   activeAscendancyId: string | undefined;
   noAllocationPathNodeId: string | undefined;
   nodeVisualScale: number;
+  nodeVisualScaleOptions: readonly number[];
+  hoverPathPreviewEnabled: boolean;
+  onNodeVisualScaleChange: (scale: number) => void;
+  onToggleHoverPathPreview: (enabled: boolean) => void;
   searchMatchNodeIds: ReadonlySet<string>;
   searchFocusedNodeId: string | undefined;
   buildGoalNodeIds: ReadonlySet<string>;
@@ -51,6 +56,10 @@ export function TreeViewerPanel({
   activeAscendancyId,
   noAllocationPathNodeId,
   nodeVisualScale,
+  nodeVisualScaleOptions,
+  hoverPathPreviewEnabled,
+  onNodeVisualScaleChange,
+  onToggleHoverPathPreview,
   searchMatchNodeIds,
   searchFocusedNodeId,
   buildGoalNodeIds,
@@ -119,6 +128,8 @@ export function TreeViewerPanel({
         onAddBuildGoal={onAddBuildGoal}
         onHoverNode={onHoverNode}
         debug={debugOverlayOff}
+        viewportSettings={<ViewSettings nodeVisualScale={nodeVisualScale} nodeVisualScaleOptions={nodeVisualScaleOptions}
+          hoverPathPreviewEnabled={hoverPathPreviewEnabled} onNodeVisualScaleChange={onNodeVisualScaleChange} onToggleHoverPathPreview={onToggleHoverPathPreview} />}
       />
     </section>
   );

@@ -3,6 +3,9 @@
 node_modules/
 dist/
 coverage/
+# Keep tracker sources; the rule above is for generated code-coverage output.
+!tools/coverage/
+!tools/coverage/**
 .playwright-cli/
 output/
 .env

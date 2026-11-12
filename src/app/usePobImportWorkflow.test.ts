@@ -46,6 +46,7 @@ describe("usePobImportWorkflow", () => {
       const [buildGoalNodeIds, setBuildGoalNodeIds] = useState(["101"]);
       const [ascendancyNodeIds, setAscendancyAllocationNodeIds] = useState<string[]>([]);
       const [weaponSetAllocationNodeIds, setWeaponSetAllocationNodeIds] = useState<WeaponSetAllocationNodeIds>({ 1: [], 2: [] });
+      const [weaponSetAttachmentNodeIds, setWeaponSetAttachmentNodeIds] = useState<string[]>([]);
       const [pobImportStatus, setPobImportStatus] = useState<PobBuildImportStatus>({ kind: "idle" });
       const workflow = usePobImportWorkflow({
         graph,
@@ -56,6 +57,7 @@ describe("usePobImportWorkflow", () => {
         pobImportCode,
         setAscendancyAllocationNodeIds,
         setWeaponSetAllocationNodeIds,
+        setWeaponSetAttachmentNodeIds,
         setPobImportStatus,
         applyClassStartOption,
         clearOptimizedRouteState,
@@ -66,6 +68,7 @@ describe("usePobImportWorkflow", () => {
         buildGoalNodeIds,
         ascendancyNodeIds,
         weaponSetAllocationNodeIds,
+        weaponSetAttachmentNodeIds,
         pobImportStatus,
       };
     });
@@ -79,6 +82,7 @@ describe("usePobImportWorkflow", () => {
     expect(result.current.buildGoalNodeIds).toEqual(["101", "103"]);
     expect(result.current.ascendancyNodeIds).toEqual(["201"]);
     expect(result.current.weaponSetAllocationNodeIds).toEqual({ 1: ["104"], 2: ["105"] });
+    expect(result.current.weaponSetAttachmentNodeIds).toEqual(["103"]);
     expect(result.current.pobImportStatus).toMatchObject({
       kind: "success",
       importedGoalCount: 1,
