@@ -1670,7 +1670,7 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Remove Precise Shot build goal" })).not.toBeNull();
   });
 
-  it("keeps weapon critical chance opt-in across suggestions, focus changes and saved builds", () => {
+  it("keeps weapon critical chance opt-in across suggestions and focus changes", () => {
     stubTreeFetch();
     render(<App />);
     fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
@@ -1690,6 +1690,29 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Selected supports only" }));
     expect((screen.getByLabelText("Critical Hit Chance priority") as HTMLSelectElement).value).toBe("2");
     expect(document.getElementById("preference-criticalChance-tooltip")?.textContent).toContain("Critical Hit Chance with Spears once");
+    fireEvent.click(screen.getByRole("button", { name: "Remove Critical Hit Chance preference" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add suggestions" }));
+    expect(screen.queryByLabelText("Critical Hit Chance priority")).toBeNull();
+    expect((screen.getByLabelText("Energy Shield priority") as HTMLSelectElement).value).toBe("3");
+    expect((screen.getByLabelText("Extra points") as HTMLInputElement).value).toBe("7");
+    expect(screen.getByRole("button", { name: "Remove Precise Shot build goal" })).not.toBeNull();
+  });
+
+  it("restores optional weapon critical chance without making it a default suggestion", () => {
+    stubTreeFetch();
+    render(<App />);
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Precise Shot" }), { pointerId: 1, button: 0, ctrlKey: true });
+    fireEvent.pointerUp(screen.getByRole("img", { name: "PoE2 passive skill tree" }), { pointerId: 1 });
+    fireEvent.click(screen.getByRole("radio", { name: "Build Focus" }));
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "energyShield");
+    fireEvent.change(screen.getByLabelText("Energy Shield priority"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Extra points"), { target: { value: "7" } });
+    selectPickerOption(screen.getByLabelText("Skill"), "lightning-spear");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selected supports only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add suggestions" }));
+    expect(screen.queryByLabelText("Critical Hit Chance priority")).toBeNull();
+    selectPickerOption(screen.getByLabelText("Add effect preference"), "criticalChance");
+    fireEvent.change(screen.getByLabelText("Critical Hit Chance priority"), { target: { value: "2" } });
     saveCurrentBuildAs("Optional weapon crit");
     const savedId = (screen.getByLabelText("Saved build") as HTMLSelectElement).value;
     fireEvent.click(screen.getByRole("button", { name: "New build" }));

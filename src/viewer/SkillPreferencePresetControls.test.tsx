@@ -88,58 +88,60 @@ function settings(): PassiveOptimizationSettings {
 }
 
 describe("skill-informed preference controls", () => {
-  it("offers the spell and utility breadth batch with separate damage, recovery and curse controls", async () => {
+  it("offers the complete spell and utility breadth batch in the skill picker", async () => {
+    render(<SkillPreferencePresetControls settings={settings()} onChange={vi.fn()} disabled={false} />);
+    await openPicker(screen.getByRole("combobox", { name: "Skill" }));
+    for (const f of spellUtilityFixtures) expect(screen.getByRole("option", { name: f.name })).toBeTruthy();
+  });
+
+  it.each(["convalescence", "elemental-weakness", "frost-darts", "tornado", "volcano"])("keeps %s damage, recovery and curse controls separate", id => {
     const onChange = vi.fn();
     const initial: PassiveOptimizationSettings = { ...settings(), preferences: [...settings().preferences, { id: "criticalChance", weight: 2 }, { id: "spellDamage", weight: 1 }] };
     let current = initial;
     const { rerender } = render(<SkillPreferencePresetControls settings={current} onChange={onChange} disabled={false} />);
-    await openPicker(screen.getByRole("combobox", { name: "Skill" }));
-    for (const f of spellUtilityFixtures) expect(screen.getByRole("option", { name: f.name })).toBeTruthy();
-    for (const id of ["convalescence","elemental-weakness","frost-darts","tornado","volcano"]) {
-      const f = spellUtilityFixtures.find(f => f.id === id)!;
-      selectPickerOption(screen.getByRole("combobox", { name: "Skill" }), id);
+    const f = spellUtilityFixtures.find(f => f.id === id)!;
+    selectPickerOption(screen.getByRole("combobox", { name: "Skill" }), id);
+    current = onChange.mock.calls.at(-1)![0];
+    rerender(<SkillPreferencePresetControls settings={current} onChange={onChange} disabled={false} />);
+    expect(current.preferences).toEqual(initial.preferences);
+    expect(historicalSupportInputs(screen.getByRole("list", { name: `${f.name} reviewed supports` }))).toHaveLength(f.supports.length);
+    const choose = (name: string) => {
+      fireEvent.click(screen.getByRole("checkbox", { name: `Use ${name}` }));
       current = onChange.mock.calls.at(-1)![0];
       rerender(<SkillPreferencePresetControls settings={current} onChange={onChange} disabled={false} />);
-      expect(current.preferences).toEqual(initial.preferences);
-      expect(historicalSupportInputs(screen.getByRole("list", { name: `${f.name} reviewed supports` }))).toHaveLength(f.supports.length);
-      const choose = (name: string) => {
-        fireEvent.click(screen.getByRole("checkbox", { name: `Use ${name}` }));
-        current = onChange.mock.calls.at(-1)![0];
-        rerender(<SkillPreferencePresetControls settings={current} onChange={onChange} disabled={false} />);
-      };
-      if (id === "convalescence") {
-        expect(screen.queryByRole("checkbox", { name: "Use Mobility" })).toBeNull();
-        expect(screen.queryByRole("checkbox", { name: `Use Spell Damage for ${f.name}` })).toBeNull();
-        expect(screen.getByRole("checkbox", { name: `Use ES Recharge Rate for ${f.name}` })).toBeTruthy();
-        choose("Efficiency II");
-        expect(document.getElementById("support-efficiency-ii-summary")!.textContent).toContain("parent still reserves 30 Spirit");
-      } else if (id === "elemental-weakness") {
-        expect(screen.queryByRole("checkbox", { name: "Use Considered Casting" })).toBeNull();
-        expect(screen.queryByRole("checkbox", { name: `Use Elemental Damage for ${f.name}` })).toBeNull();
-        choose("Ritualistic Curse");
-        expect(document.getElementById("support-ritualistic-curse-summary")!.textContent).toContain("1950 ms");
-        expect(screen.getByRole("button", { name: "Apply support priorities" })).toBeTruthy();
-      } else if (id === "frost-darts") {
-        choose("Controlled Destruction");
-        expect(screen.getByRole("note", { name: "Preferences outside this skill focus" }).textContent).toContain("prevents this supported skill from critically hitting");
-        expect(screen.queryByRole("checkbox", { name: `Use Spell Area Damage for ${f.name}` })).toBeNull();
-        expect(screen.getByRole("checkbox", { name: "Use Projectile Acceleration II" })).toBeTruthy();
-      } else if (id === "tornado") {
-        choose("Concentrated Area");
-        expect(document.getElementById("support-concentrated-area-summary")!.textContent).toContain("no native damage benefit");
-        expect(screen.queryByRole("button", { name: "Apply support priorities" })).toBeNull();
-        expect(screen.queryByRole("checkbox", { name: `Use Spell Area Damage for ${f.name}` })).toBeNull();
-        expect(screen.getByRole("checkbox", { name: `Use Damage over Time for ${f.name}` })).toBeTruthy();
-      } else {
-        choose("Projectile Acceleration II");
-        expect(document.getElementById("support-projectile-acceleration-ii-summary")!.textContent).toContain("Only affects the separate sprays");
-        expect(screen.queryByRole("checkbox", { name: `Use Projectile Damage for ${f.name}` })).toBeNull();
-        choose("Brutality III");
-        for (const effect of ["Spell Damage","Spell Area Damage","Fire Damage"]) expect(screen.queryByRole("checkbox", { name: `Use ${effect} for ${f.name}` })).toBeNull();
-      }
-      expect(current.preferences).toEqual(initial.preferences);
-      expect(current.extraPointBudget).toBe(initial.extraPointBudget);
+    };
+    if (id === "convalescence") {
+      expect(screen.queryByRole("checkbox", { name: "Use Mobility" })).toBeNull();
+      expect(screen.queryByRole("checkbox", { name: `Use Spell Damage for ${f.name}` })).toBeNull();
+      expect(screen.getByRole("checkbox", { name: `Use ES Recharge Rate for ${f.name}` })).toBeTruthy();
+      choose("Efficiency II");
+      expect(document.getElementById("support-efficiency-ii-summary")!.textContent).toContain("parent still reserves 30 Spirit");
+    } else if (id === "elemental-weakness") {
+      expect(screen.queryByRole("checkbox", { name: "Use Considered Casting" })).toBeNull();
+      expect(screen.queryByRole("checkbox", { name: `Use Elemental Damage for ${f.name}` })).toBeNull();
+      choose("Ritualistic Curse");
+      expect(document.getElementById("support-ritualistic-curse-summary")!.textContent).toContain("1950 ms");
+      expect(screen.getByRole("button", { name: "Apply support priorities" })).toBeTruthy();
+    } else if (id === "frost-darts") {
+      choose("Controlled Destruction");
+      expect(screen.getByRole("note", { name: "Preferences outside this skill focus" }).textContent).toContain("prevents this supported skill from critically hitting");
+      expect(screen.queryByRole("checkbox", { name: `Use Spell Area Damage for ${f.name}` })).toBeNull();
+      expect(screen.getByRole("checkbox", { name: "Use Projectile Acceleration II" })).toBeTruthy();
+    } else if (id === "tornado") {
+      choose("Concentrated Area");
+      expect(document.getElementById("support-concentrated-area-summary")!.textContent).toContain("no native damage benefit");
+      expect(screen.queryByRole("button", { name: "Apply support priorities" })).toBeNull();
+      expect(screen.queryByRole("checkbox", { name: `Use Spell Area Damage for ${f.name}` })).toBeNull();
+      expect(screen.getByRole("checkbox", { name: `Use Damage over Time for ${f.name}` })).toBeTruthy();
+    } else {
+      choose("Projectile Acceleration II");
+      expect(document.getElementById("support-projectile-acceleration-ii-summary")!.textContent).toContain("Only affects the separate sprays");
+      expect(screen.queryByRole("checkbox", { name: `Use Projectile Damage for ${f.name}` })).toBeNull();
+      choose("Brutality III");
+      for (const effect of ["Spell Damage","Spell Area Damage","Fire Damage"]) expect(screen.queryByRole("checkbox", { name: `Use ${effect} for ${f.name}` })).toBeNull();
     }
+    expect(current.preferences).toEqual(initial.preferences);
+    expect(current.extraPointBudget).toBe(initial.extraPointBudget);
   });
   it("offers the remaining attack closure batch with explicit component and compatibility boundaries", async () => {
     const onChange = vi.fn();
